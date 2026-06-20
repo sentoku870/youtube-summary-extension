@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube 要約",
+  "version": "1.0",
+  "description": "YouTube動画の字幕を取得しAIで要約する拡張機能",
+  "permissions": ["storage", "activeTab", "tabs", "scripting"],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "https://api.deepseek.com/*",
+    "https://openrouter.ai/*"
+  ],
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "src/background/background.js"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/*", "src/content/ui/sidebar.css"],
+      "matches": ["*://*.youtube.com/*"]
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "YouTube 要約"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/watch*"],
+      "run_at": "document_idle",
+      "js": [
+        "src/domain/transcript-fetcher.js",
+        "vendor/marked.min.js",
+        "vendor/purify.min.js",
+        "src/infrastructure/errors.js",
+        "src/shared/utils.js",
+        "src/domain/markdown.js",
+        "src/infrastructure/storage.js",
+        "src/domain/api.js",
+        "src/content/ui/panel.js",
+        "src/domain/transcript.js",
+        "src/domain/ai.js",
+        "src/content/ui/ui.js",
+        "src/content/ui/tabs.js",
+        "src/content/ui/sidebar.js",
+        "src/content/index.js"
+      ]
+    }
+  ]
+}

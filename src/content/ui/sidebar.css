@@ -1,0 +1,398 @@
+/* ============================================================
+   sidebar.css — YouTube 要約サイドバースタイル（sticky配置版）
+   ============================================================ */
+#yt-summary-root {
+  font-family: Arial, sans-serif;
+  font-size: var(--fs-base, 13px);
+  color: #333;
+  width: 100%;
+  min-width: 480px;
+  box-sizing: border-box;
+  --fs-base: 13px;
+  --bg: #f9f9f9;
+  --bg2: #fff;
+  --border: #ddd;
+  --border2: #eee;
+  --text: #333;
+  --text2: #888;
+  --chat-user: #e3f2fd;
+  --chat-ai: #f1f1f1;
+  --btn-bg: #ff0000;
+  --btn-text: #fff;
+
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px;
+  margin-bottom: 4px;
+}
+
+#yt-summary-root[data-theme="dark"] {
+  --bg: #2d2d2d;
+  --bg2: #1e1e1e;
+  --border: #444;
+  --border2: #3a3a3a;
+  --text: #d4d4d4;
+  --text2: #999;
+  --chat-user: #1a3a5c;
+  --chat-ai: #333;
+  --btn-bg: #cc0000;
+}
+
+#yt-summary-root * {
+  box-sizing: border-box;
+}
+
+/* タブ行 */
+#yt-summary-root .ys-tab-row {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+#yt-summary-root .ys-tab-row button {
+  flex: 1;
+  padding: 6px 4px;
+  font-size: calc(var(--fs-base, 13px) + 1px);
+  background: #ddd;
+  color: #666;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: center;
+  font-weight: bold;
+  transition: all .15s;
+}
+
+#yt-summary-root .ys-tab-row button:hover {
+  opacity: .85;
+  background: #ccc;
+}
+
+#yt-summary-root .ys-tab-row button:disabled {
+  background: #999 !important;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+#yt-summary-root .ys-tab-row button.ys-active {
+  background: #ff0000;
+  color: #fff;
+  box-shadow: inset 0 0 4px rgba(0,0,0,.3);
+}
+
+#yt-summary-root .ys-dot {
+  color: #4caf50;
+  font-size: 10px;
+}
+
+#yt-summary-root .ys-tab-row button.ys-active .ys-dot {
+  color: #a5d6a7;
+}
+
+/* 情報行 */
+#yt-summary-root #ys-infoRow {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+  font-size: calc(var(--fs-base, 13px) - 2px);
+}
+
+#yt-summary-root #ys-infoLabel {
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* アクションボタン（コピー・再生成） */
+#yt-summary-root .ys-action-btn {
+  padding: 4px 8px;
+  font-size: calc(var(--fs-base, 13px) - 2px);
+  background: #555;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+#yt-summary-root .ys-action-btn:hover {
+  opacity: 0.85;
+}
+
+#yt-summary-root[data-theme="dark"] .ys-action-btn {
+  background: #666;
+}
+
+/* パネル */
+#yt-summary-root #ys-panel {
+  display: none;
+  background: var(--bg);
+  border: none;
+  border-radius: 3px;
+  padding: 4px;
+  margin-top: 0;
+  max-height: 1100px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* エラー表示 */
+#yt-summary-root #ys-error {
+  color: #d32f2f;
+  background: #fde8e8;
+  border: 1px solid #f5c6cb;
+  border-radius: 3px;
+  padding: 4px;
+  margin-bottom: 4px;
+  font-size: calc(var(--fs-base, 13px) - 1px);
+  display: none;
+  word-break: break-all;
+}
+
+#yt-summary-root[data-theme="dark"] #ys-error {
+  background: #3a1a1a;
+  border-color: #5c2a2a;
+  color: #ff6b6b;
+}
+
+/* 要約テキスト */
+#yt-summary-root #ys-summaryText {
+  font-size: var(--fs-base, 13px);
+  line-height: 1.6;
+  /* white-space は setMarkdown() で動的に制御 */
+  padding: 4px;
+  background: var(--bg2);
+  border: none;
+  border-radius: 3px;
+  min-height: 36px;
+  color: var(--text);
+}
+
+/* ===== マークダウン拡張スタイル ===== */
+
+/* 見出し */
+#yt-summary-root h1, #yt-summary-root h2, #yt-summary-root h3,
+#yt-summary-root h4, #yt-summary-root h5, #yt-summary-root h6 {
+  margin: 8px 0 4px;
+  font-weight: bold;
+  color: var(--text);
+}
+#yt-summary-root h1 { font-size: calc(var(--fs-base, 13px) + 6px); }
+#yt-summary-root h2 { font-size: calc(var(--fs-base, 13px) + 4px); }
+#yt-summary-root h3 { font-size: calc(var(--fs-base, 13px) + 2px); }
+#yt-summary-root h4, #yt-summary-root h5, #yt-summary-root h6 {
+  font-size: calc(var(--fs-base, 13px) + 1px);
+}
+
+/* コードブロック・インラインコード */
+#yt-summary-root pre {
+  background: #f0f0f0;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 8px;
+  overflow-x: auto;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: calc(var(--fs-base, 13px) - 1px);
+  line-height: 1.5;
+  margin: 6px 0;
+  white-space: pre;
+}
+#yt-summary-root code {
+  background: #f0f0f0;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: "Consolas", "Courier New", monospace;
+  font-size: calc(var(--fs-base, 13px) - 1px);
+}
+#yt-summary-root pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+/* 引用 */
+#yt-summary-root blockquote {
+  border-left: 3px solid #ccc;
+  margin: 6px 0;
+  padding: 4px 8px;
+  color: var(--text2);
+  background: var(--bg);
+}
+
+/* 水平線 */
+#yt-summary-root hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+
+/* 段落 */
+#yt-summary-root p {
+  margin: 4px 0;
+}
+
+/* 強調 */
+#yt-summary-root strong, #yt-summary-root b {
+  font-weight: bold;
+}
+#yt-summary-root em, #yt-summary-root i {
+  font-style: italic;
+}
+
+/* リストのインデント改善 */
+#yt-summary-root ul, #yt-summary-root ol {
+  padding-left: 1.5em;
+  margin: 4px 0;
+}
+
+/* リンク */
+#yt-summary-root a {
+  color: #1565c0;
+  text-decoration: underline;
+}
+#yt-summary-root[data-theme="dark"] a {
+  color: #64b5f6;
+}
+
+/* 画像 */
+#yt-summary-root img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+/* ダークテーマ対応 */
+#yt-summary-root[data-theme="dark"] pre,
+#yt-summary-root[data-theme="dark"] code {
+  background: #1a1a1a;
+}
+#yt-summary-root[data-theme="dark"] blockquote {
+  border-color: #555;
+  color: #aaa;
+  background: #1e1e1e;
+}
+
+/* チャット */
+#yt-summary-root #ys-chatArea {
+  display: none;
+  margin-top: 4px;
+}
+
+#yt-summary-root #ys-chatHistory {
+  margin-bottom: 3px;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  padding: 3px;
+  background: var(--bg2);
+}
+
+#yt-summary-root .chat-msg {
+  padding: 3px 5px;
+  margin-bottom: 2px;
+  border-radius: 4px;
+  font-size: calc(var(--fs-base, 13px) - 1px);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
+#yt-summary-root .chat-msg.user {
+  background: var(--chat-user);
+  text-align: right;
+}
+
+#yt-summary-root .chat-msg.assistant {
+  background: var(--chat-ai);
+  text-align: left;
+}
+
+/* チャット入力行 */
+#yt-summary-root .chat-row {
+  display: flex;
+  gap: 3px;
+}
+
+#yt-summary-root .chat-row input {
+  flex: 1;
+  padding: 4px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: calc(var(--fs-base, 13px) - 1px);
+  background: var(--bg2);
+  color: var(--text);
+}
+
+#yt-summary-root .chat-row button {
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: calc(var(--fs-base, 13px) - 2px);
+  cursor: pointer;
+}
+
+#yt-summary-root #ys-chatSendBtn {
+  background: #1565c0;
+  color: #fff;
+}
+
+#yt-summary-root[data-theme="dark"] #ys-chatSendBtn {
+  background: #0d47a1;
+}
+
+#yt-summary-root #ys-chatClearBtn {
+  background: #999;
+  color: #fff;
+}
+
+#yt-summary-root .chat-row button:disabled {
+  background: #bbb !important;
+  cursor: not-allowed;
+}
+
+/* マークダウン */
+#yt-summary-root ul,
+#yt-summary-root ol {
+  list-style-position: inside;
+  padding-left: 0;
+}
+
+#yt-summary-root table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0;
+}
+
+#yt-summary-root td,
+#yt-summary-root th {
+  border: 1px solid var(--border);
+  padding: 4px 6px;
+  text-align: left;
+  font-size: calc(var(--fs-base, 13px) - 1px);
+}
+
+#yt-summary-root th {
+  background: var(--chat-ai);
+  font-weight: bold;
+}
+
+/* スクロールバー */
+#yt-summary-root ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+#yt-summary-root ::-webkit-scrollbar-thumb {
+  background: #bbb;
+  border-radius: 3px;
+}
+
+#yt-summary-root[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #555;
+}
+
+#yt-summary-root ::-webkit-scrollbar-track {
+  background: transparent;
+}

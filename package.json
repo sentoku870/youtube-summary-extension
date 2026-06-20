@@ -1,0 +1,24 @@
+{
+  "name": "youtube-hello-extension",
+  "version": "1.0.0",
+  "description": "YouTube字幕をAIで要約するChrome拡張機能",
+  "scripts": {
+    "test": "jest --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "jest": {
+    "testEnvironment": "jsdom"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.8",
+    "marked": "^18.0.5",
+    "youtube-transcript": "^1.3.1"
+  }
+}
