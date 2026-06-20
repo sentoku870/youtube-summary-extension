@@ -45,11 +45,14 @@ global.YsTabs = {
 };
 
 // chrome.storage.local のモック（require前に設定）
+// runtime.id も含めないと isExtensionContextValid() がfalseになりstorage操作が全てスキップされる
 global.chrome = {
+  runtime: { id: "test-extension-id" },
   storage: {
     local: {
       get: jest.fn(),
-      set: jest.fn()
+      set: jest.fn(),
+      remove: jest.fn()
     }
   }
 };

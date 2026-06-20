@@ -1,12 +1,14 @@
 // tests/storage.test.js — ストレージ層の単体テスト
 const storage = require("../src/infrastructure/storage");
 
-// chrome.storage.local のモック
+// chrome.storage.local のモック（runtime.idも含めないと isExtensionContextValid() がfalseになる）
 global.chrome = {
+  runtime: { id: "test-extension-id" },
   storage: {
     local: {
       get: jest.fn(),
-      set: jest.fn()
+      set: jest.fn(),
+      remove: jest.fn()
     }
   }
 };
