@@ -1,218 +1,255 @@
 // ============================================================
-//  api.js — API呼び出し（リファクタリング版）
+//  api.js — API呼び出し（ESM版）
 //  共通ロジックを抽出し、カスタムエラークラスを利用
 // ============================================================
-(function () {
-  "use strict";
+import { YsAPIError, YsAbortError, YsTimeoutError } from "../infrastructure/errors.js";
+import {
+  API_TIMEOUT_MS,
+  API_MAX_RETRIES_STREAM,
+  API_MAX_RETRIES_NONSTREAM,
+  API_RETRY_BASE_WAIT_MS,
+  API_RETRY_NET_BASE_WAIT_MS,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_TEMPERATURE
+} from "../shared/constants.js";
 
-  // ===== 共通リクエスト設定構築 =====
-  function buildRequestConfig(config, messages, stream) {
-    const headers = {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + config.apiKey,
-    };
-    const isOpenRouter =
-      config.apiUrl && config.apiUrl.indexOf("openrouter.ai") !== -1;
-    if (isOpenRouter) {
-      headers["HTTP-Referer"] = "https://chrome.google.com/webstore";
-      headers["X-Title"] = "YouTube Summary Extension";
-    }
+// ===== OpenRouter 判定（ホスト名ベースの厳密判定） =====
+function isOpenRouterUrl(apiUrl) {
+  if (!apiUrl) return false;
+  try {
+    return new URL(apiUrl).hostname === "openrouter.ai";
+  } catch (e) {
+    // 不正URLは部分一致フォールバック
+    return apiUrl.indexOf("openrouter.ai") !== -1;
+  }
+}
 
-    const body = {
-      model: config.apiModel,
-      messages: messages,
-      max_tokens: parseInt(config.maxTokens || "4096"),
-      temperature: parseFloat(config.temperature || "0.3"),
-      stream: stream,
-    };
-
-    // extraParams のマージ
-    if (config.extraParams) {
-      try {
-        const extra = JSON.parse(config.extraParams);
-        for (const key in extra) {
-          if (extra.hasOwnProperty(key)) body[key] = extra[key];
-        }
-      } catch (e) {
-        console.error("[ys] extraParams JSON parse error:", e);
-      }
-    }
-
-    return { headers: headers, body: JSON.stringify(body) };
+// ===== 共通リクエスト設定構築 =====
+export function buildRequestConfig(config, messages, stream) {
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: "Bearer " + config.apiKey,
+  };
+  if (isOpenRouterUrl(config.apiUrl)) {
+    headers["HTTP-Referer"] = "https://chrome.google.com/webstore";
+    headers["X-Title"] = "YouTube Summary Extension";
   }
 
-  // ===== エラーレスポンス解析 =====
-  async function handleErrorResponse(response) {
-    let errText = "";
+  const body = {
+    model: config.apiModel,
+    messages: messages,
+    max_tokens: parseInt(config.maxTokens || String(DEFAULT_MAX_TOKENS), 10),
+    temperature: parseFloat(config.temperature || String(DEFAULT_TEMPERATURE)),
+    stream: stream,
+  };
+
+  // extraParams のマージ（深いマージで上書きによる破壊を防止）
+  // 例: response_format などのネストしたオプションを安全に統合
+  if (config.extraParams) {
     try {
-      errText = await response.text();
+      const extra = JSON.parse(config.extraParams);
+      deepMergeBody(body, extra);
     } catch (e) {
-      console.error("[ys] failed to read error response body:", e);
+      console.error("[ys] extraParams JSON parse error:", e);
     }
-    let statusMsg = "";
-    if (response.status === 429) {
-      statusMsg = "APIの利用制限中です（レート制限）。しばらく待ってから再試行してください。";
-    } else if (response.status >= 500) {
-      statusMsg = "APIサーバーでエラーが発生しました（" + response.status + "）。後ほど再試行してください。";
+  }
+
+  return { headers: headers, body: JSON.stringify(body) };
+}
+
+// ===== 深いマージ（extraParams 用） =====
+// target は body（既定項目）、src はユーザー指定 extraParams。
+// ネストしたプレーンオブジェクトは再帰マージ、
+// 配列やスカラーは src で上書き（既定の model/messages 等は保護）。
+function deepMergeBody(target, src) {
+  if (!target || typeof target !== "object" || Array.isArray(target)) return target;
+  if (!src || typeof src !== "object" || Array.isArray(src)) return target;
+  for (const key in src) {
+    if (!src.hasOwnProperty(key)) continue;
+    // 既定項目（model, messages, max_tokens, temperature, stream）の
+    // 上書きはユーザー意図が不明瞭なため許容するが、
+    // 安全のため undefined のみ無視
+    const val = src[key];
+    if (val === undefined) continue;
+    const cur = target[key];
+    if (
+      cur && typeof cur === "object" && !Array.isArray(cur) &&
+      val && typeof val === "object" && !Array.isArray(val)
+    ) {
+      // 両側プレーンオブジェクト → 再帰マージ
+      deepMergeBody(cur, val);
     } else {
-      statusMsg = "APIエラー (" + response.status + "): " + (errText.length > 100 ? errText.substring(0, 100) + "..." : errText);
+      target[key] = val;
     }
-    throw new YsAPIError(statusMsg, response.status, response.statusText);
   }
+  return target;
+}
 
-  // ===== リトライ付きAPI呼び出し（abortSignal対応） =====
-  async function fetchWithRetry(url, options, maxRetries) {
-    const externalSignal = options.signal || null;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(function () {
+// ===== エラーレスポンス解析 =====
+export async function handleErrorResponse(response) {
+  let errText = "";
+  try {
+    errText = await response.text();
+  } catch (e) {
+    console.error("[ys] failed to read error response body:", e);
+  }
+  let statusMsg = "";
+  if (response.status === 429) {
+    statusMsg = "APIの利用制限中です（レート制限）。しばらく待ってから再試行してください。";
+  } else if (response.status >= 500) {
+    statusMsg = "APIサーバーでエラーが発生しました（" + response.status + "）。後ほど再試行してください。";
+  } else {
+    statusMsg = "APIエラー (" + response.status + "): " + (errText.length > 100 ? errText.substring(0, 100) + "..." : errText);
+  }
+  throw new YsAPIError(statusMsg, response.status, response.statusText);
+}
+
+// ===== リトライ付きAPI呼び出し（abortSignal対応） =====
+// 戻り値: Response（成功時は ok、リトライ限界到達時は最後のResponse）
+// 例外: ネットワークエラー等で全リトライ失敗時に throw
+export async function fetchWithRetry(url, options, maxRetries) {
+  const externalSignal = options.signal || null;
+  let lastResponse = null;
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(function () {
+      controller.abort();
+    }, API_TIMEOUT_MS);
+    let abortedByExternal = false;
+    let onAbortExternal = null;
+    if (externalSignal) {
+      onAbortExternal = function () {
+        abortedByExternal = true;
         controller.abort();
-      }, 30000);
-      let abortedByExternal = false;
-      let onAbortExternal = null;
-      if (externalSignal) {
-        onAbortExternal = function () {
-          abortedByExternal = true;
-          controller.abort();
-        };
-        externalSignal.addEventListener("abort", onAbortExternal, { once: true });
-      }
-      let response;
-      try {
-        response = await fetch(url, {
-          method: "POST",
-          headers: options.headers,
-          body: options.body,
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
-        if (onAbortExternal && externalSignal) {
-          externalSignal.removeEventListener("abort", onAbortExternal);
-        }
-        if (response.ok) return response;
-        if (
-          (response.status === 429 || response.status >= 500) &&
-          attempt < maxRetries
-        ) {
-          const wait = attempt * 1500;
-          await new Promise(function (r) {
-            setTimeout(r, wait);
-          });
-          continue;
-        }
-        return response;
-      } catch (e) {
-        clearTimeout(timeoutId);
-        if (onAbortExternal && externalSignal) {
-          externalSignal.removeEventListener("abort", onAbortExternal);
-        }
-        if (e instanceof DOMException && e.name === "AbortError") {
-          throw abortedByExternal
-            ? new YsAbortError("API呼び出しが中断されました。")
-            : new YsTimeoutError("API応答が30秒でタイムアウトしました。");
-        }
-        if (attempt < maxRetries) {
-          await new Promise(function (r) {
-            setTimeout(r, attempt * 1000);
-          });
-          continue;
-        }
-        throw e;
-      }
+      };
+      externalSignal.addEventListener("abort", onAbortExternal, { once: true });
     }
-  }
-
-  // ===== SSEパース =====
-  async function readStream(reader, onChunk, onDone) {
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let accumulated = "";
+    let response;
     try {
-      while (true) {
-        const result = await reader.read();
-        if (result.done) break;
-        buffer += decoder.decode(result.value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim();
-          if (line === "data: [DONE]") {
-            onDone(accumulated);
-            return;
-          }
-          if (line.indexOf("data: ") === 0) {
-            const jsonStr = line.substring(6);
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const delta =
-                parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
-              if (delta && delta.content) {
-                accumulated += delta.content;
-                onChunk(accumulated);
-              }
-            } catch (e) {
-              console.error("[ys] JSON parse error in SSE stream:", e);
-            }
-          }
-        }
+      response = await fetch(url, {
+        method: "POST",
+        headers: options.headers,
+        body: options.body,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (onAbortExternal && externalSignal) {
+        externalSignal.removeEventListener("abort", onAbortExternal);
       }
+      if (response.ok) return response;
+      lastResponse = response;
+      lastError = null;
+      if (
+        (response.status === 429 || response.status >= 500) &&
+        attempt < maxRetries
+      ) {
+        const wait = attempt * API_RETRY_BASE_WAIT_MS;
+        await new Promise(function (r) {
+          setTimeout(r, wait);
+        });
+        continue;
+      }
+      return response;
     } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError")
-        throw new YsAbortError("API応答が中断されました。");
-      console.error("[ys] SSE stream read error:", e);
+      clearTimeout(timeoutId);
+      if (onAbortExternal && externalSignal) {
+        externalSignal.removeEventListener("abort", onAbortExternal);
+      }
+      if (e instanceof DOMException && e.name === "AbortError") {
+        throw abortedByExternal
+          ? new YsAbortError("API呼び出しが中断されました。")
+          : new YsTimeoutError("API応答が30秒でタイムアウトしました。");
+      }
+      lastError = e;
+      lastResponse = null;
+      if (attempt < maxRetries) {
+        await new Promise(function (r) {
+          setTimeout(r, attempt * API_RETRY_NET_BASE_WAIT_MS);
+        });
+        continue;
+      }
       throw e;
     }
-    onDone(accumulated);
+  }
+  // ループ終了後のフォールスルー対策:
+  // 直前のリトライでHTTPエラーレスポンスを受けていた場合はそれを返し、
+  // そうでなければ最後のエラーを投げる。それでも不明な場合は安全のためエラー。
+  if (lastResponse) return lastResponse;
+  if (lastError) throw lastError;
+  throw new Error("fetchWithRetry: retries exhausted unexpectedly");
+}
+
+// ===== SSEパース =====
+export async function readStream(reader, onChunk, onDone) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let accumulated = "";
+  try {
+    while (true) {
+      const result = await reader.read();
+      if (result.done) break;
+      buffer += decoder.decode(result.value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (line === "data: [DONE]") {
+          onDone(accumulated);
+          return;
+        }
+        if (line.indexOf("data: ") === 0) {
+          const jsonStr = line.substring(6);
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const delta =
+              parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
+            if (delta && delta.content) {
+              accumulated += delta.content;
+              onChunk(accumulated);
+            }
+          } catch (e) {
+            console.error("[ys] JSON parse error in SSE stream:", e);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError")
+      throw new YsAbortError("API応答が中断されました。");
+    console.error("[ys] SSE stream read error:", e);
+    throw e;
+  }
+  onDone(accumulated);
+}
+
+// ===== 非ストリーミングAPI呼び出し（チャンク処理用、高速） =====
+export async function callChatAPINonStream(messages, config, abortSignal) {
+  const fetchOptions = buildRequestConfig(config, messages, false);
+  if (abortSignal) fetchOptions.signal = abortSignal;
+
+  const response = await fetchWithRetry(config.apiUrl, fetchOptions, API_MAX_RETRIES_NONSTREAM);
+
+  if (!response.ok) {
+    await handleErrorResponse(response);
   }
 
-  // ===== 非ストリーミングAPI呼び出し（チャンク処理用、高速） =====
-  window.callChatAPINonStream = async function callChatAPINonStream(
-    messages,
-    config,
-    abortSignal,
-  ) {
-    const fetchOptions = buildRequestConfig(config, messages, false);
-    if (abortSignal) fetchOptions.signal = abortSignal;
+  const data = await response.json();
+  const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  return content || "";
+}
 
-    const response = await fetchWithRetry(config.apiUrl, fetchOptions, 2);
+// ===== ストリーミングAPI呼び出し（abortSignal対応） =====
+export async function callChatAPIStream(messages, config, onChunk, onDone, abortSignal) {
+  const fetchOptions = buildRequestConfig(config, messages, true);
+  if (abortSignal) fetchOptions.signal = abortSignal;
 
-    if (!response.ok) {
-      await handleErrorResponse(response);
-    }
+  const response = await fetchWithRetry(config.apiUrl, fetchOptions, API_MAX_RETRIES_STREAM);
 
-    const data = await response.json();
-    const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-    return content || "";
-  };
-
-  // ===== ストリーミングAPI呼び出し（abortSignal対応） =====
-  window.callChatAPIStream = async function callChatAPIStream(
-    messages,
-    config,
-    onChunk,
-    onDone,
-    abortSignal,
-  ) {
-    const fetchOptions = buildRequestConfig(config, messages, true);
-    if (abortSignal) fetchOptions.signal = abortSignal;
-
-    const response = await fetchWithRetry(config.apiUrl, fetchOptions, 3);
-
-    if (!response.ok) {
-      await handleErrorResponse(response);
-    }
-
-    const reader = response.body.getReader();
-    await readStream(reader, onChunk, onDone);
-  };
-
-  // ===== Jest用: module.exportsで公開（内部関数のテスト用） =====
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = {
-      buildRequestConfig,
-      handleErrorResponse,
-      readStream,
-    };
+  if (!response.ok) {
+    await handleErrorResponse(response);
   }
 
-})();
+  const reader = response.body.getReader();
+  await readStream(reader, onChunk, onDone);
+}

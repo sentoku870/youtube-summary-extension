@@ -1,6 +1,5 @@
 // tests/api.test.js — API層の単体テスト
-require("../src/infrastructure/errors");
-const { buildRequestConfig, readStream } = require("../src/domain/api");
+const { buildRequestConfig, readStream, callChatAPIStream } = require("../src/domain/api");
 
 // TextEncoder/TextDecoder のポリフィル（jsdom環境では未定義のため）
 const { TextEncoder: NodeTextEncoder, TextDecoder: NodeTextDecoder } = require("util");
@@ -161,7 +160,7 @@ describe("callChatAPIStream", () => {
     const onChunk = jest.fn();
     const onDone = jest.fn();
 
-    await window.callChatAPIStream(
+    await callChatAPIStream(
       [{ role: "user", content: "test" }],
       { apiKey: "test-key", apiUrl: "https://api.test.com", apiModel: "gpt-4o", maxTokens: "4096", temperature: "0.3" },
       onChunk,
@@ -182,7 +181,7 @@ describe("callChatAPIStream", () => {
     const onChunk = jest.fn();
     const onDone = jest.fn();
 
-    await window.callChatAPIStream(
+    await callChatAPIStream(
       [{ role: "user", content: "test" }],
       { apiKey: "test-key", apiUrl: "https://openrouter.ai/api/v1/chat/completions", apiModel: "gpt-4o", maxTokens: "4096", temperature: "0.3" },
       onChunk,
@@ -211,7 +210,7 @@ describe("callChatAPIStream", () => {
     const onDone = jest.fn();
 
     await expect(
-      window.callChatAPIStream(
+      callChatAPIStream(
         [{ role: "user", content: "test" }],
         { apiKey: "test-key", apiUrl: "https://api.test.com", apiModel: "gpt-4o", maxTokens: "4096", temperature: "0.3" },
         onChunk,
@@ -229,7 +228,7 @@ describe("callChatAPIStream", () => {
     const onChunk = jest.fn();
     const onDone = jest.fn();
 
-    await window.callChatAPIStream(
+    await callChatAPIStream(
       [{ role: "user", content: "test" }],
       {
         apiKey: "test-key",
@@ -261,7 +260,7 @@ describe("callChatAPIStream", () => {
     const onChunk = jest.fn();
     const onDone = jest.fn();
 
-    await window.callChatAPIStream(
+    await callChatAPIStream(
       [{ role: "user", content: "test" }],
       { apiKey: "test-key", apiUrl: "https://api.test.com", apiModel: "gpt-4o", maxTokens: "4096", temperature: "0.3" },
       onChunk,

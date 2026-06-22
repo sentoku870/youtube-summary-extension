@@ -1,5 +1,5 @@
-// tests/markdown.test.js — Markdown→HTML変換の単体テスト
-const { sanitizeHTML, ALLOWED_TAGS } = require("../src/domain/markdown");
+// tests/markdown.test.js — Markdown→HTML変換の単体テスト（ESM版）
+import { sanitizeHTML, ALLOWED_TAGS } from "../src/domain/markdown.js";
 
 describe("sanitizeHTML", () => {
   test("許可タグはそのまま残る", () => {
@@ -13,7 +13,6 @@ describe("sanitizeHTML", () => {
   test("許可されていないタグは除去される（子テキストは残らない）", () => {
     const result = sanitizeHTML("<script>alert(1)</script><p>safe</p>");
     expect(result.querySelector("script")).toBeNull();
-    // フォールバック実装ではスクリプト内容は除去される
     expect(result.textContent).toBe("safe");
     expect(result.querySelector("p")).toBeTruthy();
   });
@@ -22,9 +21,7 @@ describe("sanitizeHTML", () => {
     const result = sanitizeHTML('<a href="https://safe.com" onclick="evil()">link</a>');
     const a = result.querySelector("a");
     expect(a).toBeTruthy();
-    // 許可された属性（href）は維持される
     expect(a.getAttribute("href")).toBe("https://safe.com");
-    // 許可されていない属性（onclick）は除去される
     expect(a.getAttribute("onclick")).toBeNull();
   });
 
@@ -37,13 +34,11 @@ describe("sanitizeHTML", () => {
   test("インジェクション試行を含むHTMLを安全に処理", () => {
     const html = '<img src=x onerror=alert(1)><b onmouseover=alert(1)>hello</b>';
     const result = sanitizeHTML(html);
-    // imgタグは許可されているので残る（onerror属性は除去される）
     const img = result.querySelector("img");
     if (img) {
       expect(img.getAttribute("src")).toBe("x");
       expect(img.getAttribute("onerror")).toBeNull();
     }
-    // bタグのonmouseover属性は除去される
     const b = result.querySelector("b");
     expect(b).toBeTruthy();
     expect(b.getAttribute("onmouseover")).toBeNull();

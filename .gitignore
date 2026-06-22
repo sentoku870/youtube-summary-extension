@@ -29,3 +29,6 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Test output logs
+test-output.txt

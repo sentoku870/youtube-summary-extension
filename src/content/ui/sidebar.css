@@ -1,398 +1,431 @@
 /* ============================================================
-   sidebar.css — YouTube 要約サイドバースタイル（sticky配置版）
+   sidebar.css — YouTube 要約拡張機能 パネル・ボタン・タブ・チャットのスタイル
    ============================================================ */
+
+/* ===== ルートコンテナ ===== */
 #yt-summary-root {
-  font-family: Arial, sans-serif;
+  /* フォントサイズは storage.js の applyFontSize() で --fs-base が設定される */
   font-size: var(--fs-base, 13px);
-  color: #333;
+  font-family: "Roboto", "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  margin: 0 0 12px 0;
+  padding: 8px;
+  border-radius: 12px;
+  box-sizing: border-box;
   width: 100%;
-  min-width: 480px;
-  box-sizing: border-box;
-  --fs-base: 13px;
-  --bg: #f9f9f9;
-  --bg2: #fff;
-  --border: #ddd;
-  --border2: #eee;
-  --text: #333;
-  --text2: #888;
-  --chat-user: #e3f2fd;
-  --chat-ai: #f1f1f1;
-  --btn-bg: #ff0000;
-  --btn-text: #fff;
-
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 4px;
-  margin-bottom: 4px;
+  line-height: 1.5;
+  /* YouTube 側が .hidden / [hidden] / display:none で隠すのを強制的に打ち消す */
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: relative;
+  z-index: 1;
 }
 
+/* YouTube/Polymer 側が付与する .hidden を確実に無効化 */
+#yt-summary-root.hidden,
+#yt-summary-root[hidden],
+#yt-summary-root[hidden=""] {
+  display: block !important;
+  visibility: visible !important;
+}
+
+#yt-summary-root *,
+#yt-summary-root *::before,
+#yt-summary-root *::after {
+  box-sizing: border-box;
+}
+
+/* ===== テーマ（ライト） ===== */
+#yt-summary-root[data-theme="light"],
+#yt-summary-root:not([data-theme]) {
+  --ys-bg: #ffffff;
+  --ys-bg-alt: #f2f2f2;
+  --ys-border: #d8d8d8;
+  --ys-text: #0f0f0f;
+  --ys-text-muted: #606060;
+  --ys-accent: #065fd4;
+  --ys-accent-text: #ffffff;
+  --ys-btn-bg: #f2f2f2;
+  --ys-btn-bg-hover: #e5e5e5;
+  --ys-btn-border: #cccccc;
+  --ys-chat-user-bg: #dcf8c6;
+  --ys-chat-assistant-bg: #f1f1f1;
+  --ys-code-bg: #f5f5f5;
+  --ys-progress-bg: #444444;
+  --ys-error-bg: #ffebee;
+  --ys-error-text: #c62828;
+}
+
+/* ===== テーマ（ダーク） ===== */
 #yt-summary-root[data-theme="dark"] {
-  --bg: #2d2d2d;
-  --bg2: #1e1e1e;
-  --border: #444;
-  --border2: #3a3a3a;
-  --text: #d4d4d4;
-  --text2: #999;
-  --chat-user: #1a3a5c;
-  --chat-ai: #333;
-  --btn-bg: #cc0000;
+  --ys-bg: #212121;
+  --ys-bg-alt: #2b2b2b;
+  --ys-border: #404040;
+  --ys-text: #f1f1f1;
+  --ys-text-muted: #aaaaaa;
+  --ys-accent: #3ea6ff;
+  --ys-accent-text: #0f0f0f;
+  --ys-btn-bg: #2b2b2b;
+  --ys-btn-bg-hover: #3a3a3a;
+  --ys-btn-border: #505050;
+  --ys-chat-user-bg: #2f5d3a;
+  --ys-chat-assistant-bg: #383838;
+  --ys-code-bg: #1e1e1e;
+  --ys-progress-bg: #555555;
+  --ys-error-bg: #4c1d1d;
+  --ys-error-text: #ff8a80;
 }
 
-#yt-summary-root * {
-  box-sizing: border-box;
+#yt-summary-root {
+  background: var(--ys-bg);
+  color: var(--ys-text);
+  border: 1px solid var(--ys-border);
 }
 
-/* タブ行 */
-#yt-summary-root .ys-tab-row {
+/* ===== タブ行 ===== */
+.ys-tab-row {
   display: flex;
   gap: 4px;
-  margin-bottom: 4px;
+  padding: 4px;
+  background: var(--ys-bg-alt);
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid var(--ys-border);
 }
 
-#yt-summary-root .ys-tab-row button {
+.ys-tab-btn {
   flex: 1;
-  padding: 6px 4px;
-  font-size: calc(var(--fs-base, 13px) + 1px);
-  background: #ddd;
-  color: #666;
-  border: none;
-  border-radius: 3px;
+  padding: 6px 8px;
+  background: var(--ys-btn-bg);
+  color: var(--ys-text);
+  border: 1px solid var(--ys-btn-border);
+  border-radius: 6px;
+  font-size: 0.92em;
   cursor: pointer;
-  text-align: center;
-  font-weight: bold;
-  transition: all .15s;
+  transition: background 0.15s, border-color 0.15s;
 }
 
-#yt-summary-root .ys-tab-row button:hover {
-  opacity: .85;
-  background: #ccc;
+.ys-tab-btn:hover:not(:disabled) {
+  background: var(--ys-btn-bg-hover);
 }
 
-#yt-summary-root .ys-tab-row button:disabled {
-  background: #999 !important;
+.ys-tab-btn:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
-  opacity: 1;
 }
 
-#yt-summary-root .ys-tab-row button.ys-active {
-  background: #ff0000;
-  color: #fff;
-  box-shadow: inset 0 0 4px rgba(0,0,0,.3);
+.ys-tab-btn.ys-active {
+  background: var(--ys-accent);
+  color: var(--ys-accent-text);
+  border-color: var(--ys-accent);
+  font-weight: 600;
 }
 
-#yt-summary-root .ys-dot {
-  color: #4caf50;
-  font-size: 10px;
+.ys-dot {
+  font-size: 0.8em;
+  margin-left: 2px;
 }
 
-#yt-summary-root .ys-tab-row button.ys-active .ys-dot {
-  color: #a5d6a7;
-}
-
-/* 情報行 */
-#yt-summary-root #ys-infoRow {
-  display: flex;
-  align-items: center;
-  margin-top: 2px;
-  font-size: calc(var(--fs-base, 13px) - 2px);
-}
-
-#yt-summary-root #ys-infoLabel {
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* アクションボタン（コピー・再生成） */
-#yt-summary-root .ys-action-btn {
-  padding: 4px 8px;
-  font-size: calc(var(--fs-base, 13px) - 2px);
-  background: #555;
-  color: #fff;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  line-height: 1.4;
-}
-
-#yt-summary-root .ys-action-btn:hover {
-  opacity: 0.85;
-}
-
-#yt-summary-root[data-theme="dark"] .ys-action-btn {
-  background: #666;
-}
-
-/* パネル */
-#yt-summary-root #ys-panel {
-  display: none;
-  background: var(--bg);
-  border: none;
-  border-radius: 3px;
-  padding: 4px;
-  margin-top: 0;
-  max-height: 1100px;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-/* エラー表示 */
-#yt-summary-root #ys-error {
-  color: #d32f2f;
-  background: #fde8e8;
-  border: 1px solid #f5c6cb;
-  border-radius: 3px;
-  padding: 4px;
-  margin-bottom: 4px;
-  font-size: calc(var(--fs-base, 13px) - 1px);
-  display: none;
-  word-break: break-all;
-}
-
-#yt-summary-root[data-theme="dark"] #ys-error {
-  background: #3a1a1a;
-  border-color: #5c2a2a;
-  color: #ff6b6b;
-}
-
-/* 要約テキスト */
-#yt-summary-root #ys-summaryText {
-  font-size: var(--fs-base, 13px);
-  line-height: 1.6;
-  /* white-space は setMarkdown() で動的に制御 */
-  padding: 4px;
-  background: var(--bg2);
-  border: none;
-  border-radius: 3px;
-  min-height: 36px;
-  color: var(--text);
-}
-
-/* ===== マークダウン拡張スタイル ===== */
-
-/* 見出し */
-#yt-summary-root h1, #yt-summary-root h2, #yt-summary-root h3,
-#yt-summary-root h4, #yt-summary-root h5, #yt-summary-root h6 {
-  margin: 8px 0 4px;
-  font-weight: bold;
-  color: var(--text);
-}
-#yt-summary-root h1 { font-size: calc(var(--fs-base, 13px) + 6px); }
-#yt-summary-root h2 { font-size: calc(var(--fs-base, 13px) + 4px); }
-#yt-summary-root h3 { font-size: calc(var(--fs-base, 13px) + 2px); }
-#yt-summary-root h4, #yt-summary-root h5, #yt-summary-root h6 {
-  font-size: calc(var(--fs-base, 13px) + 1px);
-}
-
-/* コードブロック・インラインコード */
-#yt-summary-root pre {
-  background: #f0f0f0;
-  border: 1px solid var(--border2);
-  border-radius: 4px;
+/* ===== パネル本体 ===== */
+#ys-panel {
   padding: 8px;
-  overflow-x: auto;
-  font-family: "Consolas", "Courier New", monospace;
-  font-size: calc(var(--fs-base, 13px) - 1px);
-  line-height: 1.5;
-  margin: 6px 0;
-  white-space: pre;
+  background: var(--ys-bg);
+  border-radius: 0 0 8px 8px;
+  /* 高さ上限は storage.js の applyPanelHeight() で --ys-panel-max-height が設定される。
+     内容がこの高さを超えると overflow-y:auto によりスクロールバーが表示される。 */
+  max-height: var(--ys-panel-max-height, 1100px);
+  overflow-y: auto;
 }
-#yt-summary-root code {
-  background: #f0f0f0;
-  border-radius: 3px;
+
+/* ===== エラー表示 ===== */
+#ys-error {
+  display: none;
+  margin: 6px 0;
+  padding: 8px 10px;
+  background: var(--ys-error-bg);
+  color: var(--ys-error-text);
+  border-radius: 6px;
+  font-size: 0.92em;
+}
+
+#ys-error span {
+  display: inline-block;
+}
+
+/* ===== プログレス ===== */
+#ys-progress {
+  margin: 6px 0;
+}
+
+/* ===== 要約テキストエリア（Markdown 描画先） ===== */
+#ys-summaryText {
+  margin: 6px 0;
+  padding: 4px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+#ys-summaryText h1,
+#ys-summaryText h2,
+#ys-summaryText h3,
+#ys-summaryText h4,
+#ys-summaryText h5,
+#ys-summaryText h6 {
+  margin: 8px 0 4px 0;
+  line-height: 1.3;
+}
+
+#ys-summaryText h1 { font-size: 1.4em; }
+#ys-summaryText h2 { font-size: 1.25em; }
+#ys-summaryText h3 { font-size: 1.12em; }
+#ys-summaryText h4 { font-size: 1em; }
+#ys-summaryText h5,
+#ys-summaryText h6 { font-size: 0.9em; }
+
+#ys-summaryText p {
+  margin: 4px 0;
+}
+
+#ys-summaryText ul,
+#ys-summaryText ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+#ys-summaryText li {
+  margin: 2px 0;
+}
+
+#ys-summaryText a {
+  color: var(--ys-accent);
+  text-decoration: underline;
+}
+
+#ys-summaryText a:hover {
+  text-decoration: none;
+  opacity: 0.8;
+}
+
+#ys-summaryText code {
+  background: var(--ys-code-bg);
   padding: 1px 4px;
-  font-family: "Consolas", "Courier New", monospace;
-  font-size: calc(var(--fs-base, 13px) - 1px);
-}
-#yt-summary-root pre code {
-  background: none;
-  padding: 0;
-  border-radius: 0;
+  border-radius: 3px;
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 0.9em;
 }
 
-/* 引用 */
-#yt-summary-root blockquote {
-  border-left: 3px solid #ccc;
+#ys-summaryText pre {
+  background: var(--ys-code-bg);
+  padding: 8px;
+  border-radius: 6px;
+  overflow-x: auto;
   margin: 6px 0;
-  padding: 4px 8px;
-  color: var(--text2);
-  background: var(--bg);
 }
 
-/* 水平線 */
-#yt-summary-root hr {
+#ys-summaryText pre code {
+  background: transparent;
+  padding: 0;
+}
+
+#ys-summaryText blockquote {
+  margin: 6px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--ys-border);
+  color: var(--ys-text-muted);
+}
+
+#ys-summaryText table {
+  border-collapse: collapse;
+  margin: 6px 0;
+  width: 100%;
+}
+
+#ys-summaryText th,
+#ys-summaryText td {
+  border: 1px solid var(--ys-border);
+  padding: 4px 6px;
+  text-align: left;
+}
+
+#ys-summaryText th {
+  background: var(--ys-bg-alt);
+}
+
+#ys-summaryText hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--ys-border);
   margin: 8px 0;
 }
 
-/* 段落 */
-#yt-summary-root p {
-  margin: 4px 0;
+#ys-summaryText strong {
+  font-weight: 700;
 }
 
-/* 強調 */
-#yt-summary-root strong, #yt-summary-root b {
-  font-weight: bold;
-}
-#yt-summary-root em, #yt-summary-root i {
-  font-style: italic;
-}
-
-/* リストのインデント改善 */
-#yt-summary-root ul, #yt-summary-root ol {
-  padding-left: 1.5em;
-  margin: 4px 0;
-}
-
-/* リンク */
-#yt-summary-root a {
-  color: #1565c0;
-  text-decoration: underline;
-}
-#yt-summary-root[data-theme="dark"] a {
-  color: #64b5f6;
-}
-
-/* 画像 */
-#yt-summary-root img {
+#ys-summaryText img {
   max-width: 100%;
   height: auto;
-  border-radius: 4px;
-  margin: 4px 0;
 }
 
-/* ダークテーマ対応 */
-#yt-summary-root[data-theme="dark"] pre,
-#yt-summary-root[data-theme="dark"] code {
-  background: #1a1a1a;
-}
-#yt-summary-root[data-theme="dark"] blockquote {
-  border-color: #555;
-  color: #aaa;
-  background: #1e1e1e;
-}
-
-/* チャット */
-#yt-summary-root #ys-chatArea {
-  display: none;
-  margin-top: 4px;
-}
-
-#yt-summary-root #ys-chatHistory {
-  margin-bottom: 3px;
-  border: 1px solid var(--border2);
-  border-radius: 3px;
-  padding: 3px;
-  background: var(--bg2);
-}
-
-#yt-summary-root .chat-msg {
-  padding: 3px 5px;
-  margin-bottom: 2px;
-  border-radius: 4px;
-  font-size: calc(var(--fs-base, 13px) - 1px);
-  line-height: 1.4;
-  white-space: pre-wrap;
-  color: var(--text);
-}
-
-#yt-summary-root .chat-msg.user {
-  background: var(--chat-user);
-  text-align: right;
-}
-
-#yt-summary-root .chat-msg.assistant {
-  background: var(--chat-ai);
-  text-align: left;
-}
-
-/* チャット入力行 */
-#yt-summary-root .chat-row {
+/* ===== 情報行 ===== */
+#ys-infoRow {
   display: flex;
-  gap: 3px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0;
+  padding: 4px 0;
+  border-top: 1px solid var(--ys-border);
+  font-size: 0.85em;
+  color: var(--ys-text-muted);
 }
 
-#yt-summary-root .chat-row input {
+#ys-infoLabel {
   flex: 1;
-  padding: 4px 5px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  font-size: calc(var(--fs-base, 13px) - 1px);
-  background: var(--bg2);
-  color: var(--text);
+  min-width: 0;
 }
 
-#yt-summary-root .chat-row button {
-  border: none;
-  padding: 4px 8px;
-  border-radius: 3px;
-  font-size: calc(var(--fs-base, 13px) - 2px);
+/* ===== アクションボタン（コピー・再生成など） ===== */
+.ys-action-btn {
+  padding: 3px 8px;
+  background: var(--ys-btn-bg);
+  color: var(--ys-text);
+  border: 1px solid var(--ys-btn-border);
+  border-radius: 4px;
+  font-size: 0.85em;
   cursor: pointer;
+  transition: background 0.15s;
 }
 
-#yt-summary-root #ys-chatSendBtn {
-  background: #1565c0;
-  color: #fff;
+.ys-action-btn:hover:not(:disabled) {
+  background: var(--ys-btn-bg-hover);
 }
 
-#yt-summary-root[data-theme="dark"] #ys-chatSendBtn {
-  background: #0d47a1;
-}
-
-#yt-summary-root #ys-chatClearBtn {
-  background: #999;
-  color: #fff;
-}
-
-#yt-summary-root .chat-row button:disabled {
-  background: #bbb !important;
+.ys-action-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* マークダウン */
-#yt-summary-root ul,
-#yt-summary-root ol {
-  list-style-position: inside;
-  padding-left: 0;
+/* ===== チャットエリア ===== */
+#ys-chatArea {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--ys-border);
 }
 
-#yt-summary-root table {
-  border-collapse: collapse;
-  width: 100%;
+#ys-chatHistory {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--ys-bg-alt);
+  border-radius: 6px;
+  margin-bottom: 6px;
+}
+
+.chat-msg {
   margin: 4px 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.92em;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
-#yt-summary-root td,
-#yt-summary-root th {
-  border: 1px solid var(--border);
-  padding: 4px 6px;
-  text-align: left;
-  font-size: calc(var(--fs-base, 13px) - 1px);
+.chat-msg.user {
+  background: var(--ys-chat-user-bg);
+  margin-left: 24px;
+  text-align: right;
 }
 
-#yt-summary-root th {
-  background: var(--chat-ai);
-  font-weight: bold;
+.chat-msg.assistant {
+  background: var(--ys-chat-assistant-bg);
+  margin-right: 24px;
 }
 
-/* スクロールバー */
-#yt-summary-root ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.chat-msg p {
+  margin: 2px 0;
 }
 
-#yt-summary-root ::-webkit-scrollbar-thumb {
-  background: #bbb;
+.chat-msg ul,
+.chat-msg ol {
+  margin: 2px 0;
+  padding-left: 18px;
+}
+
+.chat-msg code {
+  background: var(--ys-code-bg);
+  padding: 1px 3px;
   border-radius: 3px;
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 0.9em;
 }
 
-#yt-summary-root[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: #555;
+.chat-msg a {
+  color: var(--ys-accent);
 }
 
-#yt-summary-root ::-webkit-scrollbar-track {
-  background: transparent;
+/* ===== チャット入力行 ===== */
+.chat-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+#ys-chatInput {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  background: var(--ys-bg);
+  color: var(--ys-text);
+  border: 1px solid var(--ys-btn-border);
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+
+#ys-chatInput:focus {
+  outline: none;
+  border-color: var(--ys-accent);
+}
+
+#ys-chatSendBtn,
+#ys-chatClearBtn {
+  padding: 5px 10px;
+  background: var(--ys-accent);
+  color: var(--ys-accent-text);
+  border: none;
+  border-radius: 4px;
+  font-size: 0.85em;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+#ys-chatSendBtn:hover:not(:disabled),
+#ys-chatClearBtn:hover {
+  opacity: 0.85;
+}
+
+#ys-chatSendBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#ys-chatClearBtn {
+  background: var(--ys-btn-bg);
+  color: var(--ys-text);
+  border: 1px solid var(--ys-btn-border);
+}
+
+/* ===== スクロールバー（ダークテーマ調整） ===== */
+#yt-summary-root[data-theme="dark"] #ys-panel::-webkit-scrollbar,
+#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar {
+  width: 8px;
+}
+
+#yt-summary-root[data-theme="dark"] #ys-panel::-webkit-scrollbar-track,
+#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar-track {
+  background: var(--ys-bg-alt);
+}
+
+#yt-summary-root[data-theme="dark"] #ys-panel::-webkit-scrollbar-thumb,
+#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar-thumb {
+  background: var(--ys-btn-border);
+  border-radius: 4px;
 }

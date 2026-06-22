@@ -5,7 +5,8 @@ const {
   estimateTokens,
   getModelContextWindow,
   getAvailableTokens,
-  splitIntoChunks
+  splitIntoChunks,
+  isYouTubeWatchPage
 } = require("../src/shared/utils");
 
 // ===== estimateTokens =====
@@ -106,5 +107,44 @@ describe("splitIntoChunks", () => {
     for (const chunk of chunks) {
       expect(estimateTokens(chunk)).toBeLessThanOrEqual(maxTokens + 100); // 最終行のオーバー分を許容
     }
+  });
+});
+
+// ===== isYouTubeWatchPage =====
+describe("isYouTubeWatchPage", () => {
+  test("/watch ページは true", () => {
+    expect(isYouTubeWatchPage("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
+    expect(isYouTubeWatchPage("https://youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
+    expect(isYouTubeWatchPage("https://m.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
+  });
+
+  test("/shorts/<id> ページは true", () => {
+    expect(isYouTubeWatchPage("https://www.youtube.com/shorts/abc123XYZ")).toBe(true);
+    expect(isYouTubeWatchPage("https://youtube.com/shorts/dQw4w9WgXcQ")).toBe(true);
+  });
+
+  test("ホーム・検索・チャンネル等は false", () => {
+    expect(isYouTubeWatchPage("https://www.youtube.com/")).toBe(false);
+    expect(isYouTubeWatchPage("https://www.youtube.com/results?search_query=test")).toBe(false);
+    expect(isYouTubeWatchPage("https://www.youtube.com/@channelname")).toBe(false);
+    expect(isYouTubeWatchPage("https://www.youtube.com/feed/subscriptions")).toBe(false);
+  });
+
+  test("YouTube以外のホストは false（偽陽性防止）", () => {
+    // 第三者サイトのクエリに youtube.com/watch が含まれていても弾く
+    expect(isYouTubeWatchPage("https://example.com/?redirect=https://youtube.com/watch?v=test")).toBe(false);
+    expect(isYouTubeWatchPage("https://evil.com/path/youtube.com/watch")).toBe(false);
+    expect(isYouTubeWatchPage("https://www.youtube.com.evil.com/watch?v=test")).toBe(false);
+  });
+
+  test("embed ページは false（パスが /watch でない）", () => {
+    expect(isYouTubeWatchPage("https://www.youtube.com/embed/dQw4w9WgXcQ")).toBe(false);
+  });
+
+  test("無効な入力は false", () => {
+    expect(isYouTubeWatchPage("")).toBe(false);
+    expect(isYouTubeWatchPage(null)).toBe(false);
+    expect(isYouTubeWatchPage(undefined)).toBe(false);
+    expect(isYouTubeWatchPage("not-a-url")).toBe(false);
   });
 });

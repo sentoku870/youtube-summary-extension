@@ -230,6 +230,15 @@
         <option value="20">20px（大）</option>
       </select>
     </div>
+    <div class="field">
+      <label>パネルの高さ上限（これを超えるとスクロール表示）</label>
+      <select id="panelHeight">
+        <option value="1050">1050px（小）</option>
+        <option value="1100" selected>1100px（デフォルト）</option>
+        <option value="1150">1150px（大）</option>
+      </select>
+      <div class="note">出力が長いときはこの高さでスクロールバーが表示されます</div>
+    </div>
     <hr>
     <h2>🎬 字幕設定</h2>
     <div class="field">
@@ -263,6 +272,6 @@
     <button id="saveAllBtn">すべて保存</button>
     <span id="status"></span>
   </div>
-    <script src="options.js"></script>
+    <script type="module" src="options.js"></script>
 </body>
 </html>

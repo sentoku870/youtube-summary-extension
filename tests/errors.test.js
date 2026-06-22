@@ -1,5 +1,5 @@
 // tests/errors.test.js — カスタムエラークラスの単体テスト
-require("../src/infrastructure/errors");
+const { YsAbortError, YsTimeoutError, YsAPIError } = require("../src/infrastructure/errors");
 
 describe("YsAbortError", () => {
   test("デフォルトメッセージが設定される", () => {

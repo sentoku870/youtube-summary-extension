@@ -7,18 +7,28 @@
   "host_permissions": [
     "*://*.youtube.com/*",
     "https://api.deepseek.com/*",
-    "https://openrouter.ai/*"
+    "https://openrouter.ai/*",
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://*.groq.com/*",
+    "https://*.mistral.ai/*",
+    "https://*.cohere.ai/*",
+    "https://*.together.xyz/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "options_ui": {
     "page": "src/options/options.html",
     "open_in_tab": true
   },
   "background": {
-    "service_worker": "src/background/background.js"
+    "service_worker": "src/background/background.js",
+    "type": "module"
   },
   "web_accessible_resources": [
     {
-      "resources": ["vendor/*", "src/content/ui/sidebar.css"],
+      "resources": ["src/content/ui/sidebar.css"],
       "matches": ["*://*.youtube.com/*"]
     }
   ],
@@ -30,23 +40,7 @@
     {
       "matches": ["*://*.youtube.com/watch*"],
       "run_at": "document_idle",
-      "js": [
-        "src/domain/transcript-fetcher.js",
-        "vendor/marked.min.js",
-        "vendor/purify.min.js",
-        "src/infrastructure/errors.js",
-        "src/shared/utils.js",
-        "src/domain/markdown.js",
-        "src/infrastructure/storage.js",
-        "src/domain/api.js",
-        "src/content/ui/panel.js",
-        "src/domain/transcript.js",
-        "src/domain/ai.js",
-        "src/content/ui/ui.js",
-        "src/content/ui/tabs.js",
-        "src/content/ui/sidebar.js",
-        "src/content/index.js"
-      ]
+      "js": ["src/content/index.js"]
     }
   ]
 }

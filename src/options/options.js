@@ -1,6 +1,8 @@
 // ============================================================
-//  options.js — オプション画面のロジック
+//  options.js — オプション画面のロジック（ESM版）
+//  storage.js 経由で chrome.storage にアクセス（キー重複定義を解消）
 // ============================================================
+import { get, set, getAll, K } from "../infrastructure/storage.js";
 
 // ===== プロバイダープリセット =====
 const PRESETS = {
@@ -63,6 +65,11 @@ function showStatus(id, msg, isError) {
   if (!isError) setTimeout(function() { el.textContent = ""; }, 2000);
 }
 
+// ストレージキー文字列を生成するヘルパー（K 定数経由）
+function promptKey(type) { return K.PROMPT_PREFIX + type; }
+function btnTitleKey(type) { return K.BTN_TITLE_PREFIX + type; }
+function btnApiConfigKey(type) { return K.BTN_API_PREFIX + type; }
+
 // ===== プリセット選択イベント =====
 document.getElementById("presetSelect").addEventListener("change", function() {
   const key = this.value;
@@ -78,10 +85,9 @@ document.getElementById("presetSelect").addEventListener("change", function() {
 
 // ===== 削除 =====
 window.deleteConfig = async function(id) {
-  const result = await chrome.storage.local.get("apiConfigs");
-  let configs = result.apiConfigs || [];
+  const configs = await get(K.API_CONFIGS) || [];
   const newConfigs = configs.filter(function(c) { return c.id !== id; });
-  await chrome.storage.local.set({ apiConfigs: newConfigs });
+  await set({ [K.API_CONFIGS]: newConfigs });
   showStatus("status", "✓ 削除しました");
   renderModelList();
   updateButtonModelSelects();
@@ -89,8 +95,7 @@ window.deleteConfig = async function(id) {
 
 // ===== 編集 =====
 window.editConfig = async function(id) {
-  const result = await chrome.storage.local.get("apiConfigs");
-  const configs = result.apiConfigs || [];
+  const configs = await get(K.API_CONFIGS) || [];
   let config = null;
   for (let i = 0; i < configs.length; i++) {
     if (configs[i].id === id) { config = configs[i]; break; }
@@ -191,7 +196,7 @@ function validateForm(config) {
 }
 
 async function saveConfigsAndRefresh(configs) {
-  await chrome.storage.local.set({ apiConfigs: configs });
+  await set({ [K.API_CONFIGS]: configs });
   renderModelList();
   updateButtonModelSelects();
 }
@@ -200,8 +205,7 @@ async function saveConfigsAndRefresh(configs) {
 document.getElementById("saveConfigBtn").addEventListener("click", async function() {
   const config = buildConfigFromForm();
   if (!validateForm(config)) return;
-  const result = await chrome.storage.local.get("apiConfigs");
-  const configs = result.apiConfigs || [];
+  const configs = await get(K.API_CONFIGS) || [];
   config.id = generateId();
   configs.push(config);
   await saveConfigsAndRefresh(configs);
@@ -215,8 +219,7 @@ document.getElementById("updateConfigBtn").addEventListener("click", async funct
   if (!editingId) { showStatus("apiStatus", "編集中の設定がありません", true); return; }
   const config = buildConfigFromForm();
   if (!validateForm(config)) return;
-  const result = await chrome.storage.local.get("apiConfigs");
-  const configs = result.apiConfigs || [];
+  const configs = await get(K.API_CONFIGS) || [];
   let found = false;
   for (let i = 0; i < configs.length; i++) {
     if (configs[i].id === editingId) {
@@ -234,8 +237,7 @@ document.getElementById("updateConfigBtn").addEventListener("click", async funct
 document.getElementById("duplicateConfigBtn").addEventListener("click", async function() {
   const config = buildConfigFromForm();
   if (!validateForm(config)) return;
-  const result = await chrome.storage.local.get("apiConfigs");
-  const configs = result.apiConfigs || [];
+  const configs = await get(K.API_CONFIGS) || [];
   config.id = generateId();
   configs.push(config);
   await saveConfigsAndRefresh(configs);
@@ -251,8 +253,7 @@ document.getElementById("cancelEditBtn").addEventListener("click", function() {
 async function renderModelList() {
   const listEl = document.getElementById("modelList");
   if (!listEl) return;
-  const result = await chrome.storage.local.get("apiConfigs");
-  const configs = result.apiConfigs || [];
+  const configs = await get(K.API_CONFIGS) || [];
 
   listEl.innerHTML = "";
   if (configs.length === 0) {
@@ -310,11 +311,11 @@ async function renderModelList() {
 
 // ===== ボタンのモデル選択肢を更新 =====
 async function updateButtonModelSelects() {
-  const result = await chrome.storage.local.get("apiConfigs");
-  const configs = result.apiConfigs || [];
-  const selects = ["btnApiConfig_summary", "btnApiConfig_customA", "btnApiConfig_customB"];
+  const configs = await get(K.API_CONFIGS) || [];
+  const selects = [btnApiConfigKey("summary"), btnApiConfigKey("customA"), btnApiConfigKey("customB")];
+  const selectIds = ["btnApiConfig_summary", "btnApiConfig_customA", "btnApiConfig_customB"];
 
-  selects.forEach(function(selectId) {
+  selectIds.forEach(function(selectId, idx) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
     const currentVal = sel.value;
@@ -328,43 +329,46 @@ async function updateButtonModelSelects() {
     if (currentVal && sel.querySelector('option[value="' + currentVal + '"]')) {
       sel.value = currentVal;
     }
+    void selects[idx]; // K経由キー参照（将来のリファクタ用フック）
   });
 }
 
 // ===== すべて保存 =====
 document.getElementById("saveAllBtn").addEventListener("click", async function() {
   const saveData = {};
-  saveData["prompt_summary"] = getVal("prompt_summary").trim();
-  saveData["prompt_customA"] = getVal("prompt_customA").trim();
-  saveData["prompt_customB"] = getVal("prompt_customB").trim();
-  saveData["btnTitle_customA"] = getVal("btnTitle_customA").trim();
-  saveData["btnTitle_customB"] = getVal("btnTitle_customB").trim();
-  saveData["btnApiConfig_summary"] = getVal("btnApiConfig_summary");
-  saveData["btnApiConfig_customA"] = getVal("btnApiConfig_customA");
-  saveData["btnApiConfig_customB"] = getVal("btnApiConfig_customB");
-  saveData.fontSize = getVal("fontSize");
-  saveData.theme = getVal("theme");
-  saveData.subtitleLang = getVal("subtitleLang");
-  await chrome.storage.local.set(saveData);
+  saveData[promptKey("summary")] = getVal("prompt_summary").trim();
+  saveData[promptKey("customA")] = getVal("prompt_customA").trim();
+  saveData[promptKey("customB")] = getVal("prompt_customB").trim();
+  saveData[btnTitleKey("customA")] = getVal("btnTitle_customA").trim();
+  saveData[btnTitleKey("customB")] = getVal("btnTitle_customB").trim();
+  saveData[btnApiConfigKey("summary")] = getVal("btnApiConfig_summary");
+  saveData[btnApiConfigKey("customA")] = getVal("btnApiConfig_customA");
+  saveData[btnApiConfigKey("customB")] = getVal("btnApiConfig_customB");
+  saveData[K.FONT_SIZE] = getVal("fontSize");
+  saveData[K.PANEL_HEIGHT] = getVal("panelHeight");
+  saveData[K.THEME] = getVal("theme");
+  saveData[K.SUBTITLE_LANG] = getVal("subtitleLang");
+  await set(saveData);
   showStatus("status", "✓ 保存しました");
 });
 
 // ===== 表示設定のみ保存 =====
 document.getElementById("saveDisplayBtn").addEventListener("click", async function() {
-  await chrome.storage.local.set({
-    fontSize: getVal("fontSize"),
-    theme: getVal("theme"),
-    subtitleLang: getVal("subtitleLang")
+  await set({
+    [K.FONT_SIZE]: getVal("fontSize"),
+    [K.PANEL_HEIGHT]: getVal("panelHeight"),
+    [K.THEME]: getVal("theme"),
+    [K.SUBTITLE_LANG]: getVal("subtitleLang")
   });
   showStatus("displayStatus", "✓ 保存しました");
 });
 
 // ===== 旧形式からの移行処理 =====
 async function migrateIfNeeded() {
-  const result = await chrome.storage.local.get(null);
-  let configs = result.apiConfigs;
+  const result = await getAll();
+  let configs = result[K.API_CONFIGS];
   if (configs && configs.length > 0) return;
-  const oldConfig = result.apiConfig;
+  const oldConfig = result[K.API_CONFIG_LEGACY];
   if (!oldConfig) return;
   const newConfigs = [];
   const providers = ["deepseek", "openrouter", "custom"];
@@ -393,7 +397,7 @@ async function migrateIfNeeded() {
     }
   }
   if (newConfigs.length > 0) {
-    await chrome.storage.local.set({ apiConfigs: newConfigs });
+    await set({ [K.API_CONFIGS]: newConfigs });
   }
 }
 
@@ -401,33 +405,34 @@ async function migrateIfNeeded() {
 window.addEventListener("DOMContentLoaded", async function() {
   await migrateIfNeeded();
   initAccordion();
-  const result = await chrome.storage.local.get(null);
+  const result = await getAll();
 
-  if (result["prompt_summary"]) setVal("prompt_summary", result["prompt_summary"]);
-  else if (result.systemPrompt) setVal("prompt_summary", result.systemPrompt);
-  if (result["prompt_customA"]) setVal("prompt_customA", result["prompt_customA"]);
-  if (result["prompt_customB"]) setVal("prompt_customB", result["prompt_customB"]);
-  if (result["btnTitle_customA"]) setVal("btnTitle_customA", result["btnTitle_customA"]);
-  if (result["btnTitle_customB"]) setVal("btnTitle_customB", result["btnTitle_customB"]);
+  if (result[promptKey("summary")]) setVal("prompt_summary", result[promptKey("summary")]);
+  else if (result[K.SYSTEM_PROMPT_LEGACY]) setVal("prompt_summary", result[K.SYSTEM_PROMPT_LEGACY]);
+  if (result[promptKey("customA")]) setVal("prompt_customA", result[promptKey("customA")]);
+  if (result[promptKey("customB")]) setVal("prompt_customB", result[promptKey("customB")]);
+  if (result[btnTitleKey("customA")]) setVal("btnTitle_customA", result[btnTitleKey("customA")]);
+  if (result[btnTitleKey("customB")]) setVal("btnTitle_customB", result[btnTitleKey("customB")]);
 
   await updateButtonModelSelects();
 
-  if (result["btnApiConfig_summary"]) {
+  if (result[btnApiConfigKey("summary")]) {
     const sel = document.getElementById("btnApiConfig_summary");
-    if (sel) sel.value = result["btnApiConfig_summary"];
+    if (sel) sel.value = result[btnApiConfigKey("summary")];
   }
-  if (result["btnApiConfig_customA"]) {
+  if (result[btnApiConfigKey("customA")]) {
     const sel = document.getElementById("btnApiConfig_customA");
-    if (sel) sel.value = result["btnApiConfig_customA"];
+    if (sel) sel.value = result[btnApiConfigKey("customA")];
   }
-  if (result["btnApiConfig_customB"]) {
+  if (result[btnApiConfigKey("customB")]) {
     const sel = document.getElementById("btnApiConfig_customB");
-    if (sel) sel.value = result["btnApiConfig_customB"];
+    if (sel) sel.value = result[btnApiConfigKey("customB")];
   }
 
-  if (result.fontSize) setVal("fontSize", result.fontSize);
-  if (result.theme) setVal("theme", result.theme);
-  if (result.subtitleLang) setVal("subtitleLang", result.subtitleLang);
+  if (result[K.FONT_SIZE]) setVal("fontSize", result[K.FONT_SIZE]);
+  if (result[K.PANEL_HEIGHT]) setVal("panelHeight", result[K.PANEL_HEIGHT]);
+  if (result[K.THEME]) setVal("theme", result[K.THEME]);
+  if (result[K.SUBTITLE_LANG]) setVal("subtitleLang", result[K.SUBTITLE_LANG]);
 
   renderModelList();
 });

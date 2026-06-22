@@ -74,8 +74,27 @@ const {
   linkTimestamps
 } = require("../src/domain/ai");
 
-// YsTimeoutError の参照
-const YsTimeoutError = global.YsTimeoutError;
+// Port/Adapter: テスト用にモックアダプターを注入
+const { setUiAdapter } = require("../src/domain/ports");
+setUiAdapter({
+  showError: global.YsUI.showError,
+  hideError: global.YsUI.hideError,
+  hideProgress: global.YsUI.hideProgress,
+  showProgress: global.YsUI.showProgress,
+  setSummaryContent: global.YsUI.setSummaryContent,
+  clearSummaryContent: global.YsUI.clearSummaryContent,
+  updateInfoLabel: global.YsUI.updateInfoLabel,
+  showChatArea: global.YsUI.showChatArea,
+  focusChatInput: global.YsUI.focusChatInput,
+  enableSendButton: global.YsUI.enableSendButton,
+  showCopyButton: global.YsUI.showCopyButton,
+  showRegenButton: global.YsUI.showRegenButton,
+  getSummaryTextEl: function() { return global.YsPanel.getEl("#ys-summaryText"); },
+  updateTabUI: global.YsTabs.updateTabUI
+});
+
+// YsTimeoutError の参照（ESMから取得）
+const { YsTimeoutError } = require("../src/infrastructure/errors");
 
 // ===== formatTranscriptWithTimestamps =====
 describe("formatTranscriptWithTimestamps", () => {
