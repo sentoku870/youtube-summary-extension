@@ -8,7 +8,7 @@ import {
   clearSummaryContent, updateInfoLabel, hideChatArea,
   hideRegenButton, hideCopyButton, hideProgress,
   setSummaryContent, showRegenButton, showCopyButton, showChatArea,
-  appendChatMessage, focusChatInput, enableSendButton
+  appendChatMessage, focusChatInput
 } from "./ui.js";
 
 // ===== タブUI更新（ドット表示） =====
@@ -68,10 +68,9 @@ export function renderTabContent(mode) {
     for (let i = 3; i < tab.chatHistory.length; i++) {
       const msg = tab.chatHistory[i];
       if (msg.role === "user" || msg.role === "assistant") {
-        appendChatMessage(msg.role, msg.content);
+        appendChatMessage(msg.role, msg.content, { editIndex: i });
       }
     }
   }
   focusChatInput();
-  enableSendButton();
 }

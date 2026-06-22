@@ -9,7 +9,7 @@ import { createPanel, bindEvents, preloadTranscript, resetState, resetTranscript
 import {
   showError, hideProgress, showProgress, setSummaryContent,
   clearSummaryContent, updateInfoLabel, showChatArea, focusChatInput,
-  enableSendButton, showCopyButton, showRegenButton, hideError
+  showCopyButton, showRegenButton, hideError
 } from "./ui/ui.js";
 import { getEl } from "./ui/panel.js";
 import { updateTabUI } from "./ui/tabs.js";
@@ -29,7 +29,6 @@ setUiAdapter({
   updateInfoLabel: updateInfoLabel,
   showChatArea: showChatArea,
   focusChatInput: focusChatInput,
-  enableSendButton: enableSendButton,
   showCopyButton: showCopyButton,
   showRegenButton: showRegenButton,
   hideError: hideError,

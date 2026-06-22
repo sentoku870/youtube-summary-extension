@@ -203,20 +203,19 @@ export function createPanel() {
     '<div id="ys-panel" style="display:none">' +
       '<div id="ys-error"></div>' +
       '<div id="ys-content-area">' +
-        '<div id="ys-summaryText"></div>' +
+        '<div id="ys-summaryText" class="ys-md"></div>' +
         '<div id="ys-progress" style="display:none;padding:8px;background:#444;color:#fff;border-radius:4px;font-size:12px;margin:4px 0;"></div>' +
         '<div id="ys-infoRow">' +
           '<span id="ys-infoLabel"></span>' +
           '<button id="ys-copyBtn" class="ys-action-btn" style="display:none;margin-left:8px;">📋 コピー</button>' +
           '<button id="ys-regenBtn" class="ys-action-btn" style="display:none;margin-left:4px;">🔄 再生成</button>' +
         '</div>' +
-        '<div id="ys-chatArea" style="display:none;">' +
-          '<div id="ys-chatHistory"></div>' +
-          '<div class="chat-row">' +
-            '<input type="text" id="ys-chatInput" placeholder="質問を入力..." />' +
-            '<button id="ys-chatSendBtn" disabled>送信</button>' +
-            '<button id="ys-chatClearBtn">クリア</button>' +
-          '</div>' +
+        '<div id="ys-chatHistory"></div>' +
+      '</div>' +
+      '<div id="ys-chatArea" style="display:none;">' +
+        '<div class="chat-row">' +
+          '<textarea id="ys-chatInput" rows="1" placeholder="質問を入力... (Enter=送信 / Shift+Enter=改行)"></textarea>' +
+          '<button id="ys-chatClearBtn">クリア</button>' +
         '</div>' +
       '</div>' +
     '</div>';

@@ -39,7 +39,6 @@ function createNoopAdapter() {
     updateInfoLabel: function() {},
     showChatArea: function() {},
     focusChatInput: function() {},
-    enableSendButton: function() {},
     showCopyButton: function() {},
     showRegenButton: function() {},
     getSummaryTextEl: function() { return null; },

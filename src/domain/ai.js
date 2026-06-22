@@ -91,7 +91,6 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
     ui.updateInfoLabel("使用モデル: " + config.apiModel + " | 字幕 " + transcript.all.length + " 件");
     ui.showChatArea();
     ui.focusChatInput();
-    ui.enableSendButton();
     ui.showCopyButton();
     ui.showRegenButton();
   }

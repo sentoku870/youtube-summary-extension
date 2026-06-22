@@ -126,13 +126,25 @@
 }
 
 /* ===== パネル本体 ===== */
+/* レイアウト構成:
+   #ys-panel            → flex column。パネル高さ上限を維持。
+   #ys-content-area     → AI出力・情報行・チャット履歴。ここだけスクロール。
+   #ys-chatArea(.chat-row) → 常に下部に固定。入力欄が隠れない。
+   textarea が伸びると #ys-content-area が縮み、パネル全体の高さは上限内に収まる。 */
 #ys-panel {
+  display: flex;
+  flex-direction: column;
   padding: 8px;
   background: var(--ys-bg);
   border-radius: 0 0 8px 8px;
-  /* 高さ上限は storage.js の applyPanelHeight() で --ys-panel-max-height が設定される。
-     内容がこの高さを超えると overflow-y:auto によりスクロールバーが表示される。 */
+  /* 高さ上限は storage.js の applyPanelHeight() で --ys-panel-max-height が設定される。 */
   max-height: var(--ys-panel-max-height, 1100px);
+  overflow: hidden;
+}
+
+#ys-content-area {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -156,7 +168,9 @@
   margin: 6px 0;
 }
 
-/* ===== 要約テキストエリア（Markdown 描画先） ===== */
+/* ===== Markdown コンテンツ（要約・AI回答で共通） =====
+   #ys-summaryText と .chat-msg-body に .ys-md クラスを付与して
+   同じ見出し/テーブル/コード/引用スタイルを適用する。 */
 #ys-summaryText {
   margin: 6px 0;
   padding: 4px;
@@ -164,48 +178,48 @@
   overflow-wrap: anywhere;
 }
 
-#ys-summaryText h1,
-#ys-summaryText h2,
-#ys-summaryText h3,
-#ys-summaryText h4,
-#ys-summaryText h5,
-#ys-summaryText h6 {
+.ys-md h1,
+.ys-md h2,
+.ys-md h3,
+.ys-md h4,
+.ys-md h5,
+.ys-md h6 {
   margin: 8px 0 4px 0;
   line-height: 1.3;
 }
 
-#ys-summaryText h1 { font-size: 1.4em; }
-#ys-summaryText h2 { font-size: 1.25em; }
-#ys-summaryText h3 { font-size: 1.12em; }
-#ys-summaryText h4 { font-size: 1em; }
-#ys-summaryText h5,
-#ys-summaryText h6 { font-size: 0.9em; }
+.ys-md h1 { font-size: 1.4em; }
+.ys-md h2 { font-size: 1.25em; }
+.ys-md h3 { font-size: 1.12em; }
+.ys-md h4 { font-size: 1em; }
+.ys-md h5,
+.ys-md h6 { font-size: 0.9em; }
 
-#ys-summaryText p {
+.ys-md p {
   margin: 4px 0;
 }
 
-#ys-summaryText ul,
-#ys-summaryText ol {
+.ys-md ul,
+.ys-md ol {
   margin: 4px 0;
   padding-left: 20px;
 }
 
-#ys-summaryText li {
+.ys-md li {
   margin: 2px 0;
 }
 
-#ys-summaryText a {
+.ys-md a {
   color: var(--ys-accent);
   text-decoration: underline;
 }
 
-#ys-summaryText a:hover {
+.ys-md a:hover {
   text-decoration: none;
   opacity: 0.8;
 }
 
-#ys-summaryText code {
+.ys-md code {
   background: var(--ys-code-bg);
   padding: 1px 4px;
   border-radius: 3px;
@@ -213,7 +227,7 @@
   font-size: 0.9em;
 }
 
-#ys-summaryText pre {
+.ys-md pre {
   background: var(--ys-code-bg);
   padding: 8px;
   border-radius: 6px;
@@ -221,46 +235,46 @@
   margin: 6px 0;
 }
 
-#ys-summaryText pre code {
+.ys-md pre code {
   background: transparent;
   padding: 0;
 }
 
-#ys-summaryText blockquote {
+.ys-md blockquote {
   margin: 6px 0;
   padding: 4px 10px;
   border-left: 3px solid var(--ys-border);
   color: var(--ys-text-muted);
 }
 
-#ys-summaryText table {
+.ys-md table {
   border-collapse: collapse;
   margin: 6px 0;
   width: 100%;
 }
 
-#ys-summaryText th,
-#ys-summaryText td {
+.ys-md th,
+.ys-md td {
   border: 1px solid var(--ys-border);
   padding: 4px 6px;
   text-align: left;
 }
 
-#ys-summaryText th {
+.ys-md th {
   background: var(--ys-bg-alt);
 }
 
-#ys-summaryText hr {
+.ys-md hr {
   border: none;
   border-top: 1px solid var(--ys-border);
   margin: 8px 0;
 }
 
-#ys-summaryText strong {
+.ys-md strong {
   font-weight: 700;
 }
 
-#ys-summaryText img {
+.ys-md img {
   max-width: 100%;
   height: auto;
 }
@@ -304,26 +318,31 @@
   cursor: not-allowed;
 }
 
-/* ===== チャットエリア ===== */
+/* ===== チャットエリア（入力欄のコンテナ・下部固定） ===== */
 #ys-chatArea {
+  flex-shrink: 0;
   margin-top: 8px;
   padding-top: 6px;
   border-top: 1px solid var(--ys-border);
 }
 
+/* チャット履歴は #ys-content-area 側に移動。
+   全体スクロールに統一するため独立 max-height は持たない。 */
 #ys-chatHistory {
-  max-height: 240px;
-  overflow-y: auto;
   padding: 4px;
   background: var(--ys-bg-alt);
   border-radius: 6px;
-  margin-bottom: 6px;
+  margin: 8px 0 0 0;
 }
 
+/* チャットメッセージ枠。
+   AI回答は背景・角丸なし（要約テキストと同じ見た目）。
+   ユーザー質問のみ背景色・角丸・右寄せで区別。
+   本文の markdown スタイルは .ys-md に集約しているため、
+   ここでは余白・配置のみ定義する。 */
 .chat-msg {
   margin: 4px 0;
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 4px;
   font-size: 0.92em;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -332,52 +351,38 @@
 .chat-msg.user {
   background: var(--ys-chat-user-bg);
   margin-left: 24px;
+  padding: 6px 10px;
   text-align: right;
-}
-
-.chat-msg.assistant {
-  background: var(--ys-chat-assistant-bg);
-  margin-right: 24px;
-}
-
-.chat-msg p {
-  margin: 2px 0;
-}
-
-.chat-msg ul,
-.chat-msg ol {
-  margin: 2px 0;
-  padding-left: 18px;
-}
-
-.chat-msg code {
-  background: var(--ys-code-bg);
-  padding: 1px 3px;
-  border-radius: 3px;
-  font-family: "Consolas", "Monaco", monospace;
-  font-size: 0.9em;
-}
-
-.chat-msg a {
-  color: var(--ys-accent);
+  border-radius: 8px;
 }
 
 /* ===== チャット入力行 ===== */
 .chat-row {
   display: flex;
   gap: 4px;
-  align-items: center;
+  align-items: flex-end;
 }
 
 #ys-chatInput {
   flex: 1;
   min-width: 0;
+  /* 1行最低高 → 入力に応じて成長（JS で height を調整）。
+     max-height に達したら入力欄内部でスクロール。
+     その際パネル全体の高さ上限は維持され、#ys-content-area が縮む。 */
+  min-height: 1.6em;
+  max-height: 8em;
   padding: 5px 8px;
   background: var(--ys-bg);
   color: var(--ys-text);
   border: 1px solid var(--ys-btn-border);
   border-radius: 4px;
+  font: inherit;
   font-size: 0.92em;
+  line-height: 1.5;
+  resize: none;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 #ys-chatInput:focus {
@@ -385,47 +390,67 @@
   border-color: var(--ys-accent);
 }
 
-#ys-chatSendBtn,
+#ys-chatInput[readonly] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 #ys-chatClearBtn {
+  flex-shrink: 0;
   padding: 5px 10px;
-  background: var(--ys-accent);
-  color: var(--ys-accent-text);
-  border: none;
+  background: var(--ys-btn-bg);
+  color: var(--ys-text);
+  border: 1px solid var(--ys-btn-border);
   border-radius: 4px;
   font-size: 0.85em;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 0.15s, background 0.15s;
 }
 
-#ys-chatSendBtn:hover:not(:disabled),
-#ys-chatClearBtn:hover {
-  opacity: 0.85;
+#ys-chatClearBtn:hover:not(:disabled) {
+  background: var(--ys-btn-bg-hover);
 }
 
-#ys-chatSendBtn:disabled {
+#ys-chatClearBtn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-#ys-chatClearBtn {
-  background: var(--ys-btn-bg);
-  color: var(--ys-text);
+/* ===== ユーザーメッセージ編集ボタン ===== */
+.ys-chat-edit-btn {
+  display: block;
+  margin: 6px 0 0 auto; /* ユーザーメッセージは右寄せのため右揃え */
+  padding: 2px 8px;
+  background: transparent;
+  color: var(--ys-text-muted);
   border: 1px solid var(--ys-btn-border);
+  border-radius: 4px;
+  font-size: 0.8em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ys-chat-edit-btn:hover {
+  background: var(--ys-btn-bg-hover);
+  color: var(--ys-text);
 }
 
 /* ===== スクロールバー（ダークテーマ調整） ===== */
-#yt-summary-root[data-theme="dark"] #ys-panel::-webkit-scrollbar,
-#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar {
+#yt-summary-root[data-theme="dark"] #ys-content-area::-webkit-scrollbar,
+#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar,
+#yt-summary-root[data-theme="dark"] #ys-chatInput::-webkit-scrollbar {
   width: 8px;
 }
 
-#yt-summary-root[data-theme="dark"] #ys-panel::-webkit-scrollbar-track,
-#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar-track {
+#yt-summary-root[data-theme="dark"] #ys-content-area::-webkit-scrollbar-track,
+#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar-track,
+#yt-summary-root[data-theme="dark"] #ys-chatInput::-webkit-scrollbar-track {
   background: var(--ys-bg-alt);
 }
 
-#yt-summary-root[data-theme="dark"] #ys-panel::-webkit-scrollbar-thumb,
-#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar-thumb {
+#yt-summary-root[data-theme="dark"] #ys-content-area::-webkit-scrollbar-thumb,
+#yt-summary-root[data-theme="dark"] #ys-chatHistory::-webkit-scrollbar-thumb,
+#yt-summary-root[data-theme="dark"] #ys-chatInput::-webkit-scrollbar-thumb {
   background: var(--ys-btn-border);
   border-radius: 4px;
 }
