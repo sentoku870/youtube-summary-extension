@@ -38,7 +38,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/watch*"],
+      "matches": ["*://*.youtube.com/*"],
       "run_at": "document_idle",
       "js": ["src/content/index.js"]
     }

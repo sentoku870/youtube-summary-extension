@@ -107,6 +107,23 @@ document.addEventListener(EVENTS.YT_NAVIGATE_FINISH, function() {
   emit(EVENTS.NAV_FINISH, { url: location.href });
 });
 
+// yt-page-data-updated のフォールバック
+// （稀に yt-navigate-finish が発火しない環境向け。これも NAV_FINISH へ橋渡し）
+document.addEventListener("yt-page-data-updated", function() {
+  emit(EVENTS.NAV_FINISH, { url: location.href });
+});
+
+// BFCache (Back-Forward Cache) 復元対応
+// 「戻る」「進む」でページがキャッシュから復元されたときは content script は
+// 再実行されないため、pageshow の persisted フラグで再初期化をトリガする。
+window.addEventListener("pageshow", function(ev) {
+  if (ev.persisted && isYouTubeWatchPage(location.href)) {
+    console.log("[YouTube 要約] BFCache から復元されました。再初期化します。");
+    __ysInited = false;
+    handleNavigation();
+  }
+});
+
 // SPAナビゲーション完了を event-bus 経由で購読
 on(EVENTS.NAV_FINISH, function(payload) {
   if (payload && payload.url && isYouTubeWatchPage(payload.url)) {
