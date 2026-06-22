@@ -14,7 +14,7 @@ import {
 } from "../shared/constants.js";
 
 // ===== OpenRouter 判定（ホスト名ベースの厳密判定） =====
-function isOpenRouterUrl(apiUrl) {
+export function isOpenRouterUrl(apiUrl) {
   if (!apiUrl) return false;
   try {
     return new URL(apiUrl).hostname === "openrouter.ai";
@@ -24,16 +24,122 @@ function isOpenRouterUrl(apiUrl) {
   }
 }
 
-// ===== 共通リクエスト設定構築 =====
-export function buildRequestConfig(config, messages, stream) {
+// ===== 認証ヘッダー構築（チャット/モデル一覧で共用） =====
+// OpenRouter は HTTP-Referer / X-Title が必須。他は Bearer のみ。
+export function buildAuthHeaders(apiUrl, apiKey) {
   const headers = {
     "Content-Type": "application/json",
-    Authorization: "Bearer " + config.apiKey,
+    Authorization: "Bearer " + apiKey,
   };
-  if (isOpenRouterUrl(config.apiUrl)) {
+  if (isOpenRouterUrl(apiUrl)) {
     headers["HTTP-Referer"] = "https://chrome.google.com/webstore";
     headers["X-Title"] = "YouTube Summary Extension";
   }
+  return headers;
+}
+
+// ===== chat/completions URL から /models URL を推論 =====
+// OpenAI 互換 API は `/v1/chat/completions` と `/v1/models` が兄弟パスとして配置される慣例を利用。
+// 例外: `/chat/completions` が含まれない場合は `${origin}/v1/models` にフォールバック。
+export function deriveModelsUrl(apiUrl) {
+  if (!apiUrl) return "";
+  try {
+    const u = new URL(apiUrl);
+    const path = u.pathname || "";
+    const idx = path.indexOf("/chat/completions");
+    if (idx !== -1) {
+      u.pathname = path.substring(0, idx) + "/models";
+      u.search = "";
+      return u.toString();
+    }
+    // フォールバック: 末尾が /chat や /v1 等で終わる場合も考慮して /v1/models を推論
+    if (/\/v\d+(\/|$)/.test(path)) {
+      u.pathname = path.replace(/\/v\d+(\/.*)?$/, "/v1") + "/models";
+      u.search = "";
+      return u.toString();
+    }
+    u.pathname = "/v1/models";
+    u.search = "";
+    return u.toString();
+  } catch (e) {
+    // 不正URLは文字列置換で最低限のフォールバック
+    return apiUrl.replace("/chat/completions", "/models");
+  }
+}
+
+// ===== 利用可能なモデル一覧を取得（OpenAI 互換 /models エンドポイント） =====
+// 戻り値: { id, label } の配列（label は OpenRouter のみ人間可読名を含む場合あり）
+// 失敗時は例外を投げる（呼び出し元で catch してフォールバック表示）
+export async function fetchModelList(apiUrl, apiKey) {
+  if (!apiUrl) {
+    throw new Error("APIエンドポイントURLが未設定です");
+  }
+  if (!apiKey) {
+    throw new Error("モデル一覧の取得にはAPIキーが必要です");
+  }
+  const modelsUrl = deriveModelsUrl(apiUrl);
+  const headers = buildAuthHeaders(apiUrl, apiKey);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(function () { controller.abort(); }, API_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(modelsUrl, {
+      method: "GET",
+      headers: headers,
+      signal: controller.signal,
+    });
+  } catch (e) {
+    clearTimeout(timeoutId);
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new YsTimeoutError("モデル一覧の取得がタイムアウトしました");
+    }
+    throw new Error("モデル一覧の取得に失敗しました（ネットワークエラー）: " + (e.message || e));
+  }
+  clearTimeout(timeoutId);
+
+  if (!response.ok) {
+    let errText = "";
+    try { errText = await response.text(); } catch (e) { /* noop */ }
+    let msg;
+    if (response.status === 401 || response.status === 403) {
+      msg = "APIキーが無効です（" + response.status + "）";
+    } else if (response.status === 404) {
+      msg = "モデル一覧エンドポイントが見つかりません（" + modelsUrl + "）。手動でモデル名を入力してください。";
+    } else {
+      msg = "モデル一覧の取得に失敗しました（" + response.status + "）";
+    }
+    throw new Error(msg + (errText ? ": " + errText.substring(0, 100) : ""));
+  }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    throw new Error("モデル一覧のレスポンスがJSON形式ではありません");
+  }
+
+  // OpenAI互換: { data: [{ id, ... }] }
+  // OpenRouter: { data: [{ id, name, ... }] }
+  const list = Array.isArray(data) ? data : (data && data.data) ? data.data : [];
+  const models = [];
+  for (let i = 0; i < list.length; i++) {
+    const m = list[i];
+    if (!m || !m.id) continue;
+    // OpenRouter は name プロパティに人間可読名を提供する場合がある
+    const label = m.name || m.id;
+    models.push({ id: m.id, label: label });
+  }
+  // アルファベット順でソート（安定したUX）
+  models.sort(function (a, b) {
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+  return models;
+}
+
+// ===== 共通リクエスト設定構築 =====
+export function buildRequestConfig(config, messages, stream) {
+  const headers = buildAuthHeaders(config.apiUrl, config.apiKey);
 
   const body = {
     model: config.apiModel,

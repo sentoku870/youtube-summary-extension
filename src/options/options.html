@@ -77,17 +77,11 @@
         <span id="api-form-title" style="font-weight:bold;font-size:15px;">🔑 新規API設定を登録</span>
       </div>
       <div class="field">
-        <label>プリセット（選択で自動入力）</label>
-        <select id="presetSelect">
-          <option value="">カスタム（手動入力）</option>
-          <option value="deepseek_chat">DeepSeek Chat</option>
-          <option value="deepseek_reasoner">DeepSeek Reasoner</option>
-          <option value="openrouter_gpt4o">OpenRouter GPT-4o</option>
-          <option value="openrouter_gpt4o_mini">OpenRouter GPT-4o Mini</option>
-          <option value="openrouter_claude35">OpenRouter Claude 3.5 Sonnet</option>
-          <option value="openrouter_gemini">OpenRouter Gemini 2.0 Flash</option>
+        <label>プロバイダー（選択でURL等を自動入力）</label>
+        <select id="providerSelect">
+          <option value="custom">カスタム（手動入力）</option>
         </select>
-        <div class="note">プリセット選択でURL・モデル名・Temperature・追加パラメータが自動入力されます</div>
+        <div class="note">プロバイダーを選ぶと APIエンドポイントURL とデフォルトモデル一覧が自動入力されます</div>
       </div>
       <div class="field">
         <label>ラベル名</label>
@@ -96,14 +90,39 @@
       <div class="field">
         <label>APIキー</label>
         <input type="password" id="apiKey" placeholder="sk-xxxxxxxx" />
+        <div class="note" id="apiKeyHint">同一ホストの登録済みキーがあれば自動入力されます</div>
       </div>
       <div class="field">
         <label>APIエンドポイントURL</label>
         <input type="url" id="apiUrl" placeholder="https://api.deepseek.com/v1/chat/completions" />
       </div>
       <div class="field">
-        <label>モデル名</label>
-        <input type="text" id="apiModel" placeholder="deepseek-chat" />
+        <label>モデル</label>
+        <div id="modelFilterContainer" style="display:none;background:#fafafa;border:1px solid #eee;border-radius:4px;padding:10px;margin-bottom:8px;">
+          <div class="field-row" style="margin-bottom:8px;">
+            <div class="field" style="margin-bottom:0;">
+              <label style="font-size:13px;">プロバイダー</label>
+              <select id="modelProviderFilter">
+                <option value="">すべて</option>
+              </select>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label style="font-size:13px;">キーワード</label>
+              <input type="text" id="modelKeywordFilter" placeholder="例: gpt, claude, gemini" />
+            </div>
+          </div>
+          <div class="note" id="modelCountNote" style="margin-top:0;">モデルを取得すると絞り込みできます</div>
+        </div>
+        <div class="inline-flex" style="align-items:flex-start;">
+          <div style="flex:1;">
+            <select id="modelSelect">
+              <option value="">（モデルを選択または手動入力）</option>
+            </select>
+            <div class="note">下の「モデル一覧を取得」ボタンで最新モデルを取得可能（APIキー必須）</div>
+          </div>
+          <button id="fetchModelsBtn" type="button" class="secondary">モデル一覧を取得</button>
+        </div>
+        <input type="text" id="apiModel" placeholder="deepseek-chat（手動入力も可）" style="margin-top:6px;" />
       </div>
       <div class="field-row">
         <div class="field">
