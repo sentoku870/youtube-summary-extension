@@ -73,7 +73,10 @@ describe("event-bus", () => {
 
   test("EVENTS 定数が期待される値を持つ", () => {
     expect(EVENTS.YT_NAVIGATE_FINISH).toBe("yt-navigate-finish");
+    expect(EVENTS.NAV_FINISH).toBe("nav:finish");
     expect(EVENTS.TRANSCRIPT_READY).toBe("transcript-ready");
+    expect(EVENTS.TRANSCRIPT_FAILED).toBe("transcript-failed");
+    expect(EVENTS.TRANSCRIPT_RETRY).toBe("transcript-retry");
     expect(EVENTS.SUMMARY_UPDATED).toBe("summary-updated");
     expect(EVENTS.TAB_CHANGED).toBe("tab-changed");
     expect(EVENTS.STATE_RESET).toBe("state-reset");

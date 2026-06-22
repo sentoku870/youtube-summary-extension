@@ -1,5 +1,6 @@
 // tests/markdown.test.js — Markdown→HTML変換の単体テスト（ESM版）
-import { sanitizeHTML, ALLOWED_TAGS } from "../src/domain/markdown.js";
+import { sanitizeHTML, ALLOWED_TAGS, ALLOWED_ATTR, renderMarkdown, setMarkdown } from "../src/domain/markdown.js";
+import { marked } from "marked";
 
 describe("sanitizeHTML", () => {
   test("許可タグはそのまま残る", () => {
@@ -60,5 +61,122 @@ describe("ALLOWED_TAGS", () => {
     expect(ALLOWED_TAGS).not.toContain("iframe");
     expect(ALLOWED_TAGS).not.toContain("object");
     expect(ALLOWED_TAGS).not.toContain("embed");
+  });
+});
+
+// ===== ALLOWED_ATTR のテスト =====
+describe("ALLOWED_ATTR", () => {
+  test("許可属性リストに重要な属性が含まれている", () => {
+    expect(ALLOWED_ATTR).toContain("href");
+    expect(ALLOWED_ATTR).toContain("src");
+    expect(ALLOWED_ATTR).toContain("alt");
+    expect(ALLOWED_ATTR).toContain("class");
+    expect(ALLOWED_ATTR).toContain("colspan");
+    expect(ALLOWED_ATTR).toContain("rowspan");
+  });
+
+  test("許可属性リストに危険な属性は含まれていない", () => {
+    // on* イベントハンドラや JavaScript URL は許可しない
+    expect(ALLOWED_ATTR).not.toContain("onclick");
+    expect(ALLOWED_ATTR).not.toContain("onerror");
+    expect(ALLOWED_ATTR).not.toContain("onload");
+    expect(ALLOWED_ATTR).not.toContain("onmouseover");
+  });
+});
+
+// ===== renderMarkdown のテスト =====
+describe("renderMarkdown", () => {
+  test("空文字・null・undefinedは空のDocumentFragmentを返す", () => {
+    expect(renderMarkdown("") instanceof DocumentFragment).toBe(true);
+    expect(renderMarkdown("").childNodes.length).toBe(0);
+    expect(renderMarkdown(null).childNodes.length).toBe(0);
+    expect(renderMarkdown(undefined).childNodes.length).toBe(0);
+  });
+
+  test("MarkdownをパースしてFragmentを返す（見出し・段落・リスト）", () => {
+    const md = "# タイトル\n\nこれは段落です。\n\n- リスト1\n- リスト2";
+    const result = renderMarkdown(md);
+
+    expect(result instanceof DocumentFragment).toBe(true);
+    expect(result.querySelector("h1")).toBeTruthy();
+    expect(result.querySelector("h1").textContent).toBe("タイトル");
+    expect(result.querySelector("p")).toBeTruthy();
+    expect(result.querySelectorAll("li").length).toBe(2);
+  });
+
+  test("コードブロックをレンダリングする", () => {
+    const md = "```js\nconst x = 1;\n```";
+    const result = renderMarkdown(md);
+    expect(result.querySelector("pre")).toBeTruthy();
+    expect(result.querySelector("code")).toBeTruthy();
+  });
+
+  test("marked.parseが例外を投げた場合はテキストノードにフォールバックする", () => {
+    const parseSpy = jest.spyOn(marked, "parse").mockImplementation(() => {
+      throw new Error("parse error");
+    });
+
+    const result = renderMarkdown("壊れたMarkdown");
+    expect(result instanceof DocumentFragment).toBe(true);
+    expect(result.childNodes.length).toBe(1);
+    expect(result.firstChild.nodeType).toBe(Node.TEXT_NODE);
+    expect(result.firstChild.textContent).toBe("壊れたMarkdown");
+
+    parseSpy.mockRestore();
+  });
+});
+
+// ===== setMarkdown のテスト =====
+describe("setMarkdown", () => {
+  test("elがnullの場合は何もしない（例外なし）", () => {
+    expect(() => setMarkdown(null, "text")).not.toThrow();
+  });
+
+  test("elがundefinedの場合も何もしない", () => {
+    expect(() => setMarkdown(undefined, "text")).not.toThrow();
+  });
+
+  test("正常時: el.innerHTMLをクリアしてFragmentを追加する", () => {
+    const el = document.createElement("div");
+    el.innerHTML = "<p>古い内容</p>";
+
+    setMarkdown(el, "# 新しい見出し");
+
+    expect(el.querySelector("h1")).toBeTruthy();
+    expect(el.querySelector("h1").textContent).toBe("新しい見出し");
+    expect(el.querySelector("p")).toBeNull(); // 古い内容は消去済み
+  });
+
+  test("whiteSpaceスタイルをnormalに設定し、元の値を復元する", () => {
+    const el = document.createElement("div");
+    el.style.whiteSpace = "pre";
+
+    setMarkdown(el, "**太字**");
+
+    // 実行後は元のwhiteSpaceに戻る
+    expect(el.style.whiteSpace).toBe("pre");
+  });
+
+  test("renderMarkdown内で例外が起きてもwhiteSpaceは復元される", () => {
+    const el = document.createElement("div");
+    el.style.whiteSpace = "pre-wrap";
+    const parseSpy = jest.spyOn(marked, "parse").mockImplementation(() => {
+      throw new Error("boom");
+    });
+
+    expect(() => setMarkdown(el, "壊れた")).not.toThrow();
+    // 例外時でもwhiteSpaceは復元される（finallyブロック）
+    expect(el.style.whiteSpace).toBe("pre-wrap");
+
+    parseSpy.mockRestore();
+  });
+
+  test("空テキストを渡した場合は空のFragmentが追加される", () => {
+    const el = document.createElement("div");
+    el.innerHTML = "<span>既存</span>";
+
+    setMarkdown(el, "");
+
+    expect(el.childNodes.length).toBe(0);
   });
 });

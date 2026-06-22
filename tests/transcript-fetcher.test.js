@@ -1,10 +1,19 @@
 // tests/transcript-fetcher.test.js — 字幕取得の純粋関数テスト
-const { retrieveVideoId, extractVideoMeta, parseTranscriptXml } = require("../src/domain/transcript-fetcher");
+const { retrieveVideoId, extractVideoMeta, parseTranscriptXml, fetchYtTranscript } = require("../src/domain/transcript-fetcher");
 
 // TextDecoder のポリフィル
 const { TextDecoder: NodeTextDecoder } = require("util");
 if (typeof TextDecoder === "undefined") {
   global.TextDecoder = NodeTextDecoder;
+}
+
+// window.location.href を切り替えるヘルパー（fetchYtTranscriptが参照するため）
+function setLocation(href) {
+  Object.defineProperty(window, "location", {
+    value: { href: href, search: "", pathname: "/" },
+    writable: true,
+    configurable: true
+  });
 }
 
 // ===== retrieveVideoId =====
@@ -159,5 +168,206 @@ describe("parseTranscriptXml", () => {
   test("空のXMLは空配列を返す", () => {
     const result = parseTranscriptXml("<transcript></transcript>", "en");
     expect(result).toEqual([]);
+  });
+});
+
+// ===== fetchYtTranscript（統合テスト: fetch/document/window.location をモック） =====
+describe("fetchYtTranscript", () => {
+  const INNERTUBE_URL_PART = "youtubei/v1/player";
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    // 各テスト前にfetchをリセット
+    global.fetch = jest.fn();
+  });
+
+  afterEach(() => {
+    // document.body のキャプション要素を掃除
+    document.querySelectorAll(".ytp-caption-segment, .captions-text span, .caption-window span").forEach(function (el) {
+      el.parentNode && el.parentNode.removeChild(el);
+    });
+    global.fetch = originalFetch;
+  });
+
+  test("InnerTube API成功時に字幕とメタ情報を返す", async () => {
+    setLocation("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+
+    const xml = '<transcript><text start="1.0" dur="2.0">Hello</text><text start="3.0" dur="1.5">World</text></transcript>';
+
+    global.fetch = jest.fn(function (url) {
+      if (url.indexOf(INNERTUBE_URL_PART) !== -1) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            videoDetails: { title: "テスト動画", author: "テストチャンネル" },
+            captions: {
+              playerCaptionsTracklistRenderer: {
+                captionTracks: [
+                  { baseUrl: "https://example.com/timedtext?lang=ja", languageCode: "ja" }
+                ]
+              }
+            }
+          })
+        });
+      }
+      // transcript XML
+      return Promise.resolve({ ok: true, text: async () => xml });
+    });
+
+    const result = await fetchYtTranscript();
+
+    expect(result.error).toBeUndefined();
+    expect(result.all).toEqual(["Hello", "World"]);
+    expect(result.transcript).toEqual(["Hello", "World"]);
+    expect(result.allTimestamps).toHaveLength(2);
+    expect(result.allTimestamps[0]).toEqual({ text: "Hello", offset: 1.0, duration: 2.0, lang: "ja" });
+    expect(result.meta.title).toBe("テスト動画");
+    expect(result.meta.author).toBe("テストチャンネル");
+  });
+
+  test("InnerTube失敗時にHTMLのytInitialPlayerResponseへフォールバック", async () => {
+    setLocation("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+
+    const playerResponse = {
+      videoDetails: { title: "フォールバック動画", author: "Fallback Channel" },
+      captions: {
+        playerCaptionsTracklistRenderer: {
+          captionTracks: [
+            { baseUrl: "https://example.com/timedtext?lang=en", languageCode: "en" }
+          ]
+        }
+      }
+    };
+    const pageHtml = "<html><script>var ytInitialPlayerResponse = " + JSON.stringify(playerResponse) + ";</script></html>";
+
+    global.fetch = jest.fn(function (url) {
+      if (url.indexOf(INNERTUBE_URL_PART) !== -1) {
+        return Promise.resolve({ ok: false });
+      }
+      if (url.indexOf("youtube.com/watch") !== -1) {
+        return Promise.resolve({ ok: true, text: async () => pageHtml });
+      }
+      // transcript XML
+      return Promise.resolve({
+        ok: true,
+        text: async () => '<transcript><text start="0" dur="1">Fallback</text></transcript>'
+      });
+    });
+
+    const result = await fetchYtTranscript();
+
+    expect(result.all).toEqual(["Fallback"]);
+    expect(result.meta.title).toBe("フォールバック動画");
+    // InnerTube呼び出しとHTML呼び出しの両方が発生
+    const calls = global.fetch.mock.calls.map(c => c[0]);
+    expect(calls.some(u => u.indexOf(INNERTUBE_URL_PART) !== -1)).toBe(true);
+    expect(calls.some(u => u.indexOf("youtube.com/watch") !== -1)).toBe(true);
+  });
+
+  test("字幕トラック取得失敗時はDOMキャプション(.ytp-caption-segment)にフォールバック", async () => {
+    setLocation("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+
+    // InnerTube失敗 + HTMLページにytInitialPlayerResponseなし
+    global.fetch = jest.fn(function (url) {
+      if (url.indexOf(INNERTUBE_URL_PART) !== -1) {
+        return Promise.resolve({ ok: false });
+      }
+      // HTMLフォールバック応答（空ページ）
+      return Promise.resolve({ ok: true, text: async () => "<html></html>" });
+    });
+
+    // DOMキャプション要素を仕込む
+    const cap1 = document.createElement("div");
+    cap1.className = "ytp-caption-segment";
+    cap1.textContent = "DOMの字幕1";
+    document.body.appendChild(cap1);
+
+    const cap2 = document.createElement("div");
+    cap2.className = "ytp-caption-segment";
+    cap2.textContent = "  DOMの字幕2  "; // 前後空白あり → trimされる
+    document.body.appendChild(cap2);
+
+    const result = await fetchYtTranscript();
+
+    expect(result.all).toEqual(["DOMの字幕1", "DOMの字幕2"]);
+    expect(result.player).toEqual(["DOMの字幕1", "DOMの字幕2"]);
+    expect(result.transcript).toEqual([]);
+    expect(result.meta).toBeNull();
+  });
+
+  test("captionTracksが空配列の場合はall/metaのみ設定される", async () => {
+    setLocation("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+
+    global.fetch = jest.fn(function (url) {
+      if (url.indexOf(INNERTUBE_URL_PART) !== -1) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            videoDetails: { title: "字幕なし動画" },
+            captions: { playerCaptionsTracklistRenderer: { captionTracks: [] } }
+          })
+        });
+      }
+      // HTMLフォールバックも空応答
+      return Promise.resolve({ ok: true, text: async () => "<html></html>" });
+    });
+
+    const result = await fetchYtTranscript();
+
+    expect(result.all).toEqual([]);
+    expect(result.transcript).toEqual([]);
+    // videoMetaは抽出される（playerDataがあれば）
+    expect(result.meta.title).toBe("字幕なし動画");
+  });
+
+  test("動画IDが抽出できないURLではエラーオブジェクトを返す", async () => {
+    setLocation("https://example.com/not-a-youtube-page");
+
+    const result = await fetchYtTranscript();
+
+    expect(result.error).toBeTruthy();
+    expect(result.all).toEqual([]);
+    expect(result.transcript).toEqual([]);
+    expect(result.player).toEqual([]);
+    expect(result.meta).toBeNull();
+  });
+
+  test("config.lang指定時に一致する言語コードのトラックを選択する", async () => {
+    setLocation("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+
+    const enUrl = "https://example.com/timedtext?lang=en";
+    const jaUrl = "https://example.com/timedtext?lang=ja";
+
+    global.fetch = jest.fn(function (url) {
+      if (url.indexOf(INNERTUBE_URL_PART) !== -1) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            videoDetails: { title: "多言語動画" },
+            captions: {
+              playerCaptionsTracklistRenderer: {
+                captionTracks: [
+                  { baseUrl: enUrl, languageCode: "en" },
+                  { baseUrl: jaUrl, languageCode: "ja" }
+                ]
+              }
+            }
+          })
+        });
+      }
+      if (url === enUrl) {
+        return Promise.resolve({ ok: true, text: async () => '<transcript><text start="0" dur="1">Hello</text></transcript>' });
+      }
+      if (url === jaUrl) {
+        return Promise.resolve({ ok: true, text: async () => '<transcript><text start="0" dur="1">こんにちは</text></transcript>' });
+      }
+      return Promise.resolve({ ok: false });
+    });
+
+    const result = await fetchYtTranscript({ lang: "ja" });
+
+    expect(result.all).toEqual(["こんにちは"]);
+    // jaUrl の fetch が呼ばれたことを検証
+    expect(global.fetch).toHaveBeenCalledWith(jaUrl, expect.anything());
   });
 });

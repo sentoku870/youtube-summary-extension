@@ -77,6 +77,34 @@ describe("getAvailableTokens", () => {
   test("DeepSeek の場合 800000（1000000×0.8）", () => {
     expect(getAvailableTokens("dummy", "deepseek-chat")).toBe(800000);
   });
+
+  test("第3引数maxTokensが出力予約分として減算される", () => {
+    // gpt-4o: contextWindow=128000, usable=102400
+    // maxTokens=8192 → available = 102400 - 8192 = 94208
+    expect(getAvailableTokens("dummy", "gpt-4o", "8192")).toBe(94208);
+  });
+
+  test("maxTokensが数値の場合も正しく減算される", () => {
+    expect(getAvailableTokens("dummy", "gpt-4o", 4096)).toBe(98304);
+  });
+
+  test("maxTokens未指定（undefined）の場合は予約なし", () => {
+    expect(getAvailableTokens("dummy", "gpt-4o")).toBe(102400);
+  });
+
+  test("maxTokensが無効値の場合は予約なし扱い", () => {
+    // parseInt(NaN), 0以下, 負数 はすべて reserved=0
+    expect(getAvailableTokens("dummy", "gpt-4o", null)).toBe(102400);
+    expect(getAvailableTokens("dummy", "gpt-4o", "abc")).toBe(102400);
+    expect(getAvailableTokens("dummy", "gpt-4o", "0")).toBe(102400);
+    expect(getAvailableTokens("dummy", "gpt-4o", -100)).toBe(102400);
+  });
+
+  test("計算結果が1未満になる場合はMIN_USABLE_TOKENS(1)にクランプ", () => {
+    // gpt-4: contextWindow=8192, usable=6553
+    // maxTokens=999999 → reserved=999999 → 結果が負 → 1にクランプ
+    expect(getAvailableTokens("dummy", "gpt-4", "999999")).toBe(1);
+  });
 });
 
 // ===== splitIntoChunks =====

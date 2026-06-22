@@ -1,60 +1,35 @@
 // ============================================================
 //  options.js — オプション画面のロジック（ESM版）
 //  storage.js 経由で chrome.storage にアクセス（キー重複定義を解消）
+//  純粋関数は options-logic.js へ分離。DOM操作・イベント登録のみ残す。
 // ============================================================
 import { get, set, getAll, K } from "../infrastructure/storage.js";
 import { fetchModelList } from "../domain/api.js";
 import { buildModelDisplayLabel } from "./model-label.js";
 import { listModelProviders, filterModels } from "./model-filter.js";
+import {
+  PROVIDERS,
+  generateId,
+  promptKey,
+  btnTitleKey,
+  btnApiConfigKey,
+  detectProviderKey,
+  cssEscape,
+  validateFormValues,
+  VALIDATION_ERRORS,
+  buildConfig,
+  convertLegacyToConfigs
+} from "./options-logic.js";
 
-// ===== プロバイダープリセット（プロバイダー → モデルの2段階選択） =====
-// 各プロバイダーには代表的なデフォルトモデルを内蔵。
-// 「モデル一覧を取得」ボタンで /models から最新モデルを動的に取得可能。
-const PROVIDERS = {
-  deepseek: {
-    label: "DeepSeek（直API）",
-    apiUrl: "https://api.deepseek.com/v1/chat/completions",
-    temperature: "0.3",
-    models: [
-      { id: "deepseek-chat", label: "DeepSeek Chat", extraParams: "" },
-      { id: "deepseek-reasoner", label: "DeepSeek Reasoner", extraParams: '{"thinking": {"type": "disabled"}}' }
-    ]
-  },
-  openrouter: {
-    label: "OpenRouter",
-    apiUrl: "https://openrouter.ai/api/v1/chat/completions",
-    temperature: "0.3",
-    models: [
-      { id: "openai/gpt-4o", label: "GPT-4o", extraParams: "" },
-      { id: "openai/gpt-4o-mini", label: "GPT-4o Mini", extraParams: "" },
-      { id: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet", extraParams: "" },
-      { id: "google/gemini-2.0-flash-exp:free", label: "Gemini 2.0 Flash (free)", extraParams: "" },
-      { id: "deepseek/deepseek-chat", label: "DeepSeek Chat", extraParams: "" }
-    ]
-  },
-  openai: {
-    label: "OpenAI（直API）",
-    apiUrl: "https://api.openai.com/v1/chat/completions",
-    temperature: "0.3",
-    models: [
-      { id: "gpt-4o", label: "GPT-4o", extraParams: "" },
-      { id: "gpt-4o-mini", label: "GPT-4o Mini", extraParams: "" },
-      { id: "gpt-4-turbo", label: "GPT-4 Turbo", extraParams: "" }
-    ]
-  },
-  custom: {
-    label: "カスタム（手動入力）",
-    apiUrl: "",
-    temperature: "0.3",
-    models: []
-  }
-};
+// ===== バリデーションエラーメッセージのマッピング =====
+const VALIDATION_MESSAGES = {};
+VALIDATION_MESSAGES[VALIDATION_ERRORS.LABEL] = "ラベル名を入力してください";
+VALIDATION_MESSAGES[VALIDATION_ERRORS.API_KEY] = "APIキーを入力してください";
+VALIDATION_MESSAGES[VALIDATION_ERRORS.API_URL] = "APIエンドポイントURLを入力してください";
+VALIDATION_MESSAGES[VALIDATION_ERRORS.API_MODEL] = "モデル名を入力してください";
+VALIDATION_MESSAGES[VALIDATION_ERRORS.EXTRA_PARAMS_JSON] = "追加パラメータが正しいJSON形式ではありません";
 
-// ===== ユーティリティ =====
-let idCounter = 0;
-function generateId() {
-  return "cfg_" + (++idCounter) + "_" + Date.now().toString(36);
-}
+// ===== ユーティリティ（DOM依存） =====
 function getVal(id) { const el = document.getElementById(id); return el ? el.value : ""; }
 function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val || ""; }
 function showStatus(id, msg, isError) {
@@ -64,11 +39,6 @@ function showStatus(id, msg, isError) {
   el.style.color = isError ? "#d32f2f" : "#2d8c3c";
   if (!isError) setTimeout(function() { el.textContent = ""; }, 2000);
 }
-
-// ストレージキー文字列を生成するヘルパー（K 定数経由）
-function promptKey(type) { return K.PROMPT_PREFIX + type; }
-function btnTitleKey(type) { return K.BTN_TITLE_PREFIX + type; }
-function btnApiConfigKey(type) { return K.BTN_API_PREFIX + type; }
 
 // ===== プロバイダー選択 UI の動的構築（HTML ハードコードとの二重管理を解消） =====
 function populateProviderSelect() {
@@ -382,23 +352,6 @@ window.editConfig = async function(id) {
   showEditButtons(true);
 };
 
-// ===== apiUrl からプロバイダーキーを推定 =====
-function detectProviderKey(apiUrl) {
-  if (!apiUrl) return "custom";
-  try {
-    const host = new URL(apiUrl).hostname;
-    if (host === "api.deepseek.com") return "deepseek";
-    if (host === "openrouter.ai") return "openrouter";
-    if (host === "api.openai.com") return "openai";
-  } catch (e) { /* fallthrough */ }
-  return "custom";
-}
-
-// CSS セレクタの特殊文字をエスケープ（モデルIDに "/" が含まれる場合のため）
-function cssEscape(s) {
-  return String(s).replace(/["\\]/g, "\\$&");
-}
-
 // ===== アコーディオン初期化（DOMContentLoadedで実行） =====
 function initAccordion() {
   document.querySelectorAll(".accordion-header").forEach(function(header) {
@@ -469,26 +422,23 @@ function clearApiForm() {
 }
 
 function buildConfigFromForm() {
-  return {
-    label: getVal("configLabel").trim(),
-    apiKey: getVal("apiKey").trim(),
-    apiUrl: getVal("apiUrl").trim(),
-    apiModel: getVal("apiModel").trim(),
-    temperature: getVal("temperature") || "0.3",
-    maxTokens: getVal("maxTokens") || "4096",
-    extraParams: getVal("extraParams").trim()
-  };
+  return buildConfig({
+    label: getVal("configLabel"),
+    apiKey: getVal("apiKey"),
+    apiUrl: getVal("apiUrl"),
+    apiModel: getVal("apiModel"),
+    temperature: getVal("temperature"),
+    maxTokens: getVal("maxTokens"),
+    extraParams: getVal("extraParams")
+  });
 }
 
 function validateForm(config) {
-  if (!config.label) { showStatus("apiStatus", "ラベル名を入力してください", true); return false; }
-  if (!config.apiKey) { showStatus("apiStatus", "APIキーを入力してください", true); return false; }
-  if (!config.apiUrl) { showStatus("apiStatus", "APIエンドポイントURLを入力してください", true); return false; }
-  if (!config.apiModel) { showStatus("apiStatus", "モデル名を入力してください", true); return false; }
-  if (config.extraParams) {
-    try { JSON.parse(config.extraParams); } catch (e) { showStatus("apiStatus", "追加パラメータが正しいJSON形式ではありません", true); return false; }
+  const result = validateFormValues(config);
+  if (!result.valid) {
+    showStatus("apiStatus", VALIDATION_MESSAGES[result.errorKey] || "入力内容を確認してください", true);
   }
-  return true;
+  return result.valid;
 }
 
 async function saveConfigsAndRefresh(configs) {
@@ -659,39 +609,10 @@ document.getElementById("saveDisplayBtn").addEventListener("click", async functi
   showStatus("displayStatus", "✓ 保存しました");
 });
 
-// ===== 旧形式からの移行処理 =====
+// ===== 旧形式からの移行処理（変換ロジックは options-logic.js の convertLegacyToConfigs） =====
 async function migrateIfNeeded() {
   const result = await getAll();
-  let configs = result[K.API_CONFIGS];
-  if (configs && configs.length > 0) return;
-  const oldConfig = result[K.API_CONFIG_LEGACY];
-  if (!oldConfig) return;
-  const newConfigs = [];
-  const providers = ["deepseek", "openrouter", "custom"];
-  providers.forEach(function(provider) {
-    const key = "apiConfig_" + provider;
-    const pc = result[key];
-    if (pc && pc.apiKey) {
-      newConfigs.push({
-        id: generateId(),
-        label: provider.charAt(0).toUpperCase() + provider.slice(1),
-        apiKey: pc.apiKey, apiUrl: pc.apiUrl || "", apiModel: pc.apiModel || "",
-        temperature: pc.temperature || "0.3", maxTokens: pc.maxTokens || "4096",
-        extraParams: pc.extraParams || ""
-      });
-    }
-  });
-  if (oldConfig.apiKey) {
-    const exists = newConfigs.some(function(c) { return c.apiUrl === oldConfig.apiUrl && c.apiKey === oldConfig.apiKey; });
-    if (!exists) {
-      newConfigs.push({
-        id: generateId(), label: oldConfig.apiProvider || "Default",
-        apiKey: oldConfig.apiKey, apiUrl: oldConfig.apiUrl || "", apiModel: oldConfig.apiModel || "",
-        temperature: oldConfig.temperature || "0.3", maxTokens: oldConfig.maxTokens || "4096",
-        extraParams: oldConfig.extraParams || ""
-      });
-    }
-  }
+  const newConfigs = convertLegacyToConfigs(result, generateId);
   if (newConfigs.length > 0) {
     await set({ [K.API_CONFIGS]: newConfigs });
   }

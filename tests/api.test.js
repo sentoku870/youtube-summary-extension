@@ -6,8 +6,14 @@ const {
   fetchModelList,
   deriveModelsUrl,
   buildAuthHeaders,
-  isOpenRouterUrl
+  isOpenRouterUrl,
+  handleErrorResponse,
+  callChatAPINonStream,
+  fetchWithRetry
 } = require("../src/domain/api");
+
+// YsAPIError の参照（ステータス情報の検証用）
+const { YsAPIError, YsAbortError, YsTimeoutError } = require("../src/infrastructure/errors");
 
 // TextEncoder/TextDecoder のポリフィル（jsdom環境では未定義のため）
 const { TextEncoder: NodeTextEncoder, TextDecoder: NodeTextDecoder } = require("util");
@@ -484,5 +490,210 @@ describe("fetchModelList", () => {
       "https://openrouter.ai/api/v1/models",
       expect.anything()
     );
+  });
+});
+
+// ===== handleErrorResponse のテスト =====
+describe("handleErrorResponse", () => {
+  test("429エラー時にレート制限メッセージでYsAPIErrorを投げる", async () => {
+    const response = { status: 429, statusText: "Too Many Requests", text: async () => "rate limited" };
+    await expect(handleErrorResponse(response)).rejects.toThrow("APIの利用制限中");
+  });
+
+  test("5xxエラー時にサーバーエラーメッセージでYsAPIErrorを投げる", async () => {
+    const response = { status: 503, statusText: "Service Unavailable", text: async () => "unavailable" };
+    await expect(handleErrorResponse(response)).rejects.toThrow("APIサーバーでエラーが発生しました");
+  });
+
+  test("4xxエラー時に詳細を含むメッセージでYsAPIErrorを投げる", async () => {
+    const response = { status: 400, statusText: "Bad Request", text: async () => "invalid request" };
+    await expect(handleErrorResponse(response)).rejects.toThrow("APIエラー (400)");
+  });
+
+  test("YsAPIErrorとして投げられ、status/statusTextを保持する", async () => {
+    const response = { status: 429, statusText: "Too Many Requests", text: async () => "" };
+    try {
+      await handleErrorResponse(response);
+      throw new Error("例外が投げられるべき");
+    } catch (e) {
+      expect(e).toBeInstanceOf(YsAPIError);
+      expect(e.status).toBe(429);
+      expect(e.statusText).toBe("Too Many Requests");
+    }
+  });
+
+  test("エラーテキストが100文字超の場合は末尾を省略する", async () => {
+    const longText = "x".repeat(200);
+    const response = { status: 400, statusText: "Bad Request", text: async () => longText };
+    await expect(handleErrorResponse(response)).rejects.toThrow("...");
+  });
+});
+
+// ===== callChatAPINonStream のテスト =====
+describe("callChatAPINonStream", () => {
+  beforeEach(() => {
+    global.fetch.mockReset();
+  });
+
+  test("正常時にchoices[0].message.contentを返す", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "要約結果" } }] })
+    });
+
+    const result = await callChatAPINonStream(
+      [{ role: "user", content: "test" }],
+      { apiKey: "k", apiUrl: "https://api.test.com", apiModel: "gpt-4o" }
+    );
+    expect(result).toBe("要約結果");
+  });
+
+  test("response.ok=falseの場合はYsAPIErrorを投げる", async () => {
+    global.fetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+      text: async () => "server error"
+    });
+
+    await expect(
+      callChatAPINonStream(
+        [{ role: "user", content: "test" }],
+        { apiKey: "k", apiUrl: "https://api.test.com", apiModel: "gpt-4o" }
+      )
+    ).rejects.toThrow("APIサーバーでエラー");
+  });
+
+  test("contentが欠損している場合は空文字を返す", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [] })
+    });
+
+    const result = await callChatAPINonStream(
+      [{ role: "user", content: "test" }],
+      { apiKey: "k", apiUrl: "https://api.test.com", apiModel: "gpt-4o" }
+    );
+    expect(result).toBe("");
+  });
+
+  test("abortSignalがfetchOptionsのsignalに渡される", async () => {
+    global.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: "x" } }] })
+    });
+
+    const controller = new AbortController();
+    await callChatAPINonStream(
+      [{ role: "user", content: "test" }],
+      { apiKey: "k", apiUrl: "https://api.test.com", apiModel: "gpt-4o" },
+      controller.signal
+    );
+
+    // fetchWithRetry が内部 AbortController を作って外部 signal を橋渡しするため、
+    // 受け取った signal は何らかの AbortSignal インスタンスであることを検証
+    const callArgs = global.fetch.mock.calls[0][1];
+    expect(callArgs.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+// ===== fetchWithRetry のテスト =====
+describe("fetchWithRetry", () => {
+  beforeEach(() => {
+    global.fetch.mockReset();
+  });
+
+  test("初回成功時はfetchを1回だけ呼ぶ", async () => {
+    global.fetch.mockResolvedValue({ ok: true });
+
+    const response = await fetchWithRetry(
+      "https://api.test.com",
+      { headers: {}, body: "{}" },
+      3
+    );
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(response.ok).toBe(true);
+  });
+
+  test("429エラーからリトライして成功する", async () => {
+    global.fetch
+      .mockResolvedValueOnce({ ok: false, status: 429 })
+      .mockResolvedValueOnce({ ok: true });
+
+    jest.useFakeTimers();
+    const promise = fetchWithRetry("https://api.test.com", { headers: {}, body: "{}" }, 3);
+    await jest.runAllTimersAsync();
+    const response = await promise;
+    jest.useRealTimers();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(response.ok).toBe(true);
+  });
+
+  test("5xxエラーでリトライ上限に達した場合は最後のresponseを返す", async () => {
+    global.fetch
+      .mockResolvedValueOnce({ ok: false, status: 503 })
+      .mockResolvedValueOnce({ ok: false, status: 503 });
+
+    jest.useFakeTimers();
+    const promise = fetchWithRetry("https://api.test.com", { headers: {}, body: "{}" }, 2);
+    await jest.runAllTimersAsync();
+    const response = await promise;
+    jest.useRealTimers();
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(response.ok).toBe(false);
+    expect(response.status).toBe(503);
+  });
+
+  test("外部abortSignalで中断時はYsAbortErrorを投げる", async () => {
+    // fetchは渡されたsignalのabortイベントでAbortErrorにする
+    global.fetch = jest.fn(function (url, opts) {
+      return new Promise(function (resolve, reject) {
+        opts.signal.addEventListener("abort", function () {
+          reject(new DOMException("aborted", "AbortError"));
+        });
+      });
+    });
+
+    const external = new AbortController();
+    const options = { headers: {}, body: "{}", signal: external.signal };
+
+    const promise = fetchWithRetry("https://api.test.com", options, 3);
+    // リスナ登録は同期的に行われるので即座にabortしてよい
+    external.abort();
+
+    await expect(promise).rejects.toBeInstanceOf(YsAbortError);
+  });
+
+  test("タイムアウト時（内部abort）はYsTimeoutErrorを投げる", async () => {
+    // 外部signalなし → 内部setTimeoutによるabort → TimeoutError になる経路
+    global.fetch = jest.fn(function (url, opts) {
+      return new Promise(function (resolve, reject) {
+        opts.signal.addEventListener("abort", function () {
+          reject(new DOMException("aborted", "AbortError"));
+        });
+      });
+    });
+
+    jest.useFakeTimers();
+    const promise = fetchWithRetry("https://api.test.com", { headers: {}, body: "{}" }, 3);
+    // API_TIMEOUT_MS (30000ms) 経過で内部 abort が発火
+    jest.advanceTimersByTime(30000);
+    await expect(promise).rejects.toBeInstanceOf(YsTimeoutError);
+    jest.useRealTimers();
+  });
+
+  test("ネットワークエラーでリトライ上限に達した場合は例外を投げる", async () => {
+    // 注: フェイクタイマーとmockRejectedValueの組み合わせはJest 29で
+    // microtaskのフラッシュ順序問題を起こすため、実タイマーで検証（約1秒）
+    global.fetch.mockRejectedValue(new Error("network down"));
+
+    await expect(
+      fetchWithRetry("https://api.test.com", { headers: {}, body: "{}" }, 2)
+    ).rejects.toThrow("network down");
+
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 });
