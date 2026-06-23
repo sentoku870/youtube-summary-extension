@@ -2,6 +2,9 @@
 //  storage.js — chrome.storage 操作（ESM版・キー定数化）
 //  純粋なストレージI/Oのみを担う。DOM操作は UI層（appearance.js）へ分離済み。
 // ============================================================
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("storage");
 
 // ===== ストレージキー定数 =====
 export const K = {
@@ -36,7 +39,7 @@ export async function get(key) {
     return r[key];
   } catch (e) {
     if (e.message && e.message.indexOf("context invalidated") !== -1) {
-      console.warn("[YouTube 要約] storage.get skipped (extension context invalidated)");
+      log.warn("storage.get skipped (extension context invalidated)");
       return null;
     }
     throw e;
@@ -49,7 +52,7 @@ export async function set(obj) {
     await chrome.storage.local.set(obj);
   } catch (e) {
     if (e.message && e.message.indexOf("context invalidated") !== -1) {
-      console.warn("[YouTube 要約] storage.set skipped (extension context invalidated)");
+      log.warn("storage.set skipped (extension context invalidated)");
       return;
     }
     throw e;
@@ -62,7 +65,7 @@ export async function remove(key) {
     await chrome.storage.local.remove(key);
   } catch (e) {
     if (e.message && e.message.indexOf("context invalidated") !== -1) {
-      console.warn("[YouTube 要約] storage.remove skipped (extension context invalidated)");
+      log.warn("storage.remove skipped (extension context invalidated)");
       return;
     }
     throw e;
@@ -76,7 +79,7 @@ export async function getAll() {
     return await chrome.storage.local.get(null);
   } catch (e) {
     if (e.message && e.message.indexOf("context invalidated") !== -1) {
-      console.warn("[YouTube 要約] storage.getAll skipped (extension context invalidated)");
+      log.warn("storage.getAll skipped (extension context invalidated)");
       return {};
     }
     throw e;

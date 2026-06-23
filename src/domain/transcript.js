@@ -7,6 +7,9 @@ import { sessionState as S } from "../shared/state.js";
 import { loadSubtitleLang } from "../infrastructure/storage.js";
 import { emit, EVENTS } from "../shared/event-bus.js";
 import { fetchYtTranscript } from "./transcript-fetcher.js";
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("transcript");
 
 // ===== 字幕取得 =====
 export async function fetchTranscript() {
@@ -43,10 +46,7 @@ export async function preloadTranscript() {
         return;
       }
     } catch (e) {
-      console.log(
-        "[YouTube 要約] 字幕プリロード失敗 (" + attempt + "/" + retries + "):",
-        e.message
-      );
+      log.log("字幕プリロード失敗 (" + attempt + "/" + retries + "):", e.message);
       if (attempt < retries) {
         await new Promise(function (r) {
           setTimeout(r, 1500 * attempt);

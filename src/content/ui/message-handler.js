@@ -8,6 +8,9 @@ import { createPanel } from "./panel.js";
 import { bindEvents, switchTab } from "./tabs.js";
 import { applyFontSize, applyTheme } from "./appearance.js";
 import { preloadTranscript, fetchTranscript } from "../../domain/transcript.js";
+import { createLogger } from "../../shared/logger.js";
+
+const log = createLogger("message-handler");
 
 // ===== パネル初期化ヘルパー（3メッセージで共通化） =====
 // パネル未生成なら生成し、表示してスタイルを適用する。
@@ -42,7 +45,7 @@ try {
           }
           sendResponse({ transcript: r.all, player: r.player || [], meta: r.meta || null });
         } catch (e) {
-          console.error("[YouTube 要約] ysGetTranscript error:", e);
+          log.error("ysGetTranscript error:", e);
           sendResponse({ error: e.message, transcript: [], player: [] });
         }
       })();
@@ -57,21 +60,21 @@ try {
       return true; // 非同期応答フラグ（popup.js が応答を待てるように）
     }
     if (msg.action === "ysTriggerAi") {
-      console.log("[YouTube 要約] ysTriggerAi mode=" + msg.mode);
+      log.log("ysTriggerAi mode=" + msg.mode);
       (async function () {
         try {
           // パネルが未生成なら生成
           ensurePanel();
           // 字幕をプリロード
           await preloadTranscript();
-          console.log("[YouTube 要約] ysTriggerAi preload done, starting switchTab");
+          log.log("ysTriggerAi preload done, starting switchTab");
           // 対象タブを切り替え（AI処理開始）— awaitせず非同期実行
           switchTab(msg.mode).catch(function (err) {
-            console.error("[YouTube 要約] ysTriggerAi switchTab error:", err);
+            log.error("ysTriggerAi switchTab error:", err);
           });
           sendResponse({ success: true });
         } catch (e) {
-          console.error("[YouTube 要約] ysTriggerAi error:", e);
+          log.error("ysTriggerAi error:", e);
           sendResponse({ success: false, error: e.message });
         }
       })();
@@ -79,7 +82,7 @@ try {
     }
   });
 } catch {
-  console.warn(
-    "[YouTube 要約] runtime.onMessage listener could not be registered (extension context may be invalid)."
+  log.warn(
+    "runtime.onMessage listener could not be registered (extension context may be invalid)."
   );
 }

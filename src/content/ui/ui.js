@@ -7,6 +7,9 @@ import { getEl } from "./panel.js";
 import { setMarkdown } from "../../domain/markdown.js";
 import { linkTimestamps } from "../../domain/ai.js";
 import { switchTab } from "./tabs.js";
+import { createLogger } from "../../shared/logger.js";
+
+const log = createLogger("ui");
 
 // ===== プログレス表示 =====
 export function showProgress(text) {
@@ -15,7 +18,7 @@ export function showProgress(text) {
     el.style.display = "block";
     el.textContent = text;
   }
-  console.log("[YouTube 要約] " + text);
+  log.log(text);
 }
 
 export function hideProgress() {

@@ -9,6 +9,9 @@ import { callChatAPIStream, callChatAPINonStream } from "./api.js";
 import { MAX_CONCURRENCY, CHUNK_MAX_ATTEMPTS } from "../shared/constants.js";
 import { uiState, sessionState } from "../shared/state.js";
 import { setMarkdown } from "./markdown.js";
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("ai");
 import {
   loadBtnApiConfigId,
   loadApiConfigById,
@@ -110,7 +113,7 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
       });
     }
   } catch (e) {
-    console.error("[YouTube 要約] Failed to save summary cache:", e);
+    log.error("Failed to save summary cache:", e);
   }
 }
 
@@ -180,8 +183,8 @@ async function processSingleChunk(chunkMessages, config, signal, idx, total, max
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") throw e;
       if (attempt < maxAttempts) {
-        console.warn(
-          "[YouTube 要約] チャンク " + (idx + 1) + " リトライ " + attempt + "/" + maxAttempts + ":",
+        log.warn(
+          "チャンク " + (idx + 1) + " リトライ " + attempt + "/" + maxAttempts + ":",
           e.message
         );
         ui.showProgress("⚠️ チャンク " + (idx + 1) + " リトライ中");
@@ -189,7 +192,7 @@ async function processSingleChunk(chunkMessages, config, signal, idx, total, max
           setTimeout(r, 500);
         });
       } else {
-        console.warn("[YouTube 要約] チャンク " + (idx + 1) + " の処理に最終失敗:", e.message);
+        log.warn("チャンク " + (idx + 1) + " の処理に最終失敗:", e.message);
         ui.showProgress("⚠️ チャンク " + (idx + 1) + " をスキップ");
         return { success: false, result: null };
       }

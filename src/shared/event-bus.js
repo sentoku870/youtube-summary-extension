@@ -2,6 +2,9 @@
 //  event-bus.js — 軽量なpub/subイベントバス（ESM）
 //  依存なし。UI/ドメイン層の疎結合な通信に使用。
 // ============================================================
+import { createLogger } from "./logger.js";
+
+const log = createLogger("event-bus");
 
 // 内部リスナーマップ: { eventName: Set<callback> }
 const listeners = {};
@@ -46,7 +49,7 @@ export function emit(event, payload) {
     try {
       cbs[i](payload);
     } catch (e) {
-      console.error("[YouTube 要約][event-bus] listener error for '" + event + "':", e);
+      log.error("listener error for '" + event + "':", e);
     }
   }
 }
@@ -61,11 +64,18 @@ export function clearAll() {
 }
 
 // ===== イベント名定数（タイポ防止） =====
-// 注意: index.js は生の "yt-navigate-finish" DOMイベントを受けて
-// 内部イベント "nav:finish" に橋渡ししている。両方を定義。
-export const EVENTS = {
-  YT_NAVIGATE_FINISH: "yt-navigate-finish", // 生のYouTube DOMイベント名
-  NAV_FINISH: "nav:finish", // 内部イベント名（index.js で使用）
+// DOM イベントと内部イベントを分離。
+// 注意: index.js は生の YouTube DOM イベントを受けて内部イベントに橋渡しする。
+// 後方互換: EVENTS は DOM_EVENTS と INTERNAL_EVENTS をマージしたシム。
+
+// 生の DOM イベント（content script が受信する browser 標準 / YouTube カスタム）
+export const DOM_EVENTS = {
+  YT_NAVIGATE_FINISH: "yt-navigate-finish"
+};
+
+// 内部イベント（event-bus 経由、UI 層が購読する）
+export const INTERNAL_EVENTS = {
+  NAV_FINISH: "nav:finish",
   TRANSCRIPT_READY: "transcript-ready",
   TRANSCRIPT_FAILED: "transcript-failed",
   TRANSCRIPT_RETRY: "transcript-retry",
@@ -73,3 +83,6 @@ export const EVENTS = {
   TAB_CHANGED: "tab-changed",
   STATE_RESET: "state-reset"
 };
+
+// 既存コードが EVENTS.X で参照している場合のシム
+export const EVENTS = Object.assign({}, DOM_EVENTS, INTERNAL_EVENTS);

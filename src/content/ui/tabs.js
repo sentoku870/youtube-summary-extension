@@ -20,6 +20,9 @@ import { YsAbortError, YsTimeoutError } from "../../infrastructure/errors.js";
 import { loadButtonTitle } from "../../infrastructure/storage.js";
 import { createRafThrottle } from "../../shared/raf-throttle.js";
 import { linkAbortSignal } from "../../shared/abort-chain.js";
+import { createLogger } from "../../shared/logger.js";
+
+const log = createLogger("tabs");
 
 // tabs-ui.js からの再エクスポート（呼び出し側の互換用）
 export { updateTabUI, updateTabActive, renderTabContent };
@@ -53,7 +56,7 @@ function copyContent() {
   try {
     navigator.clipboard.writeText(tab.content);
   } catch {
-    console.error("[YouTube 要約] clipboard write failed");
+    log.error("clipboard write failed");
   }
 }
 
@@ -375,8 +378,8 @@ export function bindEvents() {
       }, 150);
     });
   } catch {
-    console.warn(
-      "[YouTube 要約] storage.onChanged listener could not be registered (extension context may be invalid)."
+    log.warn(
+      "storage.onChanged listener could not be registered (extension context may be invalid)."
     );
   }
 }

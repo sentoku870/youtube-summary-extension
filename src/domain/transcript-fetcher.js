@@ -3,6 +3,9 @@
  * Original: https://github.com/Kakulukian/youtube-transcript
  * Phase 7: ESM化
  */
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("transcript-fetcher");
 
 const RE_YOUTUBE =
   /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i;
@@ -213,7 +216,7 @@ export async function fetchYtTranscript(config) {
         }
       }
     } catch (e) {
-      console.error("[YouTube 要約] InnerTube API error:", e);
+      log.error("InnerTube API error:", e);
     }
 
     // Fallback: fetch via web page

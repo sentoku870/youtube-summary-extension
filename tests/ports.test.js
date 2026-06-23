@@ -28,8 +28,8 @@ describe("ports (Port/Adapter パターン)", () => {
       // showError はデフォルトで console.error を呼ぶ
       const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
       expect(() => a.showError("x")).not.toThrow();
-      // [YouTube 要約] プレフィックス付きでログ出力
-      expect(errSpy).toHaveBeenCalledWith("[YouTube 要約] ports noop adapter:", "x");
+      // logger 経由で [YouTube 要約][ports] プレフィックス付きでログ出力
+      expect(errSpy).toHaveBeenCalledWith("[YouTube 要約][ports]", "ports noop adapter:", "x");
       errSpy.mockRestore();
     });
 

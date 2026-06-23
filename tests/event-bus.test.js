@@ -1,5 +1,13 @@
 // tests/event-bus.test.js — event-busの単体テスト
-const { on, off, emit, clearAll, EVENTS } = require("../src/shared/event-bus");
+const {
+  on,
+  off,
+  emit,
+  clearAll,
+  EVENTS,
+  DOM_EVENTS,
+  INTERNAL_EVENTS
+} = require("../src/shared/event-bus");
 
 beforeEach(() => {
   clearAll();
@@ -80,6 +88,36 @@ describe("event-bus", () => {
     expect(EVENTS.SUMMARY_UPDATED).toBe("summary-updated");
     expect(EVENTS.TAB_CHANGED).toBe("tab-changed");
     expect(EVENTS.STATE_RESET).toBe("state-reset");
+  });
+
+  test("DOM_EVENTS は生の DOM イベントのみを含む", () => {
+    expect(DOM_EVENTS).toEqual({ YT_NAVIGATE_FINISH: "yt-navigate-finish" });
+  });
+
+  test("INTERNAL_EVENTS は内部イベントのみを含む", () => {
+    expect(INTERNAL_EVENTS.NAV_FINISH).toBe("nav:finish");
+    expect(INTERNAL_EVENTS.TRANSCRIPT_READY).toBe("transcript-ready");
+    expect(INTERNAL_EVENTS.TRANSCRIPT_FAILED).toBe("transcript-failed");
+    expect(INTERNAL_EVENTS.TRANSCRIPT_RETRY).toBe("transcript-retry");
+    expect(INTERNAL_EVENTS.SUMMARY_UPDATED).toBe("summary-updated");
+    expect(INTERNAL_EVENTS.TAB_CHANGED).toBe("tab-changed");
+    expect(INTERNAL_EVENTS.STATE_RESET).toBe("state-reset");
+    // DOM_EVENTS 専用のキーは含まれない
+    expect(INTERNAL_EVENTS.YT_NAVIGATE_FINISH).toBeUndefined();
+  });
+
+  test("EVENTS シムは DOM_EVENTS と INTERNAL_EVENTS の和集合", () => {
+    const merged = Object.assign({}, DOM_EVENTS, INTERNAL_EVENTS);
+    expect(EVENTS).toEqual(merged);
+  });
+
+  test("DOM_EVENTS と INTERNAL_EVENTS のキーは重複しない", () => {
+    const domKeys = Object.keys(DOM_EVENTS);
+    const internalKeys = Object.keys(INTERNAL_EVENTS);
+    const overlap = domKeys.filter(function (k) {
+      return internalKeys.indexOf(k) !== -1;
+    });
+    expect(overlap).toEqual([]);
   });
 
   test("clearAll で全リスナーがクリアされる", () => {

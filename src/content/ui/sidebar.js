@@ -4,13 +4,16 @@
 //  message-handler.js: chrome.runtime.onMessage リスナー
 //  index.js は本モジュール経由で各機能を import する。
 // ============================================================
-console.log("[YouTube 要約] sidebar.js loaded");
 import { uiState, sessionState, resetSession } from "../../shared/state.js";
 import { abortCurrentStream } from "../../domain/ai.js";
 import { clearSummaryContent, hideProgress } from "./ui.js";
 import { updateTabActive, bindEvents, applyButtonTitles, switchTab } from "./tabs.js";
 import { createPanel } from "./panel.js";
 import { preloadTranscript } from "../../domain/transcript.js";
+import { createLogger } from "../../shared/logger.js";
+
+const log = createLogger("sidebar");
+log.log("sidebar.js loaded");
 
 // 分離したモジュールの副作用実行（リスナー登録）
 import "./event-bridge.js";

@@ -12,6 +12,9 @@ import {
   DEFAULT_MAX_TOKENS,
   DEFAULT_TEMPERATURE
 } from "../shared/constants.js";
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("api");
 
 // ===== OpenRouter 判定（ホスト名ベースの厳密判定） =====
 export function isOpenRouterUrl(apiUrl) {
@@ -165,7 +168,7 @@ export function buildRequestConfig(config, messages, stream) {
       const extra = JSON.parse(config.extraParams);
       deepMergeBody(body, extra);
     } catch (e) {
-      console.error("[YouTube 要約] extraParams JSON parse error:", e);
+      log.error("extraParams JSON parse error:", e);
     }
   }
 
@@ -210,7 +213,7 @@ export async function handleErrorResponse(response) {
   try {
     errText = await response.text();
   } catch (e) {
-    console.error("[YouTube 要約] failed to read error response body:", e);
+    log.error("failed to read error response body:", e);
   }
   let statusMsg = "";
   if (response.status === 429) {
@@ -362,7 +365,7 @@ export async function readStream(reader, onChunk, onDone) {
               onChunk(accumulated);
             }
           } catch (e) {
-            console.error("[YouTube 要約] JSON parse error in SSE stream:", e);
+            log.error("JSON parse error in SSE stream:", e);
           }
         }
       }
@@ -370,7 +373,7 @@ export async function readStream(reader, onChunk, onDone) {
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError")
       throw new YsAbortError("API応答が中断されました。");
-    console.error("[YouTube 要約] SSE stream read error:", e);
+    log.error("SSE stream read error:", e);
     throw e;
   }
   onDone(accumulated);

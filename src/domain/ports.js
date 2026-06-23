@@ -4,6 +4,9 @@
 //  ドメイン層はこのポート（抽象）にのみ依存し、
 //  content/ui 層がアダプター（実装）を注入する。
 // ============================================================
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("ports");
 
 // デフォルトは no-op アダプター（テスト環境や未初期化時の安全弁）
 let adapter = createNoopAdapter();
@@ -31,7 +34,7 @@ export function getUiAdapter() {
 function createNoopAdapter() {
   return {
     showError: function (m) {
-      console.error("[YouTube 要約] ports noop adapter:", m);
+      log.error("ports noop adapter:", m);
     },
     hideError: function () {},
     hideProgress: function () {},

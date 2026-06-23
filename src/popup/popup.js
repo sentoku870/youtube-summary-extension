@@ -3,6 +3,9 @@
 //  DOMContentLoaded を待たずとも <script type="module"> は defer 扱いのため
 //  DOM 構築後に実行される。共通のエラー表示ヘルパで重複コードを削減。
 // ============================================================
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("popup");
 
 const dlBtn = document.getElementById("dlBtn");
 const statusText = document.getElementById("statusText");
@@ -91,7 +94,7 @@ dlBtn.addEventListener("click", async function () {
 
     statusText.textContent = "✅ 字幕をダウンロードしました (" + transcript.length + " 件)";
   } catch (e) {
-    console.error("[YouTube 要約 popup] 字幕DL失敗:", e);
+    log.error("字幕DL失敗:", e);
     showError(RELOAD_HINT);
   } finally {
     dlBtn.textContent = originalText;
@@ -111,7 +114,7 @@ document.getElementById("settingsBtn").addEventListener("click", function () {
 
 // ===== AIボタン共通処理 =====
 async function triggerAI(mode) {
-  console.log("[YouTube 要約 popup] triggerAI mode=" + mode);
+  log.log("triggerAI mode=" + mode);
   // アクティブなYouTubeタブを探す
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
@@ -129,9 +132,9 @@ async function triggerAI(mode) {
   // パネルを強制表示
   try {
     await chrome.tabs.sendMessage(tab.id, { action: "ysForcePanel" });
-    console.log("[YouTube 要約 popup] ysForcePanel done");
+    log.log("ysForcePanel done");
   } catch (e) {
-    console.error("[YouTube 要約 popup] ysForcePanel failed:", e);
+    log.error("ysForcePanel failed:", e);
     showError(RELOAD_HINT);
     return;
   }
@@ -143,14 +146,14 @@ async function triggerAI(mode) {
     const sendPromise = chrome.tabs.sendMessage(tab.id, { action: "ysTriggerAi", mode: mode });
     sendPromise
       .then(function () {
-        console.log("[YouTube 要約 popup] ysTriggerAi sent, closing popup");
+        log.log("ysTriggerAi sent, closing popup");
       })
       .catch(function (e) {
-        console.error("[YouTube 要約 popup] ysTriggerAi send failed:", e);
+        log.error("ysTriggerAi send failed:", e);
         showError(RELOAD_HINT);
       });
   } catch (e) {
-    console.error("[YouTube 要約 popup] ysTriggerAi send failed:", e);
+    log.error("ysTriggerAi send failed:", e);
     showError(RELOAD_HINT);
     return;
   }

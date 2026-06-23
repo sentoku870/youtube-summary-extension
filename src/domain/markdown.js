@@ -5,6 +5,9 @@
 
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("markdown");
 
 // ===== 許可タグのホワイトリスト（DOMPurifyフォールバック用） =====
 export const ALLOWED_TAGS = [
@@ -133,7 +136,7 @@ export function renderMarkdown(text) {
     // sanitizeHTML は常に DocumentFragment を返すよう統一されたため、そのまま返す
     return result;
   } catch (e) {
-    console.error("[YouTube 要約] Markdown parse error:", e);
+    log.error("Markdown parse error:", e);
     const frag = document.createDocumentFragment();
     frag.appendChild(document.createTextNode(text));
     return frag;

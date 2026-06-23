@@ -1,12 +1,12 @@
-// tests/markdown.test.js — Markdown→HTML変換の単体テスト（ESM版）
-import {
+// tests/markdown.test.js — Markdown→HTML変換の単体テスト
+const {
   sanitizeHTML,
   ALLOWED_TAGS,
   ALLOWED_ATTR,
   renderMarkdown,
   setMarkdown
-} from "../src/domain/markdown.js";
-import { marked } from "marked";
+} = require("../src/domain/markdown.js");
+const { marked } = require("marked");
 
 describe("sanitizeHTML", () => {
   test("許可タグはそのまま残る", () => {

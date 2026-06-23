@@ -6,6 +6,7 @@
 // ============================================================
 import { on, emit, EVENTS } from "../shared/event-bus.js";
 import { setUiAdapter } from "../domain/ports.js";
+import { createLogger } from "../shared/logger.js";
 import {
   createPanel,
   bindEvents,
@@ -32,7 +33,8 @@ import { updateTabUI } from "./ui/tabs.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
 import { uiState } from "../shared/state.js";
 
-console.log("[YouTube 要約] index.js loaded");
+const log = createLogger("index");
+log.log("index.js loaded");
 
 // ===== ドメイン層へ UI Adapter を注入（Port/Adapter パターン） =====
 // content/ui 層の実装を ports.js の抽象インターフェースに結びつける。
@@ -59,7 +61,7 @@ const MIN_INIT_INTERVAL_MS = 2000;
 
 function doInit() {
   if (getPanelEl && getPanelEl()) return true;
-  console.log("[YouTube 要約] creating panel...");
+  log.log("creating panel...");
   createPanel();
   bindEvents();
   preloadTranscript();
@@ -70,7 +72,7 @@ function init() {
   try {
     if (doInit()) return;
   } catch (e) {
-    console.warn("[YouTube 要約] doInit failed:", e);
+    log.warn("doInit failed:", e);
   }
 }
 
@@ -143,7 +145,7 @@ window.addEventListener("hashchange", function () {
 // 再実行されないため、pageshow の persisted フラグで再初期化をトリガする。
 window.addEventListener("pageshow", function (ev) {
   if (ev.persisted && isYouTubeWatchPage(location.href)) {
-    console.log("[YouTube 要約] BFCache から復元されました。再初期化します。");
+    log.log("BFCache から復元されました。再初期化します。");
     uiState.initialized = false;
     handleNavigation();
   }

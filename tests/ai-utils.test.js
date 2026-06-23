@@ -2,13 +2,13 @@
 // Phase D-1 で ai.js から分離した純粋関数をテスト。
 // ai.test.js の再エクスポート経由ではなく、ai-utils.js を直接 import してテストする。
 
-import {
+const {
   formatTranscriptWithTimestamps,
   linkTimestamps,
   buildMetaContext,
   createTimeoutPromise
-} from "../src/domain/ai-utils.js";
-import { YsTimeoutError } from "../src/infrastructure/errors.js";
+} = require("../src/domain/ai-utils.js");
+const { YsTimeoutError } = require("../src/infrastructure/errors.js");
 
 // ===== formatTranscriptWithTimestamps =====
 describe("ai-utils / formatTranscriptWithTimestamps", () => {

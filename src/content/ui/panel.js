@@ -10,7 +10,10 @@
 // ============================================================
 import { uiState as S } from "../../shared/state.js";
 import { applyTheme, applyFontSize, applyPanelHeight } from "./appearance.js";
+import { createLogger } from "../../shared/logger.js";
 import "./sidebar.css";
+
+const log = createLogger("panel");
 
 // ===== DOM 検索キャッシュ =====
 // querySelector を毎フレーム呼ぶと CPU 負荷になる。
@@ -130,7 +133,7 @@ function ensureVisibleAndWatch(panel) {
   const mo = new MutationObserver(function () {
     if (panel.classList.contains("hidden")) {
       panel.classList.remove("hidden");
-      console.warn("[YouTube 要約] YouTube 側から .hidden が付与されたため除去しました");
+      log.warn("YouTube 側から .hidden が付与されたため除去しました");
     }
     if (panel.hasAttribute("hidden")) {
       panel.removeAttribute("hidden");
@@ -145,8 +148,8 @@ function logPlacement(panel) {
   try {
     const cs = getComputedStyle(panel);
     const parent = panel.parentNode;
-    console.log(
-      "[YouTube 要約] パネル状態: display=" +
+    log.log(
+      "パネル状態: display=" +
         cs.display +
         " width=" +
         panel.offsetWidth +
@@ -171,7 +174,7 @@ function relocateWhenReady(panel) {
       }
       r.el.insertBefore(panel, refNode);
       ensureVisibleAndWatch(panel);
-      console.log("[YouTube 要約] サイドバー出現につきパネルを再配置しました @ " + r.source);
+      log.log("サイドバー出現につきパネルを再配置しました @ " + r.source);
       logPlacement(panel);
       obs.disconnect();
     }
@@ -191,7 +194,7 @@ function placePanel(panel) {
     .then(function (result) {
       if (!result) {
         // どこにも入れない場合は body にフォールバックし、後で再挑戦
-        console.warn("[YouTube 要約] サイドバーが見つかりません。body直下にフォールバックします。");
+        log.warn("サイドバーが見つかりません。body直下にフォールバックします。");
         if (panel.parentNode !== document.body) {
           document.body.appendChild(panel);
         }
@@ -212,11 +215,11 @@ function placePanel(panel) {
       }
       ensureVisibleAndWatch(panel);
       logPlacement(panel);
-      console.log("[YouTube 要約] パネルを挿入しました @ " + result.source);
+      log.log("パネルを挿入しました @ " + result.source);
     })
     .catch(function (err) {
       // 配置処理中の例外を捕捉（MutationObserver / DOM 操作の想定外失敗対策）
-      console.error("[YouTube 要約] パネル配置に失敗しました:", err);
+      log.error("パネル配置に失敗しました:", err);
       if (panel.parentNode !== document.body) {
         try {
           document.body.appendChild(panel);
