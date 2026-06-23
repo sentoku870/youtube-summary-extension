@@ -19,6 +19,7 @@ Compact guidance for OpenCode sessions working in this repo. Verify against the 
 - Jest uses Babel (`@babel/preset-env`, `node: current`) to transform ESM→CJS, so tests may use **either `require(...)` or `import`** against ESM source. Both coexist in `tests/`.
 - `jest.transformIgnorePatterns` whitelists `marked` and `dompurify` (ESM-only deps) — if you add another ESM-only dep that tests import, add it to the whitelist in `package.json` or Jest will fail to parse it.
 - Tests touching `chrome.*` must mock it, including `chrome.runtime.id` (required for `isExtensionContextValid()` to return true). See the `global.chrome = { runtime: { id: ... }, ... }` pattern in `tests/storage.test.js`.
+- Shared state lives in `src/shared/state.js` (singleton `state` + `createInitialState()`). Tests import it directly and reset in `beforeEach` (see `tests/ai.test.js`).
 - `test-output.txt` is a **stale, gitignored log** (shows a failure that no longer reproduces). Ignore it; run `npx jest` for current state.
 
 ## Architecture
@@ -31,6 +32,7 @@ Layered Chrome extension (content script does the real work):
 - `src/shared/` — `constants.js`, `state.js`, `event-bus.js`, pure utils (`estimateTokens`, `splitIntoChunks`).
 - `src/options/`, `src/popup/` — settings UI (multi-provider config) and toolbar popup.
 - `src/background/background.js` is **intentionally empty** — message handling lives in the content script. Don't add background message routing without a reason.
+- `src/content/index.js` uses a 3-second URL polling fallback (with auto-stop after 5 min idle) on top of `yt-navigate-finish` / `yt-page-data-updated` / `popstate` / `hashchange` events. Don't remove the polling layer without verifying all four event sources fire reliably in YouTube's current SPA.
 
 ### Port/Adapter pattern (important)
 
@@ -38,7 +40,7 @@ Domain code never manipulates the DOM directly. `src/domain/ports.js` defines a 
 
 ## Gotchas
 
-- **Storage keys are NOT unified.** The authoritative key constants are `K` in `src/infrastructure/storage.js` (e.g. `K.API_CONFIGS = "apiConfigs"`). `STORAGE_KEYS` in `src/shared/constants.js` is **defined but never imported (dead code)** with different values (`ysApiConfigs`). Use `K`, not `STORAGE_KEYS`.
+- **Storage keys are unified.** The authoritative key constants are `K` in `src/infrastructure/storage.js` (e.g. `K.API_CONFIGS = "apiConfigs"`). Always use `K`, never hard-coded strings.
 - `src/domain/transcript-fetcher.js` is an ESM-adapted copy of the vendored `vendor/youtube-transcript.js` (v1.3.1); the vendored file is the source of reference, not the imported one. `vendor/marked.min.js` and `vendor/purify.min.js` are legacy — the real deps come from npm `marked` / `dompurify`.
 - LLM providers are user-configurable in the options page (DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Groq, Mistral, Cohere, Together, localhost). API configs live in `chrome.storage`.
 - **Comments, commit messages, and UI strings are in Japanese** (commit style: `feat:`/`fix:`/`test:`/`build:`/`chore:` prefixes). Match this convention.

@@ -1,7 +1,7 @@
 // ============================================================
 //  state.js — アプリ共有状態の定義（ESM）
-//  panel.js にあった初期化ロジックを集約。
-//  window.__ysState は当面エイリアスとして維持（後方互換）。
+//  パネル状態・セッション状態・初期化フラグを集約。
+//  ESM 単一の真実の源（Single Source of Truth）。
 // ============================================================
 
 /**
@@ -11,17 +11,22 @@
  */
 export function createInitialState() {
   return {
+    // パネル・UI 状態
     panelEl: null,
-    transcriptText: "",
-    preloadedTranscript: null,
-    transcriptReady: false,
     activeTab: null,
     eventsBound: false,
     tabs: {},
     tabIds: ["summary", "customA", "customB"],
+    // 動画セッション状態（動画切り替えでリセット）
+    transcriptText: "",
+    preloadedTranscript: null,
+    transcriptReady: false,
+    videoMeta: null,
     abortController: null,
     pendingRetry: false,
-    videoMeta: null
+    // 初期化制御（動画切替・BFCache 復元で false に戻す）
+    initialized: false,
+    lastInitTime: 0
   };
 }
 
@@ -45,17 +50,3 @@ export function createInitialTabState() {
  * 他モジュールはこれを import して参照する。
  */
 export const state = createInitialState();
-
-// ===== window.__ysState へのエイリアス（後方互換・過渡期） =====
-// UI層がまだIIFEで window.__ysState を参照するため、当面維持。
-// Phase 6（UI層ESM化）完了後に削除予定。
-if (typeof window !== "undefined") {
-  if (!window.__ysState) {
-    window.__ysState = state;
-  } else {
-    // 既存パネルが初期化済みの場合は、その内容を state へマージ
-    // （ホットリロードや2度読み込み対策）
-    Object.assign(state, window.__ysState);
-    window.__ysState = state;
-  }
-}

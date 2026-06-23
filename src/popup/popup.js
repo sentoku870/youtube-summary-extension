@@ -1,10 +1,20 @@
-// popup.js — 字幕DL / AI処理 / 設定
+// ============================================================
+//  popup.js — 字幕DL / AI処理 / 設定（ESM版）
+//  DOMContentLoaded を待たずとも <script type="module"> は defer 扱いのため
+//  DOM 構築後に実行される。共通のエラー表示ヘルパで重複コードを削減。
+// ============================================================
 
 const dlBtn = document.getElementById("dlBtn");
 const statusText = document.getElementById("statusText");
 const summaryBtn = document.getElementById("summaryBtn");
 const customABtn = document.getElementById("customABtn");
 const customBBtn = document.getElementById("customBBtn");
+
+const RELOAD_HINT = "❌ ページを再読み込みしてからお試しください";
+
+function showError(msg) {
+  statusText.textContent = msg || RELOAD_HINT;
+}
 
 async function getActiveYouTubeTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -45,23 +55,23 @@ dlBtn.addEventListener("click", async function () {
   try {
     const tab = await getActiveYouTubeTab();
     if (!tab) {
-      statusText.textContent = "❌ YouTube動画のページで実行してください";
+      showError("❌ YouTube動画のページで実行してください");
       return;
     }
 
     // content script へ ysGetTranscript メッセージを送信
     const resp = await chrome.tabs.sendMessage(tab.id, { action: "ysGetTranscript" });
     if (!resp) {
-      statusText.textContent = "❌ ページを再読み込みしてからお試しください";
+      showError(RELOAD_HINT);
       return;
     }
     if (resp.error) {
-      statusText.textContent = "❌ " + resp.error;
+      showError("❌ " + resp.error);
       return;
     }
     const transcript = resp.transcript || [];
     if (transcript.length === 0) {
-      statusText.textContent = "❌ 字幕が見つかりませんでした";
+      showError("❌ 字幕が見つかりませんでした");
       return;
     }
 
@@ -82,7 +92,7 @@ dlBtn.addEventListener("click", async function () {
     statusText.textContent = "✅ 字幕をダウンロードしました (" + transcript.length + " 件)";
   } catch (e) {
     console.error("[popup] 字幕DL失敗:", e);
-    statusText.textContent = "❌ ページを再読み込みしてからお試しください";
+    showError(RELOAD_HINT);
   } finally {
     dlBtn.textContent = originalText;
     dlBtn.disabled = false;
@@ -106,7 +116,7 @@ async function triggerAI(mode) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
   if (!tab || !tab.url || !tab.url.includes("youtube.com/watch")) {
-    statusText.textContent = "❌ YouTube動画のページで実行してください";
+    showError("❌ YouTube動画のページで実行してください");
     return;
   }
 
@@ -122,7 +132,7 @@ async function triggerAI(mode) {
     console.log("[popup] ysForcePanel done");
   } catch (e) {
     console.error("[popup] ysForcePanel failed:", e);
-    statusText.textContent = "❌ ページを再読み込みしてからお試しください";
+    showError(RELOAD_HINT);
     return;
   }
 
@@ -135,11 +145,11 @@ async function triggerAI(mode) {
       console.log("[popup] ysTriggerAi sent, closing popup");
     }).catch(function(e) {
       console.error("[popup] ysTriggerAi send failed:", e);
-      statusText.textContent = "❌ ページを再読み込みしてからお試しください";
+      showError(RELOAD_HINT);
     });
   } catch (e) {
     console.error("[popup] ysTriggerAi send failed:", e);
-    statusText.textContent = "❌ ページを再読み込みしてからお試しください";
+    showError(RELOAD_HINT);
     return;
   }
   statusText.textContent = "✅ AI処理を開始しました（サイドバーを確認）";

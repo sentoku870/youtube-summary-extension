@@ -66,12 +66,3 @@ export async function retryTranscript() {
   await preloadTranscript();
   S.pendingRetry = false;
 }
-
-// ===== グローバル公開（過渡期：後方互換） =====
-if (typeof window !== "undefined") {
-  window.YsTranscript = {
-    fetchTranscript: fetchTranscript,
-    preloadTranscript: preloadTranscript,
-    retryTranscript: retryTranscript
-  };
-}

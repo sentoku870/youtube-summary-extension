@@ -1,21 +1,10 @@
 // tests/ai.test.js — AI呼び出し・要約の純粋関数テスト
 
-// window のモックを require より前に設定（IIFE実行時に S = window.__ysState が評価されるため）
+// window のモックを require より前に設定
 global.window = global.window || {};
 
-// 共有状態の初期化
-global.window.__ysState = {
-  panelEl: null,
-  transcriptText: "",
-  preloadedTranscript: null,
-  transcriptReady: false,
-  activeTab: null,
-  eventsBound: false,
-  tabs: {},
-  abortController: null,
-  pendingRetry: false,
-  videoMeta: null
-};
+// state.js のシングルトンを直接 import して使う（window エイリアスは廃止済み）
+const { state: S, createInitialState } = require("../src/shared/state");
 
 // YsUI のモック
 global.YsUI = {
@@ -57,7 +46,7 @@ global.chrome = {
   }
 };
 
-// モジュールをrequire（この時点でIIFEが実行され、window.__ysState / chrome が参照される）
+// モジュールをrequire
 require("../src/infrastructure/errors");
 require("../src/shared/utils");
 require("../src/infrastructure/storage");
@@ -83,6 +72,17 @@ const {
 
 // モック化された api.js の関数を取得
 const { callChatAPIStream, callChatAPINonStream } = require("../src/domain/api");
+
+// 各テスト前に state を初期値にリセット（ai.js と共有されるシングルトン）
+function resetSharedState() {
+  const fresh = createInitialState();
+  for (const key of Object.keys(S)) delete S[key];
+  Object.assign(S, fresh);
+}
+
+beforeEach(() => {
+  resetSharedState();
+});
 
 // Port/Adapter: テスト用にモックアダプターを注入
 const { setUiAdapter } = require("../src/domain/ports");
@@ -212,8 +212,8 @@ describe("createTimeoutPromise", () => {
 describe("finalizeResult", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    global.window.__ysState.activeTab = "summary";
-    global.window.__ysState.tabs = {
+    S.activeTab = "summary";
+    S.tabs = {
       summary: {
         generated: false,
         content: "",
@@ -228,7 +228,7 @@ describe("finalizeResult", () => {
   });
 
   test("タブの状態を正しく更新する", () => {
-    const tab = global.window.__ysState.tabs.summary;
+    const tab = S.tabs.summary;
     const config = { apiModel: "gpt-4o" };
     const transcript = { all: ["line1", "line2"] };
 
@@ -246,7 +246,7 @@ describe("finalizeResult", () => {
   });
 
   test("アクティブタブと一致する場合UIを更新する", () => {
-    const tab = global.window.__ysState.tabs.summary;
+    const tab = S.tabs.summary;
     const config = { apiModel: "gpt-4o" };
     const transcript = { all: ["line1"] };
 
@@ -259,8 +259,8 @@ describe("finalizeResult", () => {
   });
 
   test("アクティブタブと異なる場合はUIを更新しない", () => {
-    global.window.__ysState.activeTab = "customA";
-    const tab = global.window.__ysState.tabs.summary;
+    S.activeTab = "customA";
+    const tab = S.tabs.summary;
     const config = { apiModel: "gpt-4o" };
     const transcript = { all: ["line1"] };
 
@@ -351,15 +351,15 @@ describe("fetchConfigAndPrompt", () => {
 describe("abortCurrentStream", () => {
   test("アクティブなAbortControllerを中断する", () => {
     const abortSpy = jest.fn();
-    global.window.__ysState.abortController = { abort: abortSpy };
+    S.abortController = { abort: abortSpy };
     
     abortCurrentStream();
     expect(abortSpy).toHaveBeenCalled();
-    expect(global.window.__ysState.abortController).toBeNull();
+    expect(S.abortController).toBeNull();
   });
 
   test("AbortControllerがない場合は何もしない", () => {
-    global.window.__ysState.abortController = null;
+    S.abortController = null;
     expect(() => abortCurrentStream()).not.toThrow();
   });
 });
@@ -371,8 +371,8 @@ describe("abortCurrentStream", () => {
 describe("callAI", () => {
   // callAI 用の共通セットアップ
   function setupState(transcript) {
-    global.window.__ysState.activeTab = "summary";
-    global.window.__ysState.tabs = {
+    S.activeTab = "summary";
+    S.tabs = {
       summary: {
         generated: false,
         content: "",
@@ -382,10 +382,10 @@ describe("callAI", () => {
         chatHistory: []
       }
     };
-    global.window.__ysState.abortController = null;
-    global.window.__ysState.videoMeta = null;
-    global.window.__ysState.transcriptText = "";
-    global.window.__ysState.preloadedTranscript = transcript;
+    S.abortController = null;
+    S.videoMeta = null;
+    S.transcriptText = "";
+    S.preloadedTranscript = transcript;
 
     // saveSummaryCache が window.location.search を参照するため設定
     Object.defineProperty(window, "location", {
@@ -444,7 +444,7 @@ describe("callAI", () => {
 
     expect(result).toBe(true);
     // タブ状態の更新
-    const tab = global.window.__ysState.tabs.summary;
+    const tab = S.tabs.summary;
     expect(tab.generated).toBe(true);
     expect(tab.content).toBe("最終的な要約");
     expect(tab.modelLabel).toBe("gpt-4");
@@ -489,7 +489,7 @@ describe("callAI", () => {
     // 最終統合のストリーム呼び出し
     expect(callChatAPIStream).toHaveBeenCalled();
     // タブ状態
-    const tab = global.window.__ysState.tabs.summary;
+    const tab = S.tabs.summary;
     expect(tab.generated).toBe(true);
     expect(tab.content).toBe("統合された要約");
   });
@@ -595,7 +595,7 @@ describe("callAI", () => {
     setupConfigStorage();
 
     const abortSpy = jest.fn();
-    global.window.__ysState.abortController = { abort: abortSpy };
+    S.abortController = { abort: abortSpy };
 
     callChatAPIStream.mockImplementation(async function (
       messages,
@@ -609,5 +609,154 @@ describe("callAI", () => {
     await callAI("summary", true);
 
     expect(abortSpy).toHaveBeenCalled();
+  });
+
+  // ===== 追加: Map-Reduce の失敗系と allTimestamps 経路 =====
+  test("Map-Reduce全チャンク失敗: showError で false を返す", async () => {
+    setupState({
+      all: ["あ".repeat(2000)], // 約4000トークン
+      allTimestamps: []
+    });
+    setupConfigStorage();
+
+    // すべてのチャンク要約が null (processSingleChunk が maxAttempts 到達で失敗)
+    callChatAPINonStream.mockResolvedValue(null);
+    // 統合ストリームは呼ばれない
+    callChatAPIStream.mockImplementation(async function () {
+      throw new Error("should not be called");
+    });
+
+    const result = await callAI("summary", false);
+
+    expect(result).toBe(false);
+    expect(YsUI.showError).toHaveBeenCalledWith(
+      expect.stringContaining("すべてのチャンクの処理に失敗")
+    );
+  });
+
+  test("Map-Reduce 一部チャンク失敗: 成功した分だけで統合", async () => {
+    setupState({
+      all: ["あ".repeat(3000)], // 大容量
+      allTimestamps: []
+    });
+    setupConfigStorage();
+
+    // 最初のリトライで成功 → リトライはスキップされる
+    callChatAPINonStream.mockResolvedValue("部分要約");
+    callChatAPIStream.mockImplementation(async function (
+      messages, config, onChunk, onDone
+    ) {
+      onDone("統合結果");
+    });
+
+    const result = await callAI("summary", false);
+
+    expect(result).toBe(true);
+    expect(callChatAPINonStream).toHaveBeenCalled();
+    expect(YsUI.showError).not.toHaveBeenCalled();
+    const tab = S.tabs.summary;
+    expect(tab.content).toBe("統合結果");
+  });
+
+  test("allTimestamps がある字幕: formatTranscriptWithTimestamps 経路で処理", async () => {
+    // allTimestamps がある場合、resolveTranscriptText は formatTranscriptWithTimestamps を使う
+    // 短い字幕で単一ストリームに
+    setupState({
+      all: ["fallback"],
+      allTimestamps: [
+        { text: "あ", offset: 0 },
+        { text: "い", offset: 60000 },
+        { text: "う", offset: 120000 }
+      ],
+      meta: { title: "t" }
+    });
+    setupConfigStorage();
+
+    callChatAPIStream.mockImplementation(async function (
+      messages, config, onChunk, onDone
+    ) {
+      // messages の user content に [00:00] 形式が含まれることを確認
+      const userContent = messages.find(function (m) { return m.role === "user"; }).content;
+      expect(userContent).toContain("[00:00] あ");
+      expect(userContent).toContain("[01:00] い");
+      expect(userContent).toContain("[02:00] う");
+      onDone("ok");
+    });
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(true);
+  });
+
+  test("中断系: '中断' メッセージを含む例外でサイレント false", async () => {
+    setupState({
+      all: ["あ".repeat(500)],
+      allTimestamps: []
+    });
+    setupConfigStorage();
+
+    callChatAPIStream.mockRejectedValue(new Error("処理が中断されました"));
+
+    const result = await callAI("summary", false);
+
+    expect(result).toBe(false);
+    expect(YsUI.hideProgress).toHaveBeenCalled();
+    expect(YsUI.showError).not.toHaveBeenCalled();
+  });
+
+  test("window.location の videoId 抽出: 通常の watch URL から保存", async () => {
+    setupState({
+      all: ["あ".repeat(500)],
+      allTimestamps: []
+    });
+    setupConfigStorage();
+
+    callChatAPIStream.mockImplementation(async function (
+      messages, config, onChunk, onDone
+    ) {
+      onDone("要約");
+    });
+
+    await callAI("summary", false);
+
+    // saveSummaryCache が呼ばれる
+    // storage.local.set のいずれかの呼び出しで summary_cache_dQw4w9WgXcQ が含まれる
+    const setCalls = chrome.storage.local.set.mock.calls;
+    const found = setCalls.some(function (call) {
+      return call[0] && call[0]["summary_cache_dQw4w9WgXcQ"];
+    });
+    expect(found).toBe(true);
+  });
+
+  test("window.location が /shorts/ 形式でも videoId を抽出", async () => {
+    setupState({
+      all: ["あ".repeat(500)],
+      allTimestamps: []
+    });
+    setupConfigStorage();
+
+    // /shorts/<id> 形式の URL
+    Object.defineProperty(window, "location", {
+      value: {
+        href: "https://www.youtube.com/shorts/abc123XYZ45",
+        search: "",
+        pathname: "/shorts/abc123XYZ45"
+      },
+      writable: true,
+      configurable: true
+    });
+
+    callChatAPIStream.mockImplementation(async function (
+      messages, config, onChunk, onDone
+    ) {
+      onDone("ok");
+    });
+
+    await callAI("summary", false);
+
+    const setCalls = chrome.storage.local.set.mock.calls;
+    const found = setCalls.some(function (call) {
+      return call[0] && call[0]["summary_cache_abc123XYZ45"];
+    });
+    expect(found).toBe(true);
   });
 });

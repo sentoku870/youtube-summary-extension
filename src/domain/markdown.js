@@ -101,9 +101,3 @@ export function setMarkdown(el, text) {
     el.style.whiteSpace = origWhiteSpace;
   }
 }
-
-// ===== グローバル公開（過渡期：IIFEモジュールが window経由で参照） =====
-if (typeof window !== "undefined") {
-  window.renderMarkdown = renderMarkdown;
-  window.setMarkdown = setMarkdown;
-}

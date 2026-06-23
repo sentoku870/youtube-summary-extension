@@ -2,6 +2,7 @@
 //  index.js — 最小限のエントリポイント（ESM版）
 //  初期化リトライ、SPA動画切り替え対応、event-bus 統合
 //  Phase A-3c: Port/Adapter パターン (setUiAdapter) で直接注入
+//  Phase A: setInterval を低速化 + 自動停止、popstate/hashchange で即時検出
 // ============================================================
 import { on, emit, EVENTS } from "../shared/event-bus.js";
 import { setUiAdapter } from "../domain/ports.js";
@@ -14,12 +15,13 @@ import {
 import { getEl } from "./ui/panel.js";
 import { updateTabUI } from "./ui/tabs.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
+import { state } from "../shared/state.js";
 
 console.log("[YouTube 要約] index.js loaded");
 
 // ===== ドメイン層へ UI Adapter を注入（Port/Adapter パターン） =====
 // content/ui 層の実装を ports.js の抽象インターフェースに結びつける。
-// これにより ai.js は window.Ys* を一切参照せず、純粋に抽象に依存する。
+// これにより ai.js は window.* を一切参照せず、純粋に抽象に依存する。
 setUiAdapter({
   showError: showError,
   hideProgress: hideProgress,
@@ -36,6 +38,8 @@ setUiAdapter({
   updateTabUI: updateTabUI
 });
 
+const MIN_INIT_INTERVAL_MS = 2000;
+
 function doInit() {
   if (getPanelEl && getPanelEl()) return true;
   console.log("[YouTube 要約] creating panel...");
@@ -51,21 +55,15 @@ function init() {
   } catch (e) {
     console.warn("[YouTube 要約] doInit failed:", e);
   }
-  // 失敗時はリトライしない（ESM化で ys の待ちは不要）
 }
 
-// 初期化フラグ（二重実行防止）
-let __ysInited = false;
-let __ysLastInitTime = 0;
-const __YS_MIN_INIT_INTERVAL = 2000; // ms
-
-// 無条件で即時実行（タイムスタンプガード付き）
+// タイムスタンプガード付きで初期化（二重実行防止）
 function safeInit() {
-  if (__ysInited) return;
+  if (state.initialized) return;
   const now = Date.now();
-  if (now - __ysLastInitTime < __YS_MIN_INIT_INTERVAL) return;
-  __ysLastInitTime = now;
-  __ysInited = true;
+  if (now - state.lastInitTime < MIN_INIT_INTERVAL_MS) return;
+  state.lastInitTime = now;
+  state.initialized = true;
   init();
 }
 
@@ -75,7 +73,7 @@ function handleNavigation() {
   if (!isYouTubeWatchPage(location.href)) return;
   resetState();
   resetTranscript();
-  __ysInited = false;
+  state.initialized = false;
   safeInit();
 }
 
@@ -112,13 +110,24 @@ document.addEventListener("yt-page-data-updated", function() {
   emit(EVENTS.NAV_FINISH, { url: location.href });
 });
 
+// History API 経由のナビゲーション（popstate は back/forward のみ発火だが保険として）
+window.addEventListener("popstate", function() {
+  emit(EVENTS.NAV_FINISH, { url: location.href });
+});
+
+// ハッシュ変化（#t=123s などのシーク変化もここに来るが、watch判定で弾かれる）
+window.addEventListener("hashchange", function() {
+  if (/[#&]t=\d+/.test(location.hash)) return;
+  emit(EVENTS.NAV_FINISH, { url: location.href });
+});
+
 // BFCache (Back-Forward Cache) 復元対応
 // 「戻る」「進む」でページがキャッシュから復元されたときは content script は
 // 再実行されないため、pageshow の persisted フラグで再初期化をトリガする。
 window.addEventListener("pageshow", function(ev) {
   if (ev.persisted && isYouTubeWatchPage(location.href)) {
     console.log("[YouTube 要約] BFCache から復元されました。再初期化します。");
-    __ysInited = false;
+    state.initialized = false;
     handleNavigation();
   }
 });
@@ -138,17 +147,37 @@ waitForYtdApp(function() {
 });
 
 // ============================================================
-//  SPA動画切り替え対応：yt-navigate-finish のフォールバック
-//  （yt-navigate-finish が発火しない稀な環境向け。
-//   document全体の MutationObserver より軽量なポーリング方式を採用）
+//  SPA動画切り替え対応：URL ポーリングの最終フォールバック
+//  第1層: yt-navigate-finish (YouTube SPA イベント)
+//  第2層: yt-page-data-updated / popstate / hashchange (ブラウザ標準)
+//  第3層: 3秒間隔ポーリング（稀に第1〜2層が発火しない環境向け）
+//  ポーリングは 5 分間ナビがなければ自動停止（CPU 負荷対策）
 // ============================================================
-let lastUrl = location.href;
-setInterval(function() {
-  const url = location.href;
-  if (url !== lastUrl) {
-    lastUrl = url;
-    if (isYouTubeWatchPage(url)) {
-      handleNavigation();
+const FALLBACK_POLL_INTERVAL_MS = 3000;
+const FALLBACK_POLL_MAX_IDLE_MS = 5 * 60 * 1000;
+
+let lastObservedUrl = location.href;
+let lastNavAt = Date.now();
+let fallbackTimerId = null;
+
+function startFallbackPolling() {
+  if (fallbackTimerId !== null) return;
+  fallbackTimerId = setInterval(function() {
+    const url = location.href;
+    if (url !== lastObservedUrl) {
+      lastObservedUrl = url;
+      lastNavAt = Date.now();
+      if (isYouTubeWatchPage(url)) {
+        handleNavigation();
+      }
+      return;
     }
-  }
-}, 1000);
+    // ナビが長時間ない場合はポーリングを停止（CPU負荷軽減）
+    if (Date.now() - lastNavAt > FALLBACK_POLL_MAX_IDLE_MS) {
+      clearInterval(fallbackTimerId);
+      fallbackTimerId = null;
+    }
+  }, FALLBACK_POLL_INTERVAL_MS);
+}
+
+startFallbackPolling();

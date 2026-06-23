@@ -5,16 +5,18 @@ describe("createInitialState", () => {
   test("期待される全プロパティを持つ", () => {
     const s = createInitialState();
     expect(s).toHaveProperty("panelEl", null);
-    expect(s).toHaveProperty("transcriptText", "");
-    expect(s).toHaveProperty("preloadedTranscript", null);
-    expect(s).toHaveProperty("transcriptReady", false);
     expect(s).toHaveProperty("activeTab", null);
     expect(s).toHaveProperty("eventsBound", false);
     expect(s).toHaveProperty("tabs");
     expect(s).toHaveProperty("tabIds", ["summary", "customA", "customB"]);
+    expect(s).toHaveProperty("transcriptText", "");
+    expect(s).toHaveProperty("preloadedTranscript", null);
+    expect(s).toHaveProperty("transcriptReady", false);
+    expect(s).toHaveProperty("videoMeta", null);
     expect(s).toHaveProperty("abortController", null);
     expect(s).toHaveProperty("pendingRetry", false);
-    expect(s).toHaveProperty("videoMeta", null);
+    expect(s).toHaveProperty("initialized", false);
+    expect(s).toHaveProperty("lastInitTime", 0);
   });
 
   test("呼び出しごとに独立したインスタンスを返す", () => {
