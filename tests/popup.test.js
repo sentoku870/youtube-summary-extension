@@ -17,15 +17,6 @@ function loadPopup() {
   });
 }
 
-// マイクロタスクをフラッシュ（fake timers 環境でも setTimeout を経由しない）
-function flushMicrotasks() {
-  return new Promise(function (resolve) {
-    Promise.resolve().then(function () {
-      Promise.resolve().then(resolve);
-    });
-  });
-}
-
 describe("popup", () => {
   let mockChrome;
 
@@ -65,23 +56,19 @@ describe("popup", () => {
 
   // ===== 初期表示 =====
   describe("初期表示 (updateUI 自動呼出)", () => {
-    test("YouTube ページでない場合、全ボタン disabled + 案内メッセージ", () => {
+    test("YouTube ページでない場合、dlBtn disabled + 案内メッセージ", () => {
       mockChrome.tabs.query.mockResolvedValue([{ url: "https://example.com/" }]);
       loadPopup();
 
-      // updateUI() はモジュールロード直後に呼ばれる（非同期）
       return new Promise(function (r) {
         setTimeout(r, 0);
       }).then(function () {
         expect(document.getElementById("dlBtn").disabled).toBe(true);
-        expect(document.getElementById("summaryBtn").disabled).toBe(true);
-        expect(document.getElementById("customABtn").disabled).toBe(true);
-        expect(document.getElementById("customBBtn").disabled).toBe(true);
         expect(document.getElementById("statusText").textContent).toMatch(/YouTube動画/);
       });
     });
 
-    test("YouTube ページ + latestSummary 無し → 全ボタン enabled", () => {
+    test("YouTube ページ + latestSummary 無し → dlBtn enabled", () => {
       mockChrome.tabs.query.mockResolvedValue([{ url: "https://www.youtube.com/watch?v=x" }]);
       mockChrome.storage.local.get.mockResolvedValue({});
       loadPopup();
@@ -90,7 +77,6 @@ describe("popup", () => {
         setTimeout(r, 0);
       }).then(function () {
         expect(document.getElementById("dlBtn").disabled).toBe(false);
-        expect(document.getElementById("summaryBtn").disabled).toBe(false);
         expect(document.getElementById("statusText").textContent).toMatch(/字幕を取得/);
       });
     });
@@ -269,135 +255,6 @@ describe("popup", () => {
     });
   });
 
-  // ===== AI ボタン (summary / customA / customB) =====
-  describe("AI ボタン click (triggerAI)", () => {
-    function setupYouTubeTab() {
-      mockChrome.tabs.query.mockResolvedValue([
-        { id: 7, url: "https://www.youtube.com/watch?v=abc" }
-      ]);
-      mockChrome.tabs.sendMessage.mockResolvedValue({});
-    }
-
-    test("summary ボタン: ysForcePanel → ysTriggerAi → 500ms 後に window.close", () => {
-      jest.useFakeTimers();
-      setupYouTubeTab();
-      loadPopup();
-
-      return flushMicrotasks()
-        .then(function () {
-          const summaryBtn = document.getElementById("summaryBtn");
-          summaryBtn.click();
-          return flushMicrotasks();
-        })
-        .then(function () {
-          // 500ms タイマを進める
-          jest.advanceTimersByTime(500);
-          expect(mockChrome.tabs.sendMessage).toHaveBeenCalledWith(7, { action: "ysForcePanel" });
-          expect(mockChrome.tabs.sendMessage).toHaveBeenCalledWith(7, {
-            action: "ysTriggerAi",
-            mode: "summary"
-          });
-          expect(window.close).toHaveBeenCalled();
-        });
-    });
-
-    test("customA ボタン: mode='customA' で送信", () => {
-      setupYouTubeTab();
-      loadPopup();
-
-      return new Promise(function (r) {
-        setTimeout(r, 0);
-      })
-        .then(function () {
-          const customABtn = document.getElementById("customABtn");
-          customABtn.click();
-          return new Promise(function (r) {
-            setTimeout(r, 0);
-          });
-        })
-        .then(function () {
-          expect(mockChrome.tabs.sendMessage).toHaveBeenCalledWith(7, {
-            action: "ysTriggerAi",
-            mode: "customA"
-          });
-        });
-    });
-
-    test("customB ボタン: mode='customB' で送信", () => {
-      setupYouTubeTab();
-      loadPopup();
-
-      return new Promise(function (r) {
-        setTimeout(r, 0);
-      })
-        .then(function () {
-          const customBBtn = document.getElementById("customBBtn");
-          customBBtn.click();
-          return new Promise(function (r) {
-            setTimeout(r, 0);
-          });
-        })
-        .then(function () {
-          expect(mockChrome.tabs.sendMessage).toHaveBeenCalledWith(7, {
-            action: "ysTriggerAi",
-            mode: "customB"
-          });
-        });
-    });
-
-    test("YouTube 以外のページで押下 → エラーメッセージ", () => {
-      mockChrome.tabs.query.mockResolvedValue([{ url: "https://example.com" }]);
-      loadPopup();
-
-      return new Promise(function (r) {
-        setTimeout(r, 0);
-      })
-        .then(function () {
-          const summaryBtn = document.getElementById("summaryBtn");
-          summaryBtn.click();
-          return new Promise(function (r) {
-            setTimeout(r, 0);
-          });
-        })
-        .then(function () {
-          expect(mockChrome.tabs.sendMessage).not.toHaveBeenCalled();
-          expect(document.getElementById("statusText").textContent).toMatch(/YouTube動画/);
-        });
-    });
-
-    test("ysForcePanel 失敗時は ysTriggerAi 送信しない", () => {
-      setupYouTubeTab();
-      mockChrome.tabs.sendMessage.mockRejectedValueOnce(new Error("force failed"));
-      loadPopup();
-
-      return new Promise(function (r) {
-        setTimeout(r, 0);
-      })
-        .then(function () {
-          const summaryBtn = document.getElementById("summaryBtn");
-          summaryBtn.click();
-          return new Promise(function (r) {
-            setTimeout(r, 10);
-          });
-        })
-        .then(function () {
-          const calls = mockChrome.tabs.sendMessage.mock.calls.map(function (c) {
-            return c[1];
-          });
-          expect(
-            calls.some(function (m) {
-              return m.action === "ysForcePanel";
-            })
-          ).toBe(true);
-          expect(
-            calls.some(function (m) {
-              return m.action === "ysTriggerAi";
-            })
-          ).toBe(false);
-        });
-    });
-  });
-
   // ===== settings ボタン =====
   describe("settings ボタン", () => {
     test("click で chrome.runtime.openOptionsPage 呼ばれる", () => {
@@ -432,13 +289,11 @@ describe("popup", () => {
         .then(function () {
           const listener = mockChrome.storage.onChanged.addListener.mock.calls[0][0];
           listener({ latestSummary: { newValue: "x" } });
-          // updateUI が呼ばれて再度 query される
           return new Promise(function (r) {
             setTimeout(r, 0);
           });
         })
         .then(function () {
-          // 少なくとも updateUI が呼ばれて query が増える
           expect(mockChrome.tabs.query.mock.calls.length).toBeGreaterThanOrEqual(2);
         });
     });

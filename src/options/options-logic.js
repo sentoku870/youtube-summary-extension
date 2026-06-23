@@ -5,52 +5,6 @@
 // ============================================================
 import { K } from "../infrastructure/storage.js";
 
-// ===== プロバイダープリセット（プロバイダー → モデルの2段階選択） =====
-// 各プロバイダーには代表的なデフォルトモデルを内蔵。
-export const PROVIDERS = {
-  deepseek: {
-    label: "DeepSeek（直API）",
-    apiUrl: "https://api.deepseek.com/v1/chat/completions",
-    temperature: "0.3",
-    models: [
-      { id: "deepseek-chat", label: "DeepSeek Chat", extraParams: "" },
-      {
-        id: "deepseek-reasoner",
-        label: "DeepSeek Reasoner",
-        extraParams: '{"thinking": {"type": "disabled"}}'
-      }
-    ]
-  },
-  openrouter: {
-    label: "OpenRouter",
-    apiUrl: "https://openrouter.ai/api/v1/chat/completions",
-    temperature: "0.3",
-    models: [
-      { id: "openai/gpt-4o", label: "GPT-4o", extraParams: "" },
-      { id: "openai/gpt-4o-mini", label: "GPT-4o Mini", extraParams: "" },
-      { id: "anthropic/claude-3.5-sonnet", label: "Claude 3.5 Sonnet", extraParams: "" },
-      { id: "google/gemini-2.0-flash-exp:free", label: "Gemini 2.0 Flash (free)", extraParams: "" },
-      { id: "deepseek/deepseek-chat", label: "DeepSeek Chat", extraParams: "" }
-    ]
-  },
-  openai: {
-    label: "OpenAI（直API）",
-    apiUrl: "https://api.openai.com/v1/chat/completions",
-    temperature: "0.3",
-    models: [
-      { id: "gpt-4o", label: "GPT-4o", extraParams: "" },
-      { id: "gpt-4o-mini", label: "GPT-4o Mini", extraParams: "" },
-      { id: "gpt-4-turbo", label: "GPT-4 Turbo", extraParams: "" }
-    ]
-  },
-  custom: {
-    label: "カスタム（手動入力）",
-    apiUrl: "",
-    temperature: "0.3",
-    models: []
-  }
-};
-
 // ===== 一意ID生成（モジュール状態でカウンタを保持） =====
 let idCounter = 0;
 export function generateId() {
@@ -68,40 +22,6 @@ export function btnTitleKey(type) {
 
 export function btnApiConfigKey(type) {
   return K.BTN_API_PREFIX + type;
-}
-
-// ===== プロバイダーキー → CSS チップクラス =====
-export function getProviderChipClass(providerKey) {
-  const k = String(providerKey || "custom");
-  if (k === "deepseek" || k === "openrouter" || k === "openai") {
-    return "provider-chip-" + k;
-  }
-  return "provider-chip-custom";
-}
-
-// ===== プロバイダーキー → 表示ラベル（カード/チップ用） =====
-export function getProviderLabel(providerKey) {
-  if (!providerKey) return "カスタム";
-  const p = PROVIDERS[providerKey];
-  if (p && p.label) {
-    // "カスタム（手動入力）" は「カスタム」に縮約してカード表示
-    return providerKey === "custom" ? "カスタム" : p.label;
-  }
-  return "カスタム";
-}
-
-// ===== apiUrl からプロバイダーキーを推定 =====
-export function detectProviderKey(apiUrl) {
-  if (!apiUrl) return "custom";
-  try {
-    const host = new URL(apiUrl).hostname;
-    if (host === "api.deepseek.com") return "deepseek";
-    if (host === "openrouter.ai") return "openrouter";
-    if (host === "api.openai.com") return "openai";
-  } catch {
-    /* fallthrough */
-  }
-  return "custom";
 }
 
 // ===== CSS セレクタの特殊文字をエスケープ =====

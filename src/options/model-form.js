@@ -6,24 +6,9 @@
 //  オーケストレーションは options-models.js に委譲。
 // ============================================================
 import { get, set, K } from "../infrastructure/storage.js";
-import {
-  detectProviderKey,
-  validateFormValues,
-  VALIDATION_ERRORS,
-  buildConfig,
-  PROVIDERS
-} from "./options-logic.js";
+import { validateFormValues, VALIDATION_ERRORS, buildConfig } from "./options-logic.js";
 import { getVal, setVal } from "./options-shared.js";
-import {
-  populateProviderSelect,
-  refreshDatalist,
-  setModelFieldValue,
-  findExistingApiKey,
-  updateApiKeyHint,
-  initModelInputEvents
-} from "./model-picker.js";
 import { saveToast, errorToast } from "./ui/toast.js";
-import { setPool, setProviderKey } from "./model-state.js";
 
 // ===== バリデーションエラーメッセージ =====
 const VALIDATION_MESSAGES = {};
@@ -38,7 +23,6 @@ VALIDATION_MESSAGES[VALIDATION_ERRORS.EXTRA_PARAMS_JSON] =
 let editingId = null; // null = 新規作成, string = 編集モード（既存 id）
 let onAfterSave = null;
 let isInitialized = false;
-let isProviderListenerBound = false;
 
 // ===== DOM ヘルパ =====
 function el(tag, className, text) {
@@ -61,21 +45,6 @@ function buildFormDom() {
   header.appendChild(title);
   wrap.appendChild(header);
 
-  const fProvider = el("div", "field");
-  const lblProvider = el("label", null, "プロバイダー（選択でURL等を自動入力）");
-  lblProvider.setAttribute("for", "providerSelect");
-  const selProvider = document.createElement("select");
-  selProvider.id = "providerSelect";
-  const noteProvider = el(
-    "div",
-    "note",
-    "プロバイダーを選ぶとAPIエンドポイントURLとデフォルトモデル一覧が自動入力されます"
-  );
-  fProvider.appendChild(lblProvider);
-  fProvider.appendChild(selProvider);
-  fProvider.appendChild(noteProvider);
-  wrap.appendChild(fProvider);
-
   const fLabel = el("div", "field");
   const lblLabel = el("label", null, "ラベル名");
   lblLabel.setAttribute("for", "configLabel");
@@ -94,11 +63,8 @@ function buildFormDom() {
   inputKey.type = "password";
   inputKey.id = "apiKey";
   inputKey.placeholder = "sk-xxxxxxxx";
-  const noteKey = el("div", "note", "同一ホストの登録済みキーがあれば自動入力されます");
-  noteKey.id = "apiKeyHint";
   fKey.appendChild(lblKey);
   fKey.appendChild(inputKey);
-  fKey.appendChild(noteKey);
   wrap.appendChild(fKey);
 
   const fUrl = el("div", "field");
@@ -115,32 +81,13 @@ function buildFormDom() {
   const fModel = el("div", "field");
   const lblModel = el("label", null, "モデル");
   lblModel.setAttribute("for", "apiModel");
-  const modelRow = el("div", "inline-flex");
-  modelRow.style.alignItems = "flex-start";
-  const modelCol = el("div");
-  modelCol.style.flex = "1";
   const inputModel = document.createElement("input");
   inputModel.type = "text";
   inputModel.id = "apiModel";
-  inputModel.setAttribute("list", "modelSuggestions");
-  inputModel.placeholder = "deepseek-chat（手動入力も可・候補から選択も可）";
+  inputModel.placeholder = "deepseek-chat";
   inputModel.autocomplete = "off";
-  const noteModel = el("div", "note");
-  noteModel.id = "modelPoolNote";
-  modelCol.appendChild(inputModel);
-  modelCol.appendChild(noteModel);
-  const fetchBtn = document.createElement("button");
-  fetchBtn.type = "button";
-  fetchBtn.id = "fetchModelsBtn";
-  fetchBtn.className = "secondary";
-  fetchBtn.textContent = "モデル一覧を取得";
-  modelRow.appendChild(modelCol);
-  modelRow.appendChild(fetchBtn);
-  const datalist = document.createElement("datalist");
-  datalist.id = "modelSuggestions";
   fModel.appendChild(lblModel);
-  fModel.appendChild(modelRow);
-  fModel.appendChild(datalist);
+  fModel.appendChild(inputModel);
   wrap.appendChild(fModel);
 
   const rowParams = el("div", "field-row");
@@ -255,9 +202,6 @@ function clearForm() {
   setVal("temperature", "0.3");
   setVal("maxTokens", "4096");
   setVal("extraParams", "");
-  const sel = document.getElementById("providerSelect");
-  if (sel) sel.value = "custom";
-  updateApiKeyHint("", false);
   showFormError("");
   setDuplicateVisible(false);
 }
@@ -270,10 +214,6 @@ function fillFormFromConfig(c) {
   setVal("temperature", c.temperature || "0.3");
   setVal("maxTokens", c.maxTokens || "4096");
   setVal("extraParams", c.extraParams || "");
-  const providerKey = detectProviderKey(c.apiUrl || "");
-  const sel = document.getElementById("providerSelect");
-  if (sel) sel.value = providerKey;
-  updateApiKeyHint(c.apiUrl || "", !!c.apiKey);
 }
 
 // ===== 公開 API: フォームを初期化（DOM 生成 + イベント登録） =====
@@ -285,11 +225,7 @@ export function initForm() {
   const formDom = buildFormDom();
   host.appendChild(formDom);
 
-  populateProviderSelect();
-  refreshDatalist();
-  initModelInputEvents();
   bindFormEvents();
-  bindProviderChangeEvent();
 }
 
 // ===== 内部イベント登録 =====
@@ -300,87 +236,6 @@ function bindFormEvents() {
   if (saveBtn) saveBtn.addEventListener("click", handleSave);
   if (cancelBtn) cancelBtn.addEventListener("click", handleCancel);
   if (dupBtn) dupBtn.addEventListener("click", handleDuplicate);
-}
-
-function bindProviderChangeEvent() {
-  if (isProviderListenerBound) return;
-  isProviderListenerBound = true;
-  const providerSel = document.getElementById("providerSelect");
-  if (!providerSel) return;
-  providerSel.addEventListener("change", async function () {
-    const key = this.value;
-    const p = PROVIDERS[key];
-    if (!p) return;
-    setVal("apiUrl", p.apiUrl);
-    setVal("temperature", p.temperature);
-    setVal("extraParams", "");
-    setVal("configLabel", "");
-    setVal("apiModel", "");
-    setPool(p.models ? p.models.slice() : []);
-    setProviderKey(key);
-    refreshDatalist();
-    if (p.apiUrl) {
-      const existingKey = await findExistingApiKey(p.apiUrl);
-      setVal("apiKey", existingKey);
-      updateApiKeyHint(p.apiUrl, !!existingKey);
-    } else {
-      setVal("apiKey", "");
-      updateApiKeyHint("", false);
-    }
-  });
-}
-
-// ===== 公開: モデル一覧を取得ボタン用ハンドラ =====
-export async function handleFetchModels() {
-  const apiUrl = getVal("apiUrl").trim();
-  const apiKey = getVal("apiKey").trim();
-  if (!apiUrl) {
-    showFormError("プロバイダーを選択するかURLを入力してください");
-    return;
-  }
-  if (!apiKey) {
-    showFormError("モデル一覧取得にはAPIキーが必要です");
-    return;
-  }
-  const btn = document.getElementById("fetchModelsBtn");
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = "取得中...";
-  }
-  try {
-    const { fetchModelList } = await import("../domain/api.js");
-    const models = await fetchModelList(apiUrl, apiKey);
-    if (models.length === 0) {
-      showFormError("モデルが見つかりませんでした。手動で入力してください。");
-      return;
-    }
-    const providerKey = getVal("providerSelect");
-    const presetModels = (PROVIDERS[providerKey] && PROVIDERS[providerKey].models) || [];
-    const seen = {};
-    const merged = [];
-    presetModels.forEach(function (m) {
-      if (seen[m.id]) return;
-      seen[m.id] = true;
-      merged.push(m);
-    });
-    models.forEach(function (m) {
-      if (seen[m.id]) return;
-      seen[m.id] = true;
-      merged.push(m);
-    });
-    setPool(merged);
-    setProviderKey(providerKey);
-    refreshDatalist();
-    showFormError("");
-    saveToast("✓ " + models.length + " 件のモデルを取得しました");
-  } catch (e) {
-    showFormError("✗ " + (e.message || e));
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = "モデル一覧を取得";
-    }
-  }
 }
 
 // ===== 公開: フォームを新規モードで開く =====
@@ -404,12 +259,6 @@ export async function openFormForEdit(id) {
   setFormTitle("✏️ 編集中: " + (config.label || "（無名）"));
   setSaveButtonText("✓ 変更を保存");
   setDuplicateVisible(true);
-  const providerKey = detectProviderKey(config.apiUrl || "");
-  const presetModels = (PROVIDERS[providerKey] && PROVIDERS[providerKey].models) || [];
-  setPool(presetModels.slice());
-  setProviderKey(providerKey);
-  refreshDatalist();
-  setModelFieldValue(config.apiModel || "");
   showFormError("");
 }
 

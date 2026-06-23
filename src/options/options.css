@@ -24,12 +24,6 @@
   --ys-radius: 6px;
   --ys-radius-sm: 4px;
 
-  /* プロバイダーチップ色 */
-  --ys-chip-deepseek: #1565c0;
-  --ys-chip-openrouter: #7b1fa2;
-  --ys-chip-openai: #2e7d32;
-  --ys-chip-custom: #616161;
-
   /* サイドバーボタン色（ボタン・プロンプトタブのプレビュー） */
   --ys-btn-summary: #cc0000;
   --ys-btn-customA: #1565c0;
@@ -311,28 +305,6 @@ button:focus-visible {
   transform: rotate(90deg);
 }
 
-.provider-chip {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: bold;
-  color: #fff;
-  letter-spacing: 0.02em;
-}
-.provider-chip-deepseek {
-  background: var(--ys-chip-deepseek);
-}
-.provider-chip-openrouter {
-  background: var(--ys-chip-openrouter);
-}
-.provider-chip-openai {
-  background: var(--ys-chip-openai);
-}
-.provider-chip-custom {
-  background: var(--ys-chip-custom);
-}
-
 .empty-msg {
   color: var(--ys-text-muted);
   text-align: center;
@@ -389,32 +361,6 @@ button:focus-visible {
   margin: 0;
   flex: 1;
   min-width: 120px;
-}
-
-/* datalist はネイティブUIに任せる（追加スタイル不要） */
-input[list] {
-  padding-right: 30px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z' fill='%23888'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-}
-
-.model-filter-block {
-  display: none;
-  background: #fafafa;
-  border: 1px solid #eee;
-  border-radius: var(--ys-radius-sm);
-  padding: 10px;
-  margin-bottom: 8px;
-}
-.model-filter-block.visible {
-  display: block;
-}
-.model-filter-block .field-row {
-  margin-bottom: 8px;
-}
-.model-filter-block .field-row .field {
-  margin-bottom: 0;
 }
 
 /* ===== ボタン・プロンプトタブ ===== */

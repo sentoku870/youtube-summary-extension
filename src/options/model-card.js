@@ -5,12 +5,7 @@
 //  残存機能（後方互換）に委譲。
 // ============================================================
 import { get, K } from "../infrastructure/storage.js";
-import {
-  detectProviderKey,
-  getProviderChipClass,
-  getProviderLabel,
-  cssEscape
-} from "./options-logic.js";
+import { cssEscape } from "./options-logic.js";
 import { filterConfigCards, extractHost } from "./model-filter.js";
 
 let searchKeyword = "";
@@ -47,9 +42,6 @@ function buildCard(c) {
   summary.setAttribute("tabindex", "0");
   summary.setAttribute("aria-label", c.label + " の編集を開く");
 
-  const providerKey = detectProviderKey(c.apiUrl || "");
-  const providerLabel = getProviderLabel(providerKey);
-  const chipClass = getProviderChipClass(providerKey);
   const host = extractHost(c.apiUrl);
 
   const body = document.createElement("div");
@@ -59,11 +51,7 @@ function buildCard(c) {
   labelRow.className = "card-label";
   const labelText = document.createElement("span");
   labelText.textContent = c.label || "(ラベルなし)";
-  const chip = document.createElement("span");
-  chip.className = "provider-chip " + chipClass;
-  chip.textContent = providerLabel;
   labelRow.appendChild(labelText);
-  labelRow.appendChild(chip);
 
   const detail = document.createElement("div");
   detail.className = "card-detail";

@@ -2,8 +2,7 @@
 //  options-models.js — モデル管理タブのエントリポイント
 //  カード描画 / フォーム表示 / 検索 / 削除確認 を束ねる。
 //  フォームの DOM と値管理は model-form.js、
-//  カードの描画と位置管理は model-card.js、
-//  共通状態は model-state.js に委譲。
+//  カードの描画と位置管理は model-card.js に委譲。
 // ============================================================
 import { get, set, K } from "../infrastructure/storage.js";
 import { confirmDialog } from "./ui/confirm.js";

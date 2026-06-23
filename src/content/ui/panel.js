@@ -251,9 +251,9 @@ export function createPanel() {
   S.panelEl.id = "yt-summary-root";
   S.panelEl.innerHTML =
     '<div class="ys-tab-row">' +
-    '<button id="ys-btn-summary" class="ys-tab-btn">📝 要約</button>' +
-    '<button id="ys-btn-customA" class="ys-tab-btn">📊 分析</button>' +
-    '<button id="ys-btn-customB" class="ys-tab-btn">💡 考察</button>' +
+    '<button id="ys-btn-summary" class="ys-tab-btn">📝 A</button>' +
+    '<button id="ys-btn-customA" class="ys-tab-btn">📊 B</button>' +
+    '<button id="ys-btn-customB" class="ys-tab-btn">💡 C</button>' +
     "</div>" +
     '<div id="ys-panel" style="display:none">' +
     '<div id="ys-error"></div>' +

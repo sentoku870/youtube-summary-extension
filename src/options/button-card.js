@@ -18,9 +18,9 @@ import { promptKey, btnTitleKey, btnApiConfigKey } from "./options-logic.js";
 const DEBOUNCE_MS = 300;
 const BUTTON_KEYS = ["summary", "customA", "customB"];
 const BUTTON_LABELS = {
-  summary: "要約",
-  customA: "分析",
-  customB: "考察"
+  summary: "A",
+  customA: "B",
+  customB: "C"
 };
 const BUTTON_ICONS = {
   summary: "📝",

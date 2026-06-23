@@ -1,45 +1,15 @@
 // tests/options-logic.test.js — オプション画面の純粋関数テスト
 const {
-  PROVIDERS,
   generateId,
   promptKey,
   btnTitleKey,
   btnApiConfigKey,
-  detectProviderKey,
   cssEscape,
   validateFormValues,
   VALIDATION_ERRORS,
   buildConfig,
-  findExistingApiKeyByHost,
-  getProviderChipClass,
-  getProviderLabel
+  findExistingApiKeyByHost
 } = require("../src/options/options-logic");
-
-// ===== PROVIDERS =====
-describe("PROVIDERS", () => {
-  test("4つのプロバイダーキーが定義されている", () => {
-    expect(Object.keys(PROVIDERS).sort()).toEqual(["custom", "deepseek", "openai", "openrouter"]);
-  });
-
-  test("各プロバイダーがlabel/apiUrl/temperature/modelsを持つ", () => {
-    for (const key in PROVIDERS) {
-      const p = PROVIDERS[key];
-      expect(typeof p.label).toBe("string");
-      expect(typeof p.apiUrl).toBe("string");
-      expect(typeof p.temperature).toBe("string");
-      expect(Array.isArray(p.models)).toBe(true);
-    }
-  });
-
-  test("deepseekのapiUrlが正しい", () => {
-    expect(PROVIDERS.deepseek.apiUrl).toBe("https://api.deepseek.com/v1/chat/completions");
-  });
-
-  test("customは空URLと空モデル配列", () => {
-    expect(PROVIDERS.custom.apiUrl).toBe("");
-    expect(PROVIDERS.custom.models).toEqual([]);
-  });
-});
 
 // ===== generateId =====
 describe("generateId", () => {
@@ -75,37 +45,6 @@ describe("btnApiConfigKey", () => {
   test("K.BTN_API_PREFIX + type を返す", () => {
     expect(btnApiConfigKey("summary")).toBe("btnApiConfig_summary");
     expect(btnApiConfigKey("customB")).toBe("btnApiConfig_customB");
-  });
-});
-
-// ===== detectProviderKey =====
-describe("detectProviderKey", () => {
-  test("DeepSeekのURLを正しく判定", () => {
-    expect(detectProviderKey("https://api.deepseek.com/v1/chat/completions")).toBe("deepseek");
-  });
-
-  test("OpenRouterのURLを正しく判定", () => {
-    expect(detectProviderKey("https://openrouter.ai/api/v1/chat/completions")).toBe("openrouter");
-  });
-
-  test("OpenAIのURLを正しく判定", () => {
-    expect(detectProviderKey("https://api.openai.com/v1/chat/completions")).toBe("openai");
-  });
-
-  test("未知のホストはcustomを返す", () => {
-    expect(detectProviderKey("https://api.unknown.com/v1/chat/completions")).toBe("custom");
-    expect(detectProviderKey("https://localhost:3000/v1/chat/completions")).toBe("custom");
-  });
-
-  test("空文字・null・undefinedはcustomを返す", () => {
-    expect(detectProviderKey("")).toBe("custom");
-    expect(detectProviderKey(null)).toBe("custom");
-    expect(detectProviderKey(undefined)).toBe("custom");
-  });
-
-  test("不正なURL文字列はcustomを返す（例外フォールバック）", () => {
-    expect(detectProviderKey("not-a-url")).toBe("custom");
-    expect(detectProviderKey(":::invalid:::")).toBe("custom");
   });
 });
 
@@ -313,7 +252,7 @@ describe("findExistingApiKeyByHost", () => {
 
   test("apiUrl / apiKey が空の config はスキップ", () => {
     const configs = [
-      { id: "1" }, // apiKey, apiUrl なし
+      { id: "1" },
       { id: "2", apiKey: "k", apiUrl: "" },
       { id: "3", apiKey: "real", apiUrl: "https://api.deepseek.com" }
     ];
@@ -328,45 +267,5 @@ describe("findExistingApiKeyByHost", () => {
     ];
     const result = findExistingApiKeyByHost("https://api.deepseek.com/c", configs);
     expect(result).toBe("key-1");
-  });
-});
-
-// ===== getProviderChipClass =====
-describe("getProviderChipClass", () => {
-  test("主要プロバイダーは対応するチップクラスを返す", () => {
-    expect(getProviderChipClass("deepseek")).toBe("provider-chip-deepseek");
-    expect(getProviderChipClass("openrouter")).toBe("provider-chip-openrouter");
-    expect(getProviderChipClass("openai")).toBe("provider-chip-openai");
-  });
-
-  test("未知のキー / カスタム は provider-chip-custom", () => {
-    expect(getProviderChipClass("custom")).toBe("provider-chip-custom");
-    expect(getProviderChipClass("unknown")).toBe("provider-chip-custom");
-  });
-
-  test("null / undefined / 空文字 は provider-chip-custom", () => {
-    expect(getProviderChipClass(null)).toBe("provider-chip-custom");
-    expect(getProviderChipClass(undefined)).toBe("provider-chip-custom");
-    expect(getProviderChipClass("")).toBe("provider-chip-custom");
-  });
-});
-
-// ===== getProviderLabel =====
-describe("getProviderLabel", () => {
-  test("主要プロバイダーのラベルを返す", () => {
-    expect(getProviderLabel("deepseek")).toBe("DeepSeek（直API）");
-    expect(getProviderLabel("openrouter")).toBe("OpenRouter");
-    expect(getProviderLabel("openai")).toBe("OpenAI（直API）");
-    expect(getProviderLabel("custom")).toBe("カスタム");
-  });
-
-  test("未知のキーは「カスタム」を返す", () => {
-    expect(getProviderLabel("unknown")).toBe("カスタム");
-  });
-
-  test("null / undefined / 空文字 は「カスタム」", () => {
-    expect(getProviderLabel(null)).toBe("カスタム");
-    expect(getProviderLabel(undefined)).toBe("カスタム");
-    expect(getProviderLabel("")).toBe("カスタム");
   });
 });

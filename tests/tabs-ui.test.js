@@ -31,9 +31,9 @@ describe("tabs-ui", () => {
     // 実DOMパネルを構築して getEl が querySelector で動くようにする
     const panel = document.createElement("div");
     panel.innerHTML =
-      '<button id="ys-btn-summary">📝 要約</button>' +
-      '<button id="ys-btn-customA">📊 分析</button>' +
-      '<button id="ys-btn-customB">💡 考察</button>' +
+      '<button id="ys-btn-summary">📝 A</button>' +
+      '<button id="ys-btn-customA">📊 B</button>' +
+      '<button id="ys-btn-customB">💡 C</button>' +
       '<div id="ys-chatHistory"></div>';
     S.panelEl = panel;
     getEl.mockImplementation(function (sel) {

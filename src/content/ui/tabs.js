@@ -284,15 +284,17 @@ function rerenderChatOnly() {
 }
 
 // ===== ボタンタイトル適用 =====
+// 全 3 ボタンを storage の btnTitle_* から取得し、未設定なら A/B/C にフォールバック。
 export async function applyButtonTitles() {
   const btnSummary = getEl("#ys-btn-summary");
   const btnA = getEl("#ys-btn-customA");
   const btnB = getEl("#ys-btn-customB");
-  if (btnSummary) btnSummary.textContent = "📝 要約";
+  const titleS = await loadButtonTitle("summary");
+  if (btnSummary) btnSummary.textContent = titleS ? "📝 " + titleS : "📝 A";
   const titleA = await loadButtonTitle("customA");
-  if (btnA) btnA.textContent = titleA ? "📊 " + titleA : "📊 分析";
+  if (btnA) btnA.textContent = titleA ? "📊 " + titleA : "📊 B";
   const titleB = await loadButtonTitle("customB");
-  if (btnB) btnB.textContent = titleB ? "💡 " + titleB : "💡 考察";
+  if (btnB) btnB.textContent = titleB ? "💡 " + titleB : "💡 C";
   enableAllButtons();
   updateTabUI();
 }

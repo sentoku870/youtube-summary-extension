@@ -1,5 +1,5 @@
 // ============================================================
-//  popup.js — 字幕DL / AI処理 / 設定（ESM版）
+//  popup.js — 字幕DL / 設定（ESM版）
 //  DOMContentLoaded を待たずとも <script type="module"> は defer 扱いのため
 //  DOM 構築後に実行される。共通のエラー表示ヘルパで重複コードを削減。
 // ============================================================
@@ -9,9 +9,6 @@ const log = createLogger("popup");
 
 const dlBtn = document.getElementById("dlBtn");
 const statusText = document.getElementById("statusText");
-const summaryBtn = document.getElementById("summaryBtn");
-const customABtn = document.getElementById("customABtn");
-const customBBtn = document.getElementById("customBBtn");
 
 const RELOAD_HINT = "❌ ページを再読み込みしてからお試しください";
 
@@ -33,10 +30,6 @@ async function updateUI() {
   // 字幕DLはYouTube動画ページを開いている時のみ有効
   // （クリック時にその場で字幕を取得するため、事前取得の有無は問わない）
   dlBtn.disabled = !tab;
-  // AIボタンも同様
-  summaryBtn.disabled = !tab;
-  customABtn.disabled = !tab;
-  customBBtn.disabled = !tab;
 
   if (!tab) {
     statusText.textContent = "YouTube動画のページを開いてください";
@@ -110,68 +103,6 @@ chrome.storage.onChanged.addListener(function (changes) {
 
 document.getElementById("settingsBtn").addEventListener("click", function () {
   chrome.runtime.openOptionsPage();
-});
-
-// ===== AIボタン共通処理 =====
-async function triggerAI(mode) {
-  log.log("triggerAI mode=" + mode);
-  // アクティブなYouTubeタブを探す
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  const tab = tabs[0];
-  if (!tab || !tab.url || !tab.url.includes("youtube.com/watch")) {
-    showError("❌ YouTube動画のページで実行してください");
-    return;
-  }
-
-  statusText.textContent = "⏳ AI処理を開始します...";
-
-  // content script は manifest で自動注入されるため、
-  // 強制注入のフォールバックは不要。メッセージ送信のみ行う。
-  // （ページ遷移直後など未ロードの場合はエラーメッセージを表示）
-
-  // パネルを強制表示
-  try {
-    await chrome.tabs.sendMessage(tab.id, { action: "ysForcePanel" });
-    log.log("ysForcePanel done");
-  } catch (e) {
-    log.error("ysForcePanel failed:", e);
-    showError(RELOAD_HINT);
-    return;
-  }
-
-  // ysTriggerAi は fire-and-forget（awaitしない）
-  // ポップアップは即座に閉じて、処理はバックグラウンドで継続
-  // ※ Promise として扱い、送信失敗を検知できるようにする
-  try {
-    const sendPromise = chrome.tabs.sendMessage(tab.id, { action: "ysTriggerAi", mode: mode });
-    sendPromise
-      .then(function () {
-        log.log("ysTriggerAi sent, closing popup");
-      })
-      .catch(function (e) {
-        log.error("ysTriggerAi send failed:", e);
-        showError(RELOAD_HINT);
-      });
-  } catch (e) {
-    log.error("ysTriggerAi send failed:", e);
-    showError(RELOAD_HINT);
-    return;
-  }
-  statusText.textContent = "✅ AI処理を開始しました（サイドバーを確認）";
-  // 0.5秒後にポップアップを閉じる
-  setTimeout(function () {
-    window.close();
-  }, 500);
-}
-
-summaryBtn.addEventListener("click", function () {
-  triggerAI("summary");
-});
-customABtn.addEventListener("click", function () {
-  triggerAI("customA");
-});
-customBBtn.addEventListener("click", function () {
-  triggerAI("customB");
 });
 
 updateUI();

@@ -96,9 +96,9 @@ function buildPanelDOM() {
   root.id = "yt-summary-root";
   root.innerHTML =
     '<div class="ys-tab-row">' +
-    '<button id="ys-btn-summary">📝 要約</button>' +
-    '<button id="ys-btn-customA">📊 分析</button>' +
-    '<button id="ys-btn-customB">💡 考察</button>' +
+    '<button id="ys-btn-summary">📝 A</button>' +
+    '<button id="ys-btn-customA">📊 B</button>' +
+    '<button id="ys-btn-customB">💡 C</button>' +
     "</div>" +
     '<div id="ys-panel" style="display:none">' +
     '<div id="ys-content-area"></div>' +
@@ -277,6 +277,7 @@ describe("tabs", () => {
   describe("applyButtonTitles", () => {
     test("各ボタンのラベルが正しく設定される", async () => {
       storage.loadButtonTitle.mockImplementation(async function (btn) {
+        if (btn === "summary") return "要約カスタム";
         if (btn === "customA") return "分析カスタム";
         if (btn === "customB") return "考察カスタム";
         return null;
@@ -284,18 +285,19 @@ describe("tabs", () => {
 
       await applyButtonTitles();
 
-      expect(getEl("#ys-btn-summary").textContent).toBe("📝 要約");
+      expect(getEl("#ys-btn-summary").textContent).toBe("📝 要約カスタム");
       expect(getEl("#ys-btn-customA").textContent).toBe("📊 分析カスタム");
       expect(getEl("#ys-btn-customB").textContent).toBe("💡 考察カスタム");
       expect(enableAllButtons).toHaveBeenCalled();
       expect(tabsUi.updateTabUI).toHaveBeenCalled();
     });
 
-    test("loadButtonTitle が null の場合はデフォルト表記", async () => {
+    test("loadButtonTitle が null の場合は A/B/C フォールバック", async () => {
       storage.loadButtonTitle.mockResolvedValue(null);
       await applyButtonTitles();
-      expect(getEl("#ys-btn-customA").textContent).toBe("📊 分析");
-      expect(getEl("#ys-btn-customB").textContent).toBe("💡 考察");
+      expect(getEl("#ys-btn-summary").textContent).toBe("📝 A");
+      expect(getEl("#ys-btn-customA").textContent).toBe("📊 B");
+      expect(getEl("#ys-btn-customB").textContent).toBe("💡 C");
     });
   });
 

@@ -3,8 +3,6 @@ const {
   buildRequestConfig,
   readStream,
   callChatAPIStream,
-  fetchModelList,
-  deriveModelsUrl,
   buildAuthHeaders,
   isOpenRouterUrl,
   handleErrorResponse,
@@ -320,38 +318,6 @@ describe("callChatAPIStream", () => {
   });
 });
 
-// ===== deriveModelsUrl のテスト =====
-describe("deriveModelsUrl", () => {
-  test("chat/completions URL から /models を導出する", () => {
-    expect(deriveModelsUrl("https://api.deepseek.com/v1/chat/completions")).toBe(
-      "https://api.deepseek.com/v1/models"
-    );
-    expect(deriveModelsUrl("https://openrouter.ai/api/v1/chat/completions")).toBe(
-      "https://openrouter.ai/api/v1/models"
-    );
-    expect(deriveModelsUrl("https://api.openai.com/v1/chat/completions")).toBe(
-      "https://api.openai.com/v1/models"
-    );
-  });
-
-  test("クエリ文字列を除去する", () => {
-    expect(deriveModelsUrl("https://api.test.com/v1/chat/completions?foo=bar")).toBe(
-      "https://api.test.com/v1/models"
-    );
-  });
-
-  test("chat/completions が含まれない場合はフォールバック", () => {
-    const url = deriveModelsUrl("https://api.test.com/v1");
-    expect(url).toMatch(/\/models$/);
-  });
-
-  test("空文字・無効URLのフォールバック", () => {
-    expect(deriveModelsUrl("")).toBe("");
-    // 文字列置換による最低限のフォールバック
-    expect(deriveModelsUrl("not-a-valid-url/chat/completions")).toBe("not-a-valid-url/models");
-  });
-});
-
 // ===== isOpenRouterUrl / buildAuthHeaders のテスト =====
 describe("isOpenRouterUrl", () => {
   test("OpenRouter の URL を正しく判定する", () => {
@@ -375,129 +341,6 @@ describe("buildAuthHeaders", () => {
     expect(h["Authorization"]).toBe("Bearer or-key");
     expect(h["HTTP-Referer"]).toBe("https://chrome.google.com/webstore");
     expect(h["X-Title"]).toBe("YouTube Summary Extension");
-  });
-});
-
-// ===== fetchModelList のテスト =====
-describe("fetchModelList", () => {
-  beforeEach(() => {
-    global.fetch.mockReset();
-  });
-
-  test("OpenAI互換 /models レスポンスをパースして id 一覧を返す", async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        data: [{ id: "gpt-4o" }, { id: "gpt-4o-mini" }, { id: "gpt-3.5-turbo" }]
-      })
-    });
-
-    const models = await fetchModelList("https://api.test.com/v1/chat/completions", "key-123");
-
-    expect(models).toHaveLength(3);
-    // アルファベット順でソートされる
-    expect(models.map((m) => m.id)).toEqual(["gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"]);
-    // GET リクエストで /models にアクセス
-    expect(global.fetch).toHaveBeenCalledWith(
-      "https://api.test.com/v1/models",
-      expect.objectContaining({ method: "GET" })
-    );
-  });
-
-  test("OpenRouter レスポンス（name プロパティ付き）を label 付きで返す", async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        data: [
-          { id: "openai/gpt-4o", name: "OpenAI: GPT-4o" },
-          { id: "anthropic/claude-3.5-sonnet", name: "Anthropic: Claude 3.5 Sonnet" }
-        ]
-      })
-    });
-
-    const models = await fetchModelList("https://openrouter.ai/api/v1/chat/completions", "or-key");
-
-    expect(models).toHaveLength(2);
-    const gpt4o = models.find((m) => m.id === "openai/gpt-4o");
-    expect(gpt4o.label).toBe("OpenAI: GPT-4o");
-    // OpenRouter 用ヘッダーが付与されている
-    const callArgs = global.fetch.mock.calls[0][1];
-    expect(callArgs.headers["HTTP-Referer"]).toBe("https://chrome.google.com/webstore");
-    expect(callArgs.headers["X-Title"]).toBe("YouTube Summary Extension");
-  });
-
-  test("配列形式レスポンスも処理できる", async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => [{ id: "model-a" }, { id: "model-b" }]
-    });
-
-    const models = await fetchModelList("https://api.test.com/v1/chat/completions", "key");
-
-    expect(models).toHaveLength(2);
-    expect(models[0].id).toBe("model-a");
-  });
-
-  test("id を持たない要素は除外される", async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        data: [{ id: "valid-model" }, { name: "no-id-model" }, null, { id: "" }]
-      })
-    });
-
-    const models = await fetchModelList("https://api.test.com/v1/chat/completions", "key");
-
-    expect(models).toHaveLength(1);
-    expect(models[0].id).toBe("valid-model");
-  });
-
-  test("APIキー未入力時に分かりやすいエラー", async () => {
-    await expect(fetchModelList("https://api.test.com/v1/chat/completions", "")).rejects.toThrow(
-      "APIキーが必要"
-    );
-  });
-
-  test("URL未入力時にエラー", async () => {
-    await expect(fetchModelList("", "key")).rejects.toThrow("エンドポイントURLが未設定");
-  });
-
-  test("401/403 エラー時にAPIキー無効のメッセージ", async () => {
-    global.fetch.mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => "Unauthorized"
-    });
-
-    await expect(
-      fetchModelList("https://api.test.com/v1/chat/completions", "bad-key")
-    ).rejects.toThrow("APIキーが無効");
-  });
-
-  test("404 エラー時に手動入力を促すメッセージ", async () => {
-    global.fetch.mockResolvedValue({
-      ok: false,
-      status: 404,
-      text: async () => "Not Found"
-    });
-
-    await expect(fetchModelList("https://api.test.com/v1/chat/completions", "key")).rejects.toThrow(
-      "手動でモデル名を入力"
-    );
-  });
-
-  test("OpenRouter のエンドポイントURLから正しく /models を導出してアクセス", async () => {
-    global.fetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [] })
-    });
-
-    await fetchModelList("https://openrouter.ai/api/v1/chat/completions", "or-key");
-
-    expect(global.fetch).toHaveBeenCalledWith(
-      "https://openrouter.ai/api/v1/models",
-      expect.anything()
-    );
   });
 });
 
