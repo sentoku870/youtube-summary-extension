@@ -11,7 +11,7 @@ global.chrome = {
   }
 };
 
-const { state: S } = require("../src/shared/state");
+const { uiState: U, sessionState: S } = require("../src/shared/state");
 const { clearAll } = require("../src/shared/event-bus");
 
 // 依存モジュールをモック
@@ -40,13 +40,13 @@ describe("sidebar", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearAll();
-    S.panelEl = null;
+    U.panelEl = null;
     S.preloadedTranscript = null;
     S.transcriptReady = false;
-    S.activeTab = null;
+    U.activeTab = null;
     S.videoMeta = null;
-    S.tabIds = ["summary", "customA", "customB"];
-    S.tabs = {
+    U.tabIds = ["summary", "customA", "customB"];
+    U.tabs = {
       summary: { generated: true, content: "old", config: { x: 1 }, chatHistory: [{ a: 1 }] },
       customA: { generated: true, content: "oldA", config: null, chatHistory: [{ a: 2 }] },
       customB: { generated: true, content: "oldB", config: null, chatHistory: [{ a: 3 }] }
@@ -57,12 +57,12 @@ describe("sidebar", () => {
   describe("getPanelEl", () => {
     test("state.panelEl をそのまま返す", () => {
       const el = document.createElement("div");
-      S.panelEl = el;
+      U.panelEl = el;
       expect(getPanelEl()).toBe(el);
     });
 
     test("state.panelEl が null の場合は null", () => {
-      S.panelEl = null;
+      U.panelEl = null;
       expect(getPanelEl()).toBeNull();
     });
   });
@@ -83,7 +83,7 @@ describe("sidebar", () => {
   // ===== resetState =====
   describe("resetState", () => {
     test("state.panelEl が null の場合は abort 以外 no-op", () => {
-      S.panelEl = null;
+      U.panelEl = null;
       resetState();
       // abortCurrentStream は条件チェック前に呼ばれる（仕様）
       expect(abortCurrentStream).toHaveBeenCalledTimes(1);
@@ -101,7 +101,7 @@ describe("sidebar", () => {
       panel.style.display = "flex";
       root.appendChild(panel);
       document.body.appendChild(root);
-      S.panelEl = root;
+      U.panelEl = root;
 
       resetState();
 
@@ -113,14 +113,14 @@ describe("sidebar", () => {
       const panel = document.createElement("div");
       panel.id = "ys-panel";
       root.appendChild(panel);
-      S.panelEl = root;
+      U.panelEl = root;
 
       resetState();
 
       for (const id of ["summary", "customA", "customB"]) {
-        expect(S.tabs[id].generated).toBe(false);
-        expect(S.tabs[id].content).toBe("");
-        expect(S.tabs[id].chatHistory).toEqual([]);
+        expect(U.tabs[id].generated).toBe(false);
+        expect(U.tabs[id].content).toBe("");
+        expect(U.tabs[id].chatHistory).toEqual([]);
       }
     });
 
@@ -129,7 +129,7 @@ describe("sidebar", () => {
       const panel = document.createElement("div");
       panel.id = "ys-panel";
       root.appendChild(panel);
-      S.panelEl = root;
+      U.panelEl = root;
 
       resetState();
 
@@ -144,25 +144,25 @@ describe("sidebar", () => {
       const panel = document.createElement("div");
       panel.id = "ys-panel";
       root.appendChild(panel);
-      S.panelEl = root;
-      S.activeTab = "summary";
+      U.panelEl = root;
+      U.activeTab = "summary";
       S.videoMeta = { title: "x" };
 
       resetState();
 
-      expect(S.activeTab).toBeNull();
+      expect(U.activeTab).toBeNull();
       expect(S.videoMeta).toBeNull();
     });
 
-    test("S.tabIds が未設定でもデフォルト 3 タブ全てで動作", () => {
+    test("U.tabIds が未設定でもデフォルト 3 タブ全てで動作", () => {
       const root = document.createElement("div");
       const panel = document.createElement("div");
       panel.id = "ys-panel";
       root.appendChild(panel);
-      S.panelEl = root;
-      S.tabIds = null;
+      U.panelEl = root;
+      U.tabIds = null;
       // tabs にデフォルト ID だけ用意
-      S.tabs = {
+      U.tabs = {
         summary: { generated: true, content: "x", chatHistory: [] },
         customA: { generated: true, content: "x", chatHistory: [] },
         customB: { generated: true, content: "x", chatHistory: [] }
@@ -171,7 +171,7 @@ describe("sidebar", () => {
       resetState();
 
       for (const id of ["summary", "customA", "customB"]) {
-        expect(S.tabs[id].generated).toBe(false);
+        expect(U.tabs[id].generated).toBe(false);
       }
     });
   });

@@ -3,7 +3,7 @@
 //  Phase B-2: sidebar.js からメッセージ通信ロジックを分離
 //  popup.js / background.js からのメッセージを受信して処理
 // ============================================================
-import { state as S } from "../../shared/state.js";
+import { uiState as S } from "../../shared/state.js";
 import { createPanel } from "./panel.js";
 import { bindEvents, applyButtonTitles, switchTab } from "./tabs.js";
 import { applyFontSize, applyTheme } from "./appearance.js";

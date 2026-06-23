@@ -8,13 +8,34 @@
 //  - YouTube 側が #secondary-inner 配下の未知要素に .hidden を付与して
 //    display:none にしてしまうのを監視して即座に除去する。
 // ============================================================
-import { state as S } from "../../shared/state.js";
+import { uiState as S } from "../../shared/state.js";
 import { applyTheme, applyFontSize, applyPanelHeight } from "./appearance.js";
 import "./sidebar.css";
 
+// ===== DOM 検索キャッシュ =====
+// querySelector を毎フレーム呼ぶと CPU 負荷になる。
+// 同一セレクタの結果をパネルインスタンス毎にキャッシュする。
+// パネル破棄時はキャッシュも自動的に無効化（WeakMap）。
+// null 結果はキャッシュしない（動的に追加される要素を考慮）。
+const elCache = new WeakMap();
+
 // ===== 内部ヘルパー =====
 export function getEl(id) {
-  return S.panelEl ? S.panelEl.querySelector(id) : null;
+  const panel = S.panelEl;
+  if (!panel) return null;
+  let cache = elCache.get(panel);
+  if (!cache) {
+    cache = new Map();
+    elCache.set(panel, cache);
+  }
+  if (cache.has(id)) {
+    const cached = cache.get(id);
+    // ノードが DOM から切り離されていたら再検索
+    if (cached && cached.isConnected) return cached;
+  }
+  const el = panel.querySelector(id);
+  if (el) cache.set(id, el);
+  return el || null;
 }
 
 // ===== ボタン制御 =====
@@ -93,12 +114,15 @@ function waitForSecondary(maxWaitMs) {
 // ===== YouTube 側から付与される .hidden を除去・監視 =====
 // Polymer/YouTube が #secondary-inner 配下の未知要素に .hidden を付与して
 // display:none にしてしまうのを防ぐ。
+// 監視は WeakMap で管理（パネル破棄時に Observer も自動 GC される）
+const hiddenObservers = new WeakMap();
+
 function ensureVisibleAndWatch(panel) {
   if (panel.classList.contains("hidden")) {
     panel.classList.remove("hidden");
   }
   panel.removeAttribute("hidden");
-  if (panel.__ysHiddenObs) return;
+  if (hiddenObservers.has(panel)) return;
   const mo = new MutationObserver(function() {
     if (panel.classList.contains("hidden")) {
       panel.classList.remove("hidden");
@@ -109,7 +133,7 @@ function ensureVisibleAndWatch(panel) {
     }
   });
   mo.observe(panel, { attributes: true, attributeFilter: ["class", "hidden"] });
-  panel.__ysHiddenObs = mo;
+  hiddenObservers.set(panel, mo);
 }
 
 // ===== 配置状態をログ出力 =====
@@ -176,6 +200,12 @@ function placePanel(panel) {
     ensureVisibleAndWatch(panel);
     logPlacement(panel);
     console.log("[YouTube 要約] パネルを挿入しました @ " + result.source);
+  }).catch(function(err) {
+    // 配置処理中の例外を捕捉（MutationObserver / DOM 操作の想定外失敗対策）
+    console.error("[YouTube 要約] パネル配置に失敗しました:", err);
+    if (panel.parentNode !== document.body) {
+      try { document.body.appendChild(panel); } catch (e) { /* body 不在時など */ }
+    }
   });
 }
 

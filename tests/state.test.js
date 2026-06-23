@@ -1,34 +1,63 @@
 // tests/state.test.js — state.js の単体テスト
-const { state, createInitialState, createInitialTabState } = require("../src/shared/state");
+const stateModule = require("../src/shared/state");
+const {
+  uiState,
+  sessionState,
+  resetSession,
+  createInitialSessionState,
+  createInitialTabState
+} = stateModule;
 
-describe("createInitialState", () => {
+describe("uiState（UI 状態）", () => {
   test("期待される全プロパティを持つ", () => {
-    const s = createInitialState();
-    expect(s).toHaveProperty("panelEl", null);
-    expect(s).toHaveProperty("activeTab", null);
-    expect(s).toHaveProperty("eventsBound", false);
-    expect(s).toHaveProperty("tabs");
-    expect(s).toHaveProperty("tabIds", ["summary", "customA", "customB"]);
-    expect(s).toHaveProperty("transcriptText", "");
-    expect(s).toHaveProperty("preloadedTranscript", null);
-    expect(s).toHaveProperty("transcriptReady", false);
-    expect(s).toHaveProperty("videoMeta", null);
-    expect(s).toHaveProperty("abortController", null);
-    expect(s).toHaveProperty("pendingRetry", false);
-    expect(s).toHaveProperty("initialized", false);
-    expect(s).toHaveProperty("lastInitTime", 0);
-  });
-
-  test("呼び出しごとに独立したインスタンスを返す", () => {
-    const s1 = createInitialState();
-    const s2 = createInitialState();
-    s1.tabs.foo = "bar";
-    expect(s2.tabs.foo).toBeUndefined();
+    expect(uiState).toHaveProperty("panelEl", null);
+    expect(uiState).toHaveProperty("activeTab", null);
+    expect(uiState).toHaveProperty("eventsBound", false);
+    expect(uiState).toHaveProperty("tabs");
+    expect(uiState).toHaveProperty("tabIds", ["summary", "customA", "customB"]);
+    expect(uiState).toHaveProperty("initialized", false);
+    expect(uiState).toHaveProperty("lastInitTime", 0);
   });
 
   test("tabs は空オブジェクト", () => {
-    const s = createInitialState();
-    expect(Object.keys(s.tabs)).toHaveLength(0);
+    expect(Object.keys(uiState.tabs)).toHaveLength(0);
+  });
+});
+
+describe("sessionState（セッション状態）", () => {
+  test("期待される全プロパティを持つ", () => {
+    expect(sessionState).toHaveProperty("transcriptText", "");
+    expect(sessionState).toHaveProperty("preloadedTranscript", null);
+    expect(sessionState).toHaveProperty("transcriptReady", false);
+    expect(sessionState).toHaveProperty("videoMeta", null);
+    expect(sessionState).toHaveProperty("abortController", null);
+    expect(sessionState).toHaveProperty("pendingRetry", false);
+    expect(sessionState).toHaveProperty("_transcriptPromise", null);
+  });
+});
+
+describe("createInitialSessionState", () => {
+  test("呼び出しごとに独立したインスタンスを返す", () => {
+    const s1 = createInitialSessionState();
+    const s2 = createInitialSessionState();
+    s1.transcriptText = "modified";
+    expect(s2.transcriptText).toBe("");
+  });
+});
+
+describe("resetSession", () => {
+  test("sessionState を初期値にリセット", () => {
+    sessionState.transcriptText = "dirty";
+    sessionState.preloadedTranscript = { all: ["x"] };
+    sessionState.videoMeta = { title: "t" };
+    sessionState.abortController = { abort: function() {} };
+
+    resetSession();
+
+    expect(sessionState.transcriptText).toBe("");
+    expect(sessionState.preloadedTranscript).toBeNull();
+    expect(sessionState.videoMeta).toBeNull();
+    expect(sessionState.abortController).toBeNull();
   });
 });
 
@@ -50,21 +79,5 @@ describe("createInitialTabState", () => {
     const t2 = createInitialTabState();
     t1.content = "test";
     expect(t2.content).toBe("");
-  });
-});
-
-describe("state（シングルトン）", () => {
-  test("createInitialState と同じ構造を持つ", () => {
-    const fresh = createInitialState();
-    // 既存stateに加えた変更を除外するため、キーセットを比較
-    for (const key in fresh) {
-      expect(state).toHaveProperty(key);
-    }
-  });
-
-  test("tabIds に期待される3つのIDが含まれる", () => {
-    expect(state.tabIds).toContain("summary");
-    expect(state.tabIds).toContain("customA");
-    expect(state.tabIds).toContain("customB");
   });
 });

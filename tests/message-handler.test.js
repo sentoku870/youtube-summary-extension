@@ -19,7 +19,7 @@ jest.mock("../src/domain/transcript.js", () => ({
   fetchTranscript: jest.fn().mockResolvedValue({ all: ["a", "b"], player: [], meta: { title: "t" } })
 }));
 
-const { state: S } = require("../src/shared/state");
+const { uiState: S } = require("../src/shared/state");
 const panel = require("../src/content/ui/panel");
 const tabs = require("../src/content/ui/tabs");
 const appearance = require("../src/content/ui/appearance");

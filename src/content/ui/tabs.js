@@ -2,7 +2,7 @@
 //  tabs.js — タブ切替・チャット・UI更新・イベントバインド（ESM版）
 //  UI操作は ui.js、タブ描画は tabs-ui.js へ分離済み。
 // ============================================================
-import { state as S } from "../../shared/state.js";
+import { uiState as S, sessionState } from "../../shared/state.js";
 import { getEl, enableAllButtons } from "./panel.js";
 import {
   setSummaryRaw, disableRegenButton, enableRegenButton, appendChatMessage,
@@ -13,12 +13,16 @@ import { callAI, abortCurrentStream, resolveApiConfig } from "../../domain/ai.js
 import { callChatAPIStream } from "../../domain/api.js";
 import { YsAbortError, YsTimeoutError } from "../../infrastructure/errors.js";
 import { loadButtonTitle } from "../../infrastructure/storage.js";
+import { createRafThrottle } from "../../shared/raf-throttle.js";
+import { linkAbortSignal } from "../../shared/abort-chain.js";
 
 // tabs-ui.js からの再エクスポート（呼び出し側の互換用）
 export { updateTabUI, updateTabActive, renderTabContent };
 
 // チャット送信用のAbortController（連続送信やタブ切り替えで前の応答を中断）
 let chatAbortController = null;
+// 親（要約セッション）との連動を保持（disconnect 用）
+let chatAbortChain = null;
 // 送信中フラグ（送信ボタン廃止に伴い、textarea.readOnly + フラグで二重送信を防止）
 let chatBusy = false;
 
@@ -30,6 +34,10 @@ export function abortChatStream() {
   if (chatAbortController) {
     chatAbortController.abort();
     chatAbortController = null;
+  }
+  if (chatAbortChain) {
+    chatAbortChain.disconnect();
+    chatAbortChain = null;
   }
 }
 
@@ -146,8 +154,11 @@ async function onChatSend() {
 
   // 進行中のチャットがあれば中断して新しいリクエストを開始
   abortChatStream();
-  const controller = new AbortController();
+  // 親（要約セッション）の abort に連動：動画切替時にチャットも自動中断される
+  const chain = linkAbortSignal(sessionState.abortController && sessionState.abortController.signal);
+  const controller = chain.controller;
   chatAbortController = controller;
+  chatAbortChain = chain;
   chatBusy = true;
   if (input) input.readOnly = true;
 
@@ -160,13 +171,10 @@ async function onChatSend() {
 
   let accumulated = "";
   // ストリーミング描画のスロットル（頻繁な marked+DOMPurify による卡回避）
-  let lastRenderMs = 0;
-  let rafScheduled = false;
-  const renderNow = function() {
-    rafScheduled = false;
-    lastRenderMs = Date.now();
-    if (placeholder) updateChatMessageBody(placeholder.body, accumulated || "");
-  };
+  // RAF + 60ms 間隔で 1フレーム内の連続チャンクをまとめて1回だけ描画
+  const renderThrottled = createRafThrottle(function(arg) {
+    if (placeholder) updateChatMessageBody(placeholder.body, arg || "");
+  }, 60);
 
   try {
     let config = tab.config;
@@ -183,22 +191,12 @@ async function onChatSend() {
       config,
       function(chunk) {
         accumulated = chunk;
-        const now = Date.now();
-        if (now - lastRenderMs >= 60) {
-          renderNow();
-        } else if (!rafScheduled) {
-          rafScheduled = true;
-          requestAnimationFrame(renderNow);
-        }
+        renderThrottled(accumulated);
       },
       function(fullText) {
         accumulated = fullText || accumulated;
-        // 最終確定描画（rafScheduled の有無にかかわらず即時反映）
-        if (rafScheduled) {
-          // 予定された raf を待たず今描画
-          rafScheduled = false;
-        }
-        if (placeholder) updateChatMessageBody(placeholder.body, accumulated);
+        // 最終確定描画（スロットルを待たず即時反映）
+        renderThrottled.flush(accumulated);
         tab.chatHistory.push({ role: "assistant", content: accumulated });
       },
       controller.signal
@@ -215,6 +213,11 @@ async function onChatSend() {
     }
     chatBusy = false;
     if (input) { input.readOnly = false; input.focus(); }
+    // 親 abort との連動を解除（次の送信に備えてリセット）
+    if (chatAbortChain) {
+      chatAbortChain.disconnect();
+      chatAbortChain = null;
+    }
   }
 }
 

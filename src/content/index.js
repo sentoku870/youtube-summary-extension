@@ -15,7 +15,7 @@ import {
 import { getEl } from "./ui/panel.js";
 import { updateTabUI } from "./ui/tabs.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
-import { state } from "../shared/state.js";
+import { uiState } from "../shared/state.js";
 
 console.log("[YouTube 要約] index.js loaded");
 
@@ -59,11 +59,11 @@ function init() {
 
 // タイムスタンプガード付きで初期化（二重実行防止）
 function safeInit() {
-  if (state.initialized) return;
+  if (uiState.initialized) return;
   const now = Date.now();
-  if (now - state.lastInitTime < MIN_INIT_INTERVAL_MS) return;
-  state.lastInitTime = now;
-  state.initialized = true;
+  if (now - uiState.lastInitTime < MIN_INIT_INTERVAL_MS) return;
+  uiState.lastInitTime = now;
+  uiState.initialized = true;
   init();
 }
 
@@ -73,7 +73,7 @@ function handleNavigation() {
   if (!isYouTubeWatchPage(location.href)) return;
   resetState();
   resetTranscript();
-  state.initialized = false;
+  uiState.initialized = false;
   safeInit();
 }
 
@@ -127,7 +127,7 @@ window.addEventListener("hashchange", function() {
 window.addEventListener("pageshow", function(ev) {
   if (ev.persisted && isYouTubeWatchPage(location.href)) {
     console.log("[YouTube 要約] BFCache から復元されました。再初期化します。");
-    state.initialized = false;
+    uiState.initialized = false;
     handleNavigation();
   }
 });

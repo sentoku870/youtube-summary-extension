@@ -118,6 +118,44 @@ export function parseTranscriptXml(xml, lang) {
 }
 
 /**
+ * Extract ytInitialPlayerResponse JSON from YouTube page HTML
+ * 文字列リテラル内の { } を誤検出しないよう state machine で対応括弧を探す。
+ * 最終候補は JSON.parse で検証（パース失敗時は null）。
+ * @param {string} html
+ * @returns {Object|null}
+ */
+export function extractInitialPlayerResponse(html) {
+  if (!html) return null;
+  const startToken = "var ytInitialPlayerResponse = ";
+  const startIdx = html.indexOf(startToken);
+  if (startIdx === -1) return null;
+  const jsonStart = startIdx + startToken.length;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = jsonStart; i < html.length; i++) {
+    const c = html[i];
+    if (escape) { escape = false; continue; }
+    if (c === "\\") { escape = true; continue; }
+    if (c === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (c === "{") depth++;
+    else if (c === "}") {
+      depth--;
+      if (depth === 0) {
+        const candidate = html.slice(jsonStart, i + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Fetch full transcript from YouTube video
  */
 export async function fetchYtTranscript(config) {
@@ -171,26 +209,16 @@ export async function fetchYtTranscript(config) {
       const pageHtml = await pageResp.text();
 
       // Parse ytInitialPlayerResponse from inline script
-      const startToken = "var ytInitialPlayerResponse = ";
-      const startIdx = pageHtml.indexOf(startToken);
-      if (startIdx !== -1) {
-        const jsonStart = startIdx + startToken.length;
-        let depth = 0;
-        for (let i = jsonStart; i < pageHtml.length; i++) {
-          if (pageHtml[i] === "{") depth++;
-          else if (pageHtml[i] === "}") {
-            depth--;
-            if (depth === 0) {
-              const pr = JSON.parse(pageHtml.slice(jsonStart, i + 1));
-              // メタ情報抽出（fallback時）
-              if (!videoMeta) videoMeta = extractVideoMeta(pr);
-              const tracks = pr?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-              if (Array.isArray(tracks) && tracks.length > 0) {
-                transcriptData = await fetchTranscriptFromTracks(tracks, videoId, config);
-              }
-              break;
-            }
-          }
+      // 文字列内の { } を誤検出しないよう、文字列エスケープを考慮した state machine で
+      // 対応する閉じ括弧を探す。最終候補は JSON.parse で検証する。
+      const pr = extractInitialPlayerResponse(pageHtml);
+      if (pr) {
+        // メタ情報抽出（fallback時）
+        if (!videoMeta) videoMeta = extractVideoMeta(pr);
+        const tracks = pr && pr.captions && pr.captions.playerCaptionsTracklistRenderer
+          && pr.captions.playerCaptionsTracklistRenderer.captionTracks;
+        if (Array.isArray(tracks) && tracks.length > 0) {
+          transcriptData = await fetchTranscriptFromTracks(tracks, videoId, config);
         }
       }
     }

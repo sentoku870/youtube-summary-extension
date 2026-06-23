@@ -63,7 +63,7 @@ beforeAll(function () {
   mockAppendAssistantPlaceholder.mockReturnValue(fakeResult);
 });
 
-const { state: S } = require("../src/shared/state");
+const { uiState: S } = require("../src/shared/state");
 const { getEl, enableAllButtons } = require("../src/content/ui/panel");
 const ui = require("../src/content/ui/ui");
 const tabsUi = require("../src/content/ui/tabs-ui");

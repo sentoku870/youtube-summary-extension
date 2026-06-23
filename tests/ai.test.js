@@ -3,8 +3,13 @@
 // window のモックを require より前に設定
 global.window = global.window || {};
 
-// state.js のシングルトンを直接 import して使う（window エイリアスは廃止済み）
-const { state: S, createInitialState } = require("../src/shared/state");
+// state.js の uiState / sessionState を直接 import
+const {
+  uiState: U,
+  sessionState: S,
+  resetSession,
+  createInitialSessionState
+} = require("../src/shared/state");
 
 // YsUI のモック
 global.YsUI = {
@@ -73,15 +78,15 @@ const {
 // モック化された api.js の関数を取得
 const { callChatAPIStream, callChatAPINonStream } = require("../src/domain/api");
 
-// 各テスト前に state を初期値にリセット（ai.js と共有されるシングルトン）
-function resetSharedState() {
-  const fresh = createInitialState();
-  for (const key of Object.keys(S)) delete S[key];
-  Object.assign(S, fresh);
+// 各テスト前に sessionState を初期値にリセット（ai.js と共有されるシングルトン）
+// uiState.tabs は createPanel() で再構築されるため、テストでは明示的に作る
+function resetSharedSession() {
+  resetSession();
+  U.tabs = {};
 }
 
 beforeEach(() => {
-  resetSharedState();
+  resetSharedSession();
 });
 
 // Port/Adapter: テスト用にモックアダプターを注入
@@ -212,8 +217,8 @@ describe("createTimeoutPromise", () => {
 describe("finalizeResult", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    S.activeTab = "summary";
-    S.tabs = {
+    U.activeTab = "summary";
+    U.tabs = {
       summary: {
         generated: false,
         content: "",
@@ -228,7 +233,7 @@ describe("finalizeResult", () => {
   });
 
   test("タブの状態を正しく更新する", () => {
-    const tab = S.tabs.summary;
+    const tab = U.tabs.summary;
     const config = { apiModel: "gpt-4o" };
     const transcript = { all: ["line1", "line2"] };
 
@@ -246,7 +251,7 @@ describe("finalizeResult", () => {
   });
 
   test("アクティブタブと一致する場合UIを更新する", () => {
-    const tab = S.tabs.summary;
+    const tab = U.tabs.summary;
     const config = { apiModel: "gpt-4o" };
     const transcript = { all: ["line1"] };
 
@@ -259,8 +264,8 @@ describe("finalizeResult", () => {
   });
 
   test("アクティブタブと異なる場合はUIを更新しない", () => {
-    S.activeTab = "customA";
-    const tab = S.tabs.summary;
+    U.activeTab = "customA";
+    const tab = U.tabs.summary;
     const config = { apiModel: "gpt-4o" };
     const transcript = { all: ["line1"] };
 
@@ -371,8 +376,8 @@ describe("abortCurrentStream", () => {
 describe("callAI", () => {
   // callAI 用の共通セットアップ
   function setupState(transcript) {
-    S.activeTab = "summary";
-    S.tabs = {
+    U.activeTab = "summary";
+    U.tabs = {
       summary: {
         generated: false,
         content: "",
@@ -444,7 +449,7 @@ describe("callAI", () => {
 
     expect(result).toBe(true);
     // タブ状態の更新
-    const tab = S.tabs.summary;
+    const tab = U.tabs.summary;
     expect(tab.generated).toBe(true);
     expect(tab.content).toBe("最終的な要約");
     expect(tab.modelLabel).toBe("gpt-4");
@@ -489,7 +494,7 @@ describe("callAI", () => {
     // 最終統合のストリーム呼び出し
     expect(callChatAPIStream).toHaveBeenCalled();
     // タブ状態
-    const tab = S.tabs.summary;
+    const tab = U.tabs.summary;
     expect(tab.generated).toBe(true);
     expect(tab.content).toBe("統合された要約");
   });
@@ -654,7 +659,7 @@ describe("callAI", () => {
     expect(result).toBe(true);
     expect(callChatAPINonStream).toHaveBeenCalled();
     expect(YsUI.showError).not.toHaveBeenCalled();
-    const tab = S.tabs.summary;
+    const tab = U.tabs.summary;
     expect(tab.content).toBe("統合結果");
   });
 
@@ -687,19 +692,43 @@ describe("callAI", () => {
     expect(result).toBe(true);
   });
 
-  test("中断系: '中断' メッセージを含む例外でサイレント false", async () => {
+  test("中断系: '中断' メッセージだけでは showError が呼ばれる（文字列判定廃止）", async () => {
     setupState({
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
     setupConfigStorage();
 
+    // 旧: 文字列 "中断" で silent false だったが、型/フラグ判定に変更
     callChatAPIStream.mockRejectedValue(new Error("処理が中断されました"));
 
     const result = await callAI("summary", false);
 
     expect(result).toBe(false);
     expect(YsUI.hideProgress).toHaveBeenCalled();
+    // 型でも signal.aborted でもないエラーは通常エラーとして表示
+    expect(YsUI.showError).toHaveBeenCalledWith("エラー: 処理が中断されました");
+  });
+
+  test("中断系: signal.aborted 時にサイレント false", async () => {
+    setupState({
+      all: ["あ".repeat(500)],
+      allTimestamps: []
+    });
+    setupConfigStorage();
+
+    // callAI 実行後に abortController.signal を abort する特殊実装
+    callChatAPIStream.mockImplementation(async function () {
+      // callAI 側で S.abortController が作られてから reject する
+      if (S.abortController) S.abortController.abort();
+      throw new Error("any error");
+    });
+
+    const result = await callAI("summary", false);
+
+    expect(result).toBe(false);
+    expect(YsUI.hideProgress).toHaveBeenCalled();
+    // signal.aborted 経由なので showError は呼ばれない
     expect(YsUI.showError).not.toHaveBeenCalled();
   });
 

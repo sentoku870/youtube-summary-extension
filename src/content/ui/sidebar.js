@@ -5,7 +5,7 @@
 //  index.js は本モジュール経由で各機能を import する。
 // ============================================================
 console.log("[YouTube 要約] sidebar.js loaded");
-import { state as S } from "../../shared/state.js";
+import { uiState, sessionState, resetSession } from "../../shared/state.js";
 import { abortCurrentStream } from "../../domain/ai.js";
 import { clearSummaryContent, hideProgress } from "./ui.js";
 import { updateTabActive, bindEvents, applyButtonTitles, switchTab } from "./tabs.js";
@@ -27,31 +27,32 @@ export { preloadTranscript };
 
 // ===== パネル状態参照 =====
 export function getPanelEl() {
-  return S.panelEl;
+  return uiState.panelEl;
 }
 
 // ===== 字幕プリロード状態のリセット =====
 export function resetTranscript() {
-  S.preloadedTranscript = null;
-  S.transcriptReady = false;
+  sessionState.preloadedTranscript = null;
+  sessionState.transcriptReady = false;
 }
 
 // ===== 動画切り替え用リセット =====
 export function resetState() {
   abortCurrentStream();
-  if (S.panelEl) {
-    const panel = S.panelEl.querySelector("#ys-panel");
+  // セッション状態（動画単位データ）を初期化
+  resetSession();
+  if (uiState.panelEl) {
+    const panel = uiState.panelEl.querySelector("#ys-panel");
     if (panel) panel.style.display = "none";
-    (S.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
-      const t = S.tabs[id];
+    (uiState.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
+      const t = uiState.tabs[id];
       if (t) {
         t.generated = false;
         t.content = "";
         t.chatHistory = [];
       }
     });
-    S.videoMeta = null;
-    S.activeTab = null;
+    uiState.activeTab = null;
     updateTabActive();
     clearSummaryContent();
     hideProgress();

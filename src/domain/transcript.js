@@ -3,7 +3,7 @@
 //  Phase A-1/A-2: content/ui への依存を排除 → event-bus に切り替え
 //  これにより domain 層は純粋に content/ui に依存しなくなる。
 // ============================================================
-import { state as S } from "../shared/state.js";
+import { sessionState as S } from "../shared/state.js";
 import { loadSubtitleLang } from "../infrastructure/storage.js";
 import { emit, EVENTS } from "../shared/event-bus.js";
 import { fetchYtTranscript } from "./transcript-fetcher.js";

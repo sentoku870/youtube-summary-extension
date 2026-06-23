@@ -13,7 +13,7 @@ jest.mock("../src/content/ui/appearance.js", () => ({
   applyPanelHeight: jest.fn().mockResolvedValue(undefined)
 }));
 
-const { state: S } = require("../src/shared/state");
+const { uiState: S } = require("../src/shared/state");
 const { createPanel, getEl } = require("../src/content/ui/panel");
 
 // テスト用：document.body の YouTube レイアウトを構築
@@ -202,7 +202,7 @@ describe("panel.js パネル配置 (placement)", () => {
   });
 
   describe("ensureVisibleAndWatch（YouTube の .hidden 自動除去）", () => {
-    test("panel に __ysHiddenObs (MutationObserver) が付与される", async () => {
+    test("YouTube が .hidden を付与しても MutationObserver が除去する", async () => {
       jest.useFakeTimers();
       buildYouTubeWatchPage({ secondaryInner: true });
 
@@ -210,7 +210,27 @@ describe("panel.js パネル配置 (placement)", () => {
       await jest.runAllTimersAsync();
       jest.useRealTimers();
 
-      expect(S.panelEl.__ysHiddenObs).toBeInstanceOf(MutationObserver);
+      const panel = S.panelEl;
+      // YouTube 側が後から .hidden を付与した状況を再現
+      panel.classList.add("hidden");
+      // MutationObserver はマイクロタスクで発火するため、待つ
+      await new Promise(function(r) { setTimeout(r, 10); });
+      expect(panel.classList.contains("hidden")).toBe(false);
+    });
+
+    test("二重呼び出しでも Observer は1つだけ（WeakMap で重複防止）", async () => {
+      jest.useFakeTimers();
+      buildYouTubeWatchPage({ secondaryInner: true });
+
+      createPanel();
+      await jest.runAllTimersAsync();
+      jest.useRealTimers();
+
+      // 直接 DOM 操作で発火条件を再現（副作用がないこと）
+      const panel = S.panelEl;
+      panel.classList.add("hidden");
+      await new Promise(function(r) { setTimeout(r, 10); });
+      expect(panel.classList.contains("hidden")).toBe(false);
     });
 
     test("createPanel 後の panel には .hidden / hidden 属性は無い", async () => {

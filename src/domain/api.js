@@ -210,77 +210,99 @@ export async function handleErrorResponse(response) {
   throw new YsAPIError(statusMsg, response.status, response.statusText);
 }
 
+// ===== リトライ判定ヘルパー =====
+// HTTPステータスコードがリトライ対象か判定（429 および 5xx）
+export function isRetryableHttpStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+// ネットワークエラーがリトライ対象か判定（AbortError は対象外）
+export function isRetryableNetworkError(err) {
+  if (!err) return false;
+  if (err instanceof DOMException && err.name === "AbortError") return false;
+  // その他のネットワーク例外（TypeError 等）はリトライ対象
+  return true;
+}
+
+// 1回の fetch 試行を実行（タイムアウト + 外部 abort 連携）
+// 戻り値: { response, abortedByExternal, timedOut }
+//   response: 成功時 Response / HTTP エラー時 Response / 失敗時 null
+//   abortedByExternal: 外部シグナルで中断された
+//   timedOut: 内部タイムアウトで中断された
+async function attemptFetch(url, options, externalSignal) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(function () {
+    controller.abort("timeout");
+  }, API_TIMEOUT_MS);
+  let abortedByExternal = false;
+  let onAbortExternal = null;
+  if (externalSignal) {
+    onAbortExternal = function () {
+      abortedByExternal = true;
+      controller.abort("external");
+    };
+    externalSignal.addEventListener("abort", onAbortExternal, { once: true });
+  }
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: options.headers,
+      body: options.body,
+      signal: controller.signal,
+    });
+    return { response: response, abortedByExternal: abortedByExternal, timedOut: false };
+  } catch (e) {
+    const timedOut = !abortedByExternal && e instanceof DOMException && e.name === "AbortError";
+    return { response: null, abortedByExternal: abortedByExternal, timedOut: timedOut, error: e };
+  } finally {
+    clearTimeout(timeoutId);
+    if (onAbortExternal && externalSignal) {
+      externalSignal.removeEventListener("abort", onAbortExternal);
+    }
+  }
+}
+
+// リトライ待機（指数バックオフ）
+function backoffMs(attempt, baseMs) {
+  return attempt * baseMs;
+}
+
 // ===== リトライ付きAPI呼び出し（abortSignal対応） =====
 // 戻り値: Response（成功時は ok、リトライ限界到達時は最後のResponse）
-// 例外: ネットワークエラー等で全リトライ失敗時に throw
+// 例外: 中断・タイムアウト・全リトライ失敗時に throw
 export async function fetchWithRetry(url, options, maxRetries) {
   const externalSignal = options.signal || null;
   let lastResponse = null;
   let lastError = null;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(function () {
-      controller.abort();
-    }, API_TIMEOUT_MS);
-    let abortedByExternal = false;
-    let onAbortExternal = null;
-    if (externalSignal) {
-      onAbortExternal = function () {
-        abortedByExternal = true;
-        controller.abort();
-      };
-      externalSignal.addEventListener("abort", onAbortExternal, { once: true });
-    }
-    let response;
-    try {
-      response = await fetch(url, {
-        method: "POST",
-        headers: options.headers,
-        body: options.body,
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      if (onAbortExternal && externalSignal) {
-        externalSignal.removeEventListener("abort", onAbortExternal);
-      }
+    const { response, abortedByExternal, timedOut, error } = await attemptFetch(url, options, externalSignal);
+
+    if (response) {
       if (response.ok) return response;
       lastResponse = response;
-      lastError = null;
-      if (
-        (response.status === 429 || response.status >= 500) &&
-        attempt < maxRetries
-      ) {
-        const wait = attempt * API_RETRY_BASE_WAIT_MS;
-        await new Promise(function (r) {
-          setTimeout(r, wait);
-        });
+      if (isRetryableHttpStatus(response.status) && attempt < maxRetries) {
+        await new Promise(function (r) { setTimeout(r, backoffMs(attempt, API_RETRY_BASE_WAIT_MS)); });
         continue;
       }
       return response;
-    } catch (e) {
-      clearTimeout(timeoutId);
-      if (onAbortExternal && externalSignal) {
-        externalSignal.removeEventListener("abort", onAbortExternal);
-      }
-      if (e instanceof DOMException && e.name === "AbortError") {
-        throw abortedByExternal
-          ? new YsAbortError("API呼び出しが中断されました。")
-          : new YsTimeoutError("API応答が30秒でタイムアウトしました。");
-      }
-      lastError = e;
-      lastResponse = null;
-      if (attempt < maxRetries) {
-        await new Promise(function (r) {
-          setTimeout(r, attempt * API_RETRY_NET_BASE_WAIT_MS);
-        });
-        continue;
-      }
-      throw e;
     }
+
+    // response === null: fetch 自体が失敗
+    if (abortedByExternal) {
+      throw new YsAbortError("API呼び出しが中断されました。");
+    }
+    if (timedOut) {
+      throw new YsTimeoutError("API応答が30秒でタイムアウトしました。");
+    }
+    lastError = error;
+    lastResponse = null;
+    if (isRetryableNetworkError(error) && attempt < maxRetries) {
+      await new Promise(function (r) { setTimeout(r, backoffMs(attempt, API_RETRY_NET_BASE_WAIT_MS)); });
+      continue;
+    }
+    throw error;
   }
-  // ループ終了後のフォールスルー対策:
-  // 直前のリトライでHTTPエラーレスポンスを受けていた場合はそれを返し、
-  // そうでなければ最後のエラーを投げる。それでも不明な場合は安全のためエラー。
+  // ループ終了後のフォールスルー対策（理論上到達しない）
   if (lastResponse) return lastResponse;
   if (lastError) throw lastError;
   throw new Error("fetchWithRetry: retries exhausted unexpectedly");

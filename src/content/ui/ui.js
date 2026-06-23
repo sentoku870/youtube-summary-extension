@@ -2,7 +2,7 @@
 //  ui.js — DOM操作を集約（ESM版）
 //  UI操作関数を一元管理。他モジュールは ESM import で利用。
 // ============================================================
-import { state as S } from "../../shared/state.js";
+import { uiState as S } from "../../shared/state.js";
 import { getEl } from "./panel.js";
 import { setMarkdown } from "../../domain/markdown.js";
 import { linkTimestamps } from "../../domain/ai.js";

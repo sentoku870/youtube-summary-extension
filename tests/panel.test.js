@@ -1,5 +1,5 @@
 // tests/panel.test.js — パネルDOM生成・ボタン制御のテスト
-const { state: S } = require("../src/shared/state");
+const { uiState: S } = require("../src/shared/state");
 
 // appearance.js をモック（副作用を回避）
 jest.mock("../src/content/ui/appearance.js", () => ({

@@ -1,5 +1,5 @@
 // tests/tabs-ui.test.js — タブUI描画ロジックのテスト
-const { state: S } = require("../src/shared/state");
+const { uiState: S } = require("../src/shared/state");
 
 // panel.js と ui.js をモック（重い依存チェーンを回避）
 jest.mock("../src/content/ui/panel.js", () => ({

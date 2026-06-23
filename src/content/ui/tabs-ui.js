@@ -2,7 +2,7 @@
 //  tabs-ui.js — タブUI更新・コンテンツ描画（純粋描画ロジック）
 //  Phase C-1: tabs.js からUI描画関数を分離
 // ============================================================
-import { state as S } from "../../shared/state.js";
+import { uiState as S } from "../../shared/state.js";
 import { getEl } from "./panel.js";
 import {
   clearSummaryContent, updateInfoLabel, hideChatArea,

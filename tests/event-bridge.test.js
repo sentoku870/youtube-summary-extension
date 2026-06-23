@@ -1,6 +1,6 @@
 // tests/event-bridge.test.js — event-bus → UI 更新の橋渡し
 // TRANSCRIPT_READY / TRANSCRIPT_FAILED / TRANSCRIPT_RETRY の各購読を検証。
-const { state: S } = require("../src/shared/state");
+const { uiState: S } = require("../src/shared/state");
 const { emit } = require("../src/shared/event-bus");
 const { EVENTS } = require("../src/shared/event-bus");
 

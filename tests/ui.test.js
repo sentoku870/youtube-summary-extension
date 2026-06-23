@@ -1,5 +1,5 @@
 // tests/ui.test.js — UI操作関数のテスト（showError, appendChatMessage, updateChatMessageBody, scrollContentToElement）
-const { state: S } = require("../src/shared/state");
+const { uiState: S } = require("../src/shared/state");
 
 // ui.js の依存をモック（重いチェーンと循環参照を回避）
 jest.mock("../src/content/ui/panel.js", () => ({ getEl: jest.fn() }));
