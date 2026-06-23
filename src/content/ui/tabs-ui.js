@@ -18,6 +18,7 @@ import {
   appendChatMessage,
   focusChatInput
 } from "./ui.js";
+import { CHAT_HISTORY_SEED_LENGTH } from "../../shared/constants.js";
 
 // ===== タブUI更新（ドット表示） =====
 export function updateTabUI() {
@@ -73,7 +74,7 @@ export function renderTabContent(mode) {
 
   if (chatHistory) {
     chatHistory.innerHTML = "";
-    for (let i = 3; i < tab.chatHistory.length; i++) {
+    for (let i = CHAT_HISTORY_SEED_LENGTH; i < tab.chatHistory.length; i++) {
       const msg = tab.chatHistory[i];
       if (msg.role === "user" || msg.role === "assistant") {
         appendChatMessage(msg.role, msg.content, { editIndex: i });

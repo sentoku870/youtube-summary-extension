@@ -20,6 +20,7 @@ import { YsAbortError, YsTimeoutError } from "../../infrastructure/errors.js";
 import { loadButtonTitle } from "../../infrastructure/storage.js";
 import { createRafThrottle } from "../../shared/raf-throttle.js";
 import { linkAbortSignal } from "../../shared/abort-chain.js";
+import { CHAT_HISTORY_SEED_LENGTH } from "../../shared/constants.js";
 import { createLogger } from "../../shared/logger.js";
 
 const log = createLogger("tabs");
@@ -274,7 +275,7 @@ function rerenderChatOnly() {
   chatHistory.innerHTML = "";
   const tab = S.tabs[S.activeTab];
   if (!tab) return;
-  for (let i = 3; i < tab.chatHistory.length; i++) {
+  for (let i = CHAT_HISTORY_SEED_LENGTH; i < tab.chatHistory.length; i++) {
     const msg = tab.chatHistory[i];
     if (msg.role === "user" || msg.role === "assistant") {
       appendChatMessage(msg.role, msg.content, { editIndex: i });
@@ -328,9 +329,9 @@ export function bindEvents() {
   if (chatClearBtn)
     chatClearBtn.addEventListener("click", function () {
       if (sessionState.chatBusy) return;
-      // chatHistory の先頭3件 (system/要約/初期プロンプト) は保持
+      // chatHistory の先頭 CHAT_HISTORY_SEED_LENGTH 件 (system/要約/初期プロンプト) は保持
       const tab = S.tabs[S.activeTab];
-      if (tab) tab.chatHistory = tab.chatHistory.slice(0, 3);
+      if (tab) tab.chatHistory = tab.chatHistory.slice(0, CHAT_HISTORY_SEED_LENGTH);
       const hist = getEl("#ys-chatHistory");
       if (hist) hist.innerHTML = "";
       if (chatInput) {

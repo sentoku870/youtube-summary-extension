@@ -73,7 +73,7 @@ export function clearSummaryContent() {
 
 export function setSummaryRaw(text) {
   const el = getEl("#ys-summaryText");
-  if (el) el.innerHTML = text;
+  if (el) el.textContent = text;
 }
 
 // ===== 情報ラベル =====

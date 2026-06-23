@@ -9,6 +9,21 @@ import { createLogger } from "../shared/logger.js";
 
 const log = createLogger("markdown");
 
+// ===== テスト用 DOMPurify 注入ポイント =====
+// 本番ではモジュールの import 値 (dompurify) を使う。
+// テストでは setDOMPurifyForTest() で差し替えて DOMPurify 不在パスを
+// 安定的に再現できる（global.DOMPurify の上書きでは ESM バインドを
+// 変えられないため、この明示的なフックが必要）。
+let _dompurifyRef = DOMPurify;
+
+export function setDOMPurifyForTest(value) {
+  _dompurifyRef = value;
+}
+
+function getDOMPurify() {
+  return _dompurifyRef;
+}
+
 // ===== 許可タグのホワイトリスト（DOMPurifyフォールバック用） =====
 export const ALLOWED_TAGS = [
   "b",
@@ -86,8 +101,9 @@ function htmlToFragment(html) {
 // DOMPurifyが利用可能なら使用、なければ独自サニタイズ
 // 常に DocumentFragment を返す（テスト・renderMarkdown 両方の整合性のため）
 export function sanitizeHTML(html) {
-  if (typeof DOMPurify !== "undefined" && DOMPurify.sanitize) {
-    const sanitizedHtml = DOMPurify.sanitize(html, {
+  const dp = getDOMPurify();
+  if (dp && typeof dp.sanitize === "function") {
+    const sanitizedHtml = dp.sanitize(html, {
       ALLOWED_TAGS: ALLOWED_TAGS,
       ALLOWED_ATTR: ALLOWED_ATTR,
       RETURN_DOM: false,

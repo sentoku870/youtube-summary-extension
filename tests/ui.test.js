@@ -322,4 +322,35 @@ describe("ui", () => {
       expect(historyEl.innerHTML).toBe("");
     });
   });
+
+  describe("setSummaryRaw", () => {
+    const { setSummaryRaw } = require("../src/content/ui/ui");
+
+    test("要素の textContent にプレーンテキストを設定する", () => {
+      const summaryEl = document.createElement("div");
+      summaryEl.innerHTML = "<p>古い内容</p>";
+      getEl.mockReturnValue(summaryEl);
+
+      setSummaryRaw("⏳ 再生成中...");
+
+      expect(summaryEl.textContent).toBe("⏳ 再生成中...");
+    });
+
+    test("HTML タグを含む文字列もエスケープされず text として設定する（XSS 対策）", () => {
+      const summaryEl = document.createElement("div");
+      getEl.mockReturnValue(summaryEl);
+
+      const evil = "<img src=x onerror=alert(1)><script>alert(1)</script>";
+      setSummaryRaw(evil);
+
+      expect(summaryEl.textContent).toBe(evil);
+      expect(summaryEl.querySelector("img")).toBeNull();
+      expect(summaryEl.querySelector("script")).toBeNull();
+    });
+
+    test("getEl が null の場合は何もしない", () => {
+      getEl.mockReturnValue(null);
+      expect(() => setSummaryRaw("text")).not.toThrow();
+    });
+  });
 });

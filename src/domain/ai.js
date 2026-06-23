@@ -31,6 +31,7 @@ import {
   buildMetaContext,
   createTimeoutPromise
 } from "./ai-utils.js";
+import { CHAT_HISTORY_SEED_LENGTH } from "../shared/constants.js";
 
 // テスト後方互換用の再エクスポート
 export { formatTranscriptWithTimestamps, linkTimestamps, buildMetaContext, createTimeoutPromise };
@@ -85,6 +86,10 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
     { role: "user", content: userMessage },
     { role: "assistant", content: content }
   ];
+  // 整合性チェック: 上記の初期履歴は CHAT_HISTORY_SEED_LENGTH と同数でなければならない
+  if (tab.chatHistory.length !== CHAT_HISTORY_SEED_LENGTH) {
+    log.warn("chatHistory seed length mismatch: expected " + CHAT_HISTORY_SEED_LENGTH);
+  }
 
   if (uiState.activeTab === mode) {
     ui.hideProgress();

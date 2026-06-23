@@ -40,6 +40,16 @@ Layered Chrome extension (content script does the real work):
 
 Domain code never manipulates the DOM directly. `src/domain/ports.js` defines a UI adapter interface (default = no-op); `src/content/index.js` calls `setUiAdapter({...})` at startup to inject the real UI implementations. When adding new UI capabilities consumed by the domain layer, extend the port + inject it in `index.js`.
 
+## Security rules
+
+- **Never concatenate variable strings into `innerHTML` / `outerHTML` / `document.write` / `insertAdjacentHTML`.** This is the single largest XSS surface in a content-script extension. Rules:
+  - For plain text (loading messages, error labels, user-shown labels): use `textContent` only.
+  - For Markdown / HTML from LLM responses: route through `setMarkdown()` from `src/domain/markdown.js` (which already runs marked + DOMPurify with the `ALLOWED_TAGS` / `ALLOWED_ATTR` whitelist). Do not bypass it.
+  - For static, hand-authored markup (panel skeletons, option forms): inline `innerHTML` is acceptable ONLY when every interpolated value is a compile-time string literal — never a runtime variable, config value, transcript string, or API error message.
+  - Audit before adding any new `innerHTML` site: `grep -rn "innerHTML" src/`.
+- **API keys and other secrets are plain strings.** Never log a full `config` object; if you need to log config for debugging, log individual non-secret fields (`config.apiModel`, `config.apiUrl`) only. `createLogger()` in `src/shared/logger.js` does NOT redact arguments.
+- **Tainted data sources to treat as untrusted:** LLM responses (chat, summary), YouTube page text (`document.title`, video descriptions, transcript captions), and `chrome.runtime` message payloads. Anything from these sources must go through `setMarkdown()` / `textContent` / explicit sanitization.
+
 ## Gotchas
 
 - **Storage keys are unified.** The authoritative key constants are `K` in `src/infrastructure/storage.js` (e.g. `K.API_CONFIGS = "apiConfigs"`). Always use `K`, never hard-coded strings.

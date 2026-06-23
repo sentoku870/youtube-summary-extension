@@ -189,41 +189,83 @@ describe("setMarkdown", () => {
 
 // ===== DOMPurify 不在時の独自サニタイズ経路 =====
 describe("sanitizeHTML DOMPurify 不在時のフォールバック", () => {
-  let originalDOMPurify;
-
-  beforeEach(() => {
-    // テスト用に DOMPurify を一時的に undefined にする
-    originalDOMPurify = global.DOMPurify;
-  });
+  const { setDOMPurifyForTest } = require("../src/domain/markdown.js");
 
   afterEach(() => {
-    global.DOMPurify = originalDOMPurify;
+    // テスト後の状態を必ず復元（元の DOMPurify import 値）
+    jest.resetModules();
   });
 
-  test("DOMPurify.sanitize が無い場合は独自サニタイズが動作", () => {
-    // DOMPurify は import 済みだが sanitize が無い状態にする
-    global.DOMPurify = {};
+  test("DOMPurify が undefined の場合、独自サニタイズが動作", () => {
+    setDOMPurifyForTest(undefined);
     const result = sanitizeHTML("<b>bold</b><script>evil</script>");
     expect(result instanceof DocumentFragment).toBe(true);
     expect(result.querySelector("b")).toBeTruthy();
     expect(result.querySelector("script")).toBeNull();
   });
 
-  test("独自サニタイズ: 許可されないタグは子テキストを置換", () => {
-    global.DOMPurify = {};
+  test("DOMPurify が null の場合、独自サニタイズが動作", () => {
+    setDOMPurifyForTest(null);
+    const result = sanitizeHTML("<b>bold</b><script>evil</script>");
+    expect(result.querySelector("script")).toBeNull();
+  });
+
+  test("DOMPurify は存在するが sanitize メソッドが無い場合、独自サニタイズが動作", () => {
+    setDOMPurifyForTest({ sanitize: undefined });
+    const result = sanitizeHTML("<b>bold</b><script>evil</script>");
+    expect(result.querySelector("b")).toBeTruthy();
+    expect(result.querySelector("script")).toBeNull();
+  });
+
+  test("独自サニタイズ: 許可されないタグは子テキストに置換", () => {
+    setDOMPurifyForTest(undefined);
     const result = sanitizeHTML("<div>div内テキスト</div><unknown-tag>unknown</unknown-tag>");
-    // div は許可
     expect(result.querySelector("div")).toBeTruthy();
-    // unknown-tag は許可されない → 子テキスト "unknown" のみ残る
     expect(result.textContent).toContain("div内テキスト");
   });
 
   test("独自サニタイズ: 許可属性以外を除去", () => {
-    global.DOMPurify = {};
+    setDOMPurifyForTest(undefined);
     const result = sanitizeHTML('<a href="https://safe.com" onclick="evil()">link</a>');
     const a = result.querySelector("a");
     expect(a).toBeTruthy();
     expect(a.getAttribute("href")).toBe("https://safe.com");
     expect(a.getAttribute("onclick")).toBeNull();
+  });
+
+  test("独自サニタイズ: on* で始まる属性を確実にブロック（onerror 等）", () => {
+    setDOMPurifyForTest(undefined);
+    const result = sanitizeHTML('<img src="x" onerror="alert(1)" onload="bad()">');
+    const img = result.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img.getAttribute("src")).toBe("x");
+    expect(img.getAttribute("onerror")).toBeNull();
+    expect(img.getAttribute("onload")).toBeNull();
+  });
+
+  test("独自サニタイズ: ネストされた危険なタグを除去", () => {
+    setDOMPurifyForTest(undefined);
+    const html = "<div><p>safe</p><script>alert(1)</script><iframe src='evil'></iframe></div>";
+    const result = sanitizeHTML(html);
+    expect(result.querySelector("div")).toBeTruthy();
+    expect(result.querySelector("p")).toBeTruthy();
+    expect(result.querySelector("script")).toBeNull();
+    expect(result.querySelector("iframe")).toBeNull();
+    expect(result.textContent).toContain("safe");
+  });
+
+  test("独自サニタイズ: setAttribute が失敗する属性はスキップ（try/catch パス）", () => {
+    setDOMPurifyForTest(undefined);
+    // 許可属性 'class' をセットしてもクラッシュしないことを確認
+    const result = sanitizeHTML('<p class="ok">テキスト</p>');
+    expect(result.querySelector("p")).toBeTruthy();
+    expect(result.querySelector("p").getAttribute("class")).toBe("ok");
+  });
+
+  test("DOMPurify が正常に戻った場合、元の DOMPurify パスが使われる", () => {
+    // setDOMPurifyForTest を呼ばない（既定値 = モジュール import 値）
+    const result = sanitizeHTML("<b>bold</b><script>evil</script>");
+    // 既定では DOMPurify が動くため <script> は除去される
+    expect(result.querySelector("script")).toBeNull();
   });
 });
