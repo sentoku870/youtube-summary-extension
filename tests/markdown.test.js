@@ -180,3 +180,44 @@ describe("setMarkdown", () => {
     expect(el.childNodes.length).toBe(0);
   });
 });
+
+// ===== DOMPurify 不在時の独自サニタイズ経路 =====
+describe("sanitizeHTML DOMPurify 不在時のフォールバック", () => {
+  let originalDOMPurify;
+
+  beforeEach(() => {
+    // テスト用に DOMPurify を一時的に undefined にする
+    originalDOMPurify = global.DOMPurify;
+  });
+
+  afterEach(() => {
+    global.DOMPurify = originalDOMPurify;
+  });
+
+  test("DOMPurify.sanitize が無い場合は独自サニタイズが動作", () => {
+    // DOMPurify は import 済みだが sanitize が無い状態にする
+    global.DOMPurify = {};
+    const result = sanitizeHTML("<b>bold</b><script>evil</script>");
+    expect(result instanceof DocumentFragment).toBe(true);
+    expect(result.querySelector("b")).toBeTruthy();
+    expect(result.querySelector("script")).toBeNull();
+  });
+
+  test("独自サニタイズ: 許可されないタグは子テキストを置換", () => {
+    global.DOMPurify = {};
+    const result = sanitizeHTML("<div>div内テキスト</div><unknown-tag>unknown</unknown-tag>");
+    // div は許可
+    expect(result.querySelector("div")).toBeTruthy();
+    // unknown-tag は許可されない → 子テキスト "unknown" のみ残る
+    expect(result.textContent).toContain("div内テキスト");
+  });
+
+  test("独自サニタイズ: 許可属性以外を除去", () => {
+    global.DOMPurify = {};
+    const result = sanitizeHTML('<a href="https://safe.com" onclick="evil()">link</a>');
+    const a = result.querySelector("a");
+    expect(a).toBeTruthy();
+    expect(a.getAttribute("href")).toBe("https://safe.com");
+    expect(a.getAttribute("onclick")).toBeNull();
+  });
+});

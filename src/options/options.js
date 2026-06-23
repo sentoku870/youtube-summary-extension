@@ -18,7 +18,8 @@ import {
   validateFormValues,
   VALIDATION_ERRORS,
   buildConfig,
-  convertLegacyToConfigs
+  convertLegacyToConfigs,
+  findExistingApiKeyByHost
 } from "./options-logic.js";
 
 // ===== バリデーションエラーメッセージのマッピング =====
@@ -90,21 +91,12 @@ function populateModelSelect(providerKey, models) {
 }
 
 // ===== 同一ホストの既存APIキーを検索（再入力不要化） =====
+// 純粋ロジックは options-logic.js の findExistingApiKeyByHost に委譲。
+// ここではストレージ取得と I/O を担当する。
 async function findExistingApiKey(apiUrl) {
   if (!apiUrl) return "";
-  let host = "";
-  try { host = new URL(apiUrl).hostname; } catch (e) { return ""; }
-  if (!host) return "";
   const configs = await get(K.API_CONFIGS) || [];
-  for (let i = 0; i < configs.length; i++) {
-    if (!configs[i].apiKey) continue;
-    try {
-      if (new URL(configs[i].apiUrl).hostname === host) {
-        return configs[i].apiKey;
-      }
-    } catch (e) { /* 不正URLは無視 */ }
-  }
-  return "";
+  return findExistingApiKeyByHost(apiUrl, configs);
 }
 
 function updateApiKeyHint(apiUrl, foundExisting) {

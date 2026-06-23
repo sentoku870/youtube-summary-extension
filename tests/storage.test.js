@@ -453,3 +453,42 @@ describe("clearSummaryCache", () => {
     expect(chrome.storage.local.remove).toHaveBeenCalledWith("summary_cache_video123");
   });
 });
+
+// ===== loadApiConfigLegacy =====
+describe("loadApiConfigLegacy", () => {
+  beforeEach(() => {
+    chrome.storage.local.get.mockReset();
+  });
+
+  test("設定がある場合はオブジェクトを返す", async () => {
+    const legacy = { apiKey: "old-key", apiUrl: "https://old.api", apiModel: "old" };
+    chrome.storage.local.get.mockResolvedValue({ apiConfig: legacy });
+    const result = await storage.loadApiConfigLegacy();
+    expect(result).toEqual(legacy);
+  });
+
+  test("設定がない場合は null を返す", async () => {
+    chrome.storage.local.get.mockResolvedValue({});
+    const result = await storage.loadApiConfigLegacy();
+    expect(result).toBeNull();
+  });
+});
+
+// ===== loadBtnApiConfigId =====
+describe("loadBtnApiConfigId", () => {
+  beforeEach(() => {
+    chrome.storage.local.get.mockReset();
+  });
+
+  test("設定がある場合はその ID を返す", async () => {
+    chrome.storage.local.get.mockResolvedValue({ btnApiConfig_summary: "cfg_1" });
+    const result = await storage.loadBtnApiConfigId("summary");
+    expect(result).toBe("cfg_1");
+  });
+
+  test("設定がない場合は null を返す", async () => {
+    chrome.storage.local.get.mockResolvedValue({});
+    const result = await storage.loadBtnApiConfigId("summary");
+    expect(result).toBeNull();
+  });
+});
