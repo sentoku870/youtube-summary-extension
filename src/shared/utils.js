@@ -2,10 +2,7 @@
 //  utils.js — 純粋関数（テスト可能なロジック・ESM版）
 //  estimateTokens / チャンク分割 / コンテキストウィンドウ估算
 // ============================================================
-import {
-  CONTEXT_WINDOW_USABLE_RATIO,
-  MIN_USABLE_TOKENS
-} from "./constants.js";
+import { CONTEXT_WINDOW_USABLE_RATIO, MIN_USABLE_TOKENS } from "./constants.js";
 
 // ===== トークン見積もり =====
 // 日本語/ハングル: 1文字≒2トークン、英語: 1文字≒0.3トークン、その他: 1文字≒1トークン
@@ -19,21 +16,21 @@ export function estimateTokens(text) {
     const code = ch.codePointAt(0);
     if (
       // CJK統合漢字/拡張/互換
-      (code >= 0x3000 && code <= 0x9FFF) ||
-      (code >= 0xF900 && code <= 0xFAFF) ||
-      (code >= 0x20000 && code <= 0x2FFFF) ||
+      (code >= 0x3000 && code <= 0x9fff) ||
+      (code >= 0xf900 && code <= 0xfaff) ||
+      (code >= 0x20000 && code <= 0x2ffff) ||
       // ハングル（韓国語も日本語並みのトークン消費）
-      (code >= 0xAC00 && code <= 0xD7AF) ||
-      (code >= 0x1100 && code <= 0x11FF) ||
-      (code >= 0x3130 && code <= 0x318F)
+      (code >= 0xac00 && code <= 0xd7af) ||
+      (code >= 0x1100 && code <= 0x11ff) ||
+      (code >= 0x3130 && code <= 0x318f)
     ) {
       jpCount++;
     } else if (
-      (code >= 0x41 && code <= 0x5A) ||
-      (code >= 0x61 && code <= 0x7A) ||
+      (code >= 0x41 && code <= 0x5a) ||
+      (code >= 0x61 && code <= 0x7a) ||
       code === 0x20 ||
-      code === 0x0A ||
-      code === 0x0D
+      code === 0x0a ||
+      code === 0x0d
     ) {
       enCount++;
     } else {
@@ -95,10 +92,14 @@ export function isYouTubeWatchPage(href) {
   let url;
   try {
     url = new URL(href);
-  } catch (e) {
+  } catch {
     return false;
   }
-  if (url.hostname !== "www.youtube.com" && url.hostname !== "youtube.com" && url.hostname !== "m.youtube.com") {
+  if (
+    url.hostname !== "www.youtube.com" &&
+    url.hostname !== "youtube.com" &&
+    url.hostname !== "m.youtube.com"
+  ) {
     return false;
   }
   // /watch?v=... または /shorts/<id> を動画ページとみなす

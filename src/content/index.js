@@ -6,11 +6,26 @@
 // ============================================================
 import { on, emit, EVENTS } from "../shared/event-bus.js";
 import { setUiAdapter } from "../domain/ports.js";
-import { createPanel, bindEvents, preloadTranscript, resetState, resetTranscript, getPanelEl } from "./ui/sidebar.js";
 import {
-  showError, hideProgress, showProgress, setSummaryContent,
-  clearSummaryContent, updateInfoLabel, showChatArea, focusChatInput,
-  showCopyButton, showRegenButton, hideError
+  createPanel,
+  bindEvents,
+  preloadTranscript,
+  resetState,
+  resetTranscript,
+  getPanelEl
+} from "./ui/sidebar.js";
+import {
+  showError,
+  hideProgress,
+  showProgress,
+  setSummaryContent,
+  clearSummaryContent,
+  updateInfoLabel,
+  showChatArea,
+  focusChatInput,
+  showCopyButton,
+  showRegenButton,
+  hideError
 } from "./ui/ui.js";
 import { getEl } from "./ui/panel.js";
 import { updateTabUI } from "./ui/tabs.js";
@@ -34,7 +49,9 @@ setUiAdapter({
   showCopyButton: showCopyButton,
   showRegenButton: showRegenButton,
   hideError: hideError,
-  getSummaryTextEl: function() { return getEl("#ys-summaryText"); },
+  getSummaryTextEl: function () {
+    return getEl("#ys-summaryText");
+  },
   updateTabUI: updateTabUI
 });
 
@@ -88,7 +105,7 @@ function waitForYtdApp(callback) {
     callback();
     return;
   }
-  const obs = new MutationObserver(function() {
+  const obs = new MutationObserver(function () {
     const app = document.querySelector("ytd-app");
     if (app) {
       obs.disconnect();
@@ -100,23 +117,23 @@ function waitForYtdApp(callback) {
 
 // yt-navigate-finish を event-bus の NAV_FINISH イベントへ橋渡し
 // （生のDOMイベントを直接使う箇所をこの1箇所に集約）
-document.addEventListener(EVENTS.YT_NAVIGATE_FINISH, function() {
+document.addEventListener(EVENTS.YT_NAVIGATE_FINISH, function () {
   emit(EVENTS.NAV_FINISH, { url: location.href });
 });
 
 // yt-page-data-updated のフォールバック
 // （稀に yt-navigate-finish が発火しない環境向け。これも NAV_FINISH へ橋渡し）
-document.addEventListener("yt-page-data-updated", function() {
+document.addEventListener("yt-page-data-updated", function () {
   emit(EVENTS.NAV_FINISH, { url: location.href });
 });
 
 // History API 経由のナビゲーション（popstate は back/forward のみ発火だが保険として）
-window.addEventListener("popstate", function() {
+window.addEventListener("popstate", function () {
   emit(EVENTS.NAV_FINISH, { url: location.href });
 });
 
 // ハッシュ変化（#t=123s などのシーク変化もここに来るが、watch判定で弾かれる）
-window.addEventListener("hashchange", function() {
+window.addEventListener("hashchange", function () {
   if (/[#&]t=\d+/.test(location.hash)) return;
   emit(EVENTS.NAV_FINISH, { url: location.href });
 });
@@ -124,7 +141,7 @@ window.addEventListener("hashchange", function() {
 // BFCache (Back-Forward Cache) 復元対応
 // 「戻る」「進む」でページがキャッシュから復元されたときは content script は
 // 再実行されないため、pageshow の persisted フラグで再初期化をトリガする。
-window.addEventListener("pageshow", function(ev) {
+window.addEventListener("pageshow", function (ev) {
   if (ev.persisted && isYouTubeWatchPage(location.href)) {
     console.log("[YouTube 要約] BFCache から復元されました。再初期化します。");
     uiState.initialized = false;
@@ -133,13 +150,13 @@ window.addEventListener("pageshow", function(ev) {
 });
 
 // SPAナビゲーション完了を event-bus 経由で購読
-on(EVENTS.NAV_FINISH, function(payload) {
+on(EVENTS.NAV_FINISH, function (payload) {
   if (payload && payload.url && isYouTubeWatchPage(payload.url)) {
     handleNavigation();
   }
 });
 
-waitForYtdApp(function() {
+waitForYtdApp(function () {
   // 既に動画ページにいる場合は即時実行
   if (isYouTubeWatchPage(location.href)) {
     safeInit();
@@ -162,7 +179,7 @@ let fallbackTimerId = null;
 
 function startFallbackPolling() {
   if (fallbackTimerId !== null) return;
-  fallbackTimerId = setInterval(function() {
+  fallbackTimerId = setInterval(function () {
     const url = location.href;
     if (url !== lastObservedUrl) {
       lastObservedUrl = url;

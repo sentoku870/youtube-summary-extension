@@ -1,5 +1,10 @@
 // tests/transcript-fetcher.test.js — 字幕取得の純粋関数テスト
-const { retrieveVideoId, extractVideoMeta, parseTranscriptXml, fetchYtTranscript } = require("../src/domain/transcript-fetcher");
+const {
+  retrieveVideoId,
+  extractVideoMeta,
+  parseTranscriptXml,
+  fetchYtTranscript
+} = require("../src/domain/transcript-fetcher");
 
 // TextDecoder のポリフィル
 const { TextDecoder: NodeTextDecoder } = require("util");
@@ -47,7 +52,9 @@ describe("retrieveVideoId", () => {
   });
 
   test("URLにクエリパラメータが複数あってもIDを抽出", () => {
-    expect(retrieveVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=120s&list=PL123")).toBe("dQw4w9WgXcQ");
+    expect(retrieveVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=120s&list=PL123")).toBe(
+      "dQw4w9WgXcQ"
+    );
   });
 });
 
@@ -99,7 +106,9 @@ describe("extractVideoMeta", () => {
     const playerData = {
       videoDetails: {
         title: "test",
-        keywords: Array(15).fill("tag").map((v, i) => v + i)
+        keywords: Array(15)
+          .fill("tag")
+          .map((v, i) => v + i)
       }
     };
     const meta = extractVideoMeta(playerData);
@@ -123,11 +132,12 @@ describe("extractVideoMeta", () => {
 // ===== parseTranscriptXml =====
 describe("parseTranscriptXml", () => {
   test("srv3形式のXMLをパースする（<s>タグ外の空白は含まれない）", () => {
-    const xml = '<?xml version="1.0" encoding="utf-8" ?>' +
-      '<transcript>' +
+    const xml =
+      '<?xml version="1.0" encoding="utf-8" ?>' +
+      "<transcript>" +
       '<p t="1000" d="2000"><s>Hello</s> <s>world</s></p>' +
       '<p t="5000" d="1500"><s>This is</s> <s>a test</s></p>' +
-      '</transcript>';
+      "</transcript>";
     const result = parseTranscriptXml(xml, "en");
     expect(result.length).toBe(2);
     expect(result[0].text).toBe("Helloworld");
@@ -140,10 +150,11 @@ describe("parseTranscriptXml", () => {
   });
 
   test("srv3形式でテキストがない場合はフォールバックしてタグ除去", () => {
-    const xml = '<?xml version="1.0" encoding="utf-8" ?>' +
-      '<transcript>' +
+    const xml =
+      '<?xml version="1.0" encoding="utf-8" ?>' +
+      "<transcript>" +
       '<p t="1000" d="2000">Hello world</p>' +
-      '</transcript>';
+      "</transcript>";
     const result = parseTranscriptXml(xml, "en");
     expect(result.length).toBe(1);
     expect(result[0].text).toBe("Hello world");
@@ -151,11 +162,12 @@ describe("parseTranscriptXml", () => {
   });
 
   test("classic形式のXMLをパースする（フォールバック）", () => {
-    const xml = '<?xml version="1.0" encoding="utf-8" ?>' +
-      '<transcript>' +
+    const xml =
+      '<?xml version="1.0" encoding="utf-8" ?>' +
+      "<transcript>" +
       '<text start="1.0" dur="2.0">Hello world</text>' +
       '<text start="5.0" dur="1.5">This is a test</text>' +
-      '</transcript>';
+      "</transcript>";
     const result = parseTranscriptXml(xml, "ja");
     expect(result.length).toBe(2);
     expect(result[0].text).toBe("Hello world");
@@ -183,16 +195,19 @@ describe("fetchYtTranscript", () => {
 
   afterEach(() => {
     // document.body のキャプション要素を掃除
-    document.querySelectorAll(".ytp-caption-segment, .captions-text span, .caption-window span").forEach(function (el) {
-      el.parentNode && el.parentNode.removeChild(el);
-    });
+    document
+      .querySelectorAll(".ytp-caption-segment, .captions-text span, .caption-window span")
+      .forEach(function (el) {
+        el.parentNode && el.parentNode.removeChild(el);
+      });
     global.fetch = originalFetch;
   });
 
   test("InnerTube API成功時に字幕とメタ情報を返す", async () => {
     setLocation("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
 
-    const xml = '<transcript><text start="1.0" dur="2.0">Hello</text><text start="3.0" dur="1.5">World</text></transcript>';
+    const xml =
+      '<transcript><text start="1.0" dur="2.0">Hello</text><text start="3.0" dur="1.5">World</text></transcript>';
 
     global.fetch = jest.fn(function (url) {
       if (url.indexOf(INNERTUBE_URL_PART) !== -1) {
@@ -220,7 +235,12 @@ describe("fetchYtTranscript", () => {
     expect(result.all).toEqual(["Hello", "World"]);
     expect(result.transcript).toEqual(["Hello", "World"]);
     expect(result.allTimestamps).toHaveLength(2);
-    expect(result.allTimestamps[0]).toEqual({ text: "Hello", offset: 1.0, duration: 2.0, lang: "ja" });
+    expect(result.allTimestamps[0]).toEqual({
+      text: "Hello",
+      offset: 1.0,
+      duration: 2.0,
+      lang: "ja"
+    });
     expect(result.meta.title).toBe("テスト動画");
     expect(result.meta.author).toBe("テストチャンネル");
   });
@@ -232,13 +252,14 @@ describe("fetchYtTranscript", () => {
       videoDetails: { title: "フォールバック動画", author: "Fallback Channel" },
       captions: {
         playerCaptionsTracklistRenderer: {
-          captionTracks: [
-            { baseUrl: "https://example.com/timedtext?lang=en", languageCode: "en" }
-          ]
+          captionTracks: [{ baseUrl: "https://example.com/timedtext?lang=en", languageCode: "en" }]
         }
       }
     };
-    const pageHtml = "<html><script>var ytInitialPlayerResponse = " + JSON.stringify(playerResponse) + ";</script></html>";
+    const pageHtml =
+      "<html><script>var ytInitialPlayerResponse = " +
+      JSON.stringify(playerResponse) +
+      ";</script></html>";
 
     global.fetch = jest.fn(function (url) {
       if (url.indexOf(INNERTUBE_URL_PART) !== -1) {
@@ -259,9 +280,9 @@ describe("fetchYtTranscript", () => {
     expect(result.all).toEqual(["Fallback"]);
     expect(result.meta.title).toBe("フォールバック動画");
     // InnerTube呼び出しとHTML呼び出しの両方が発生
-    const calls = global.fetch.mock.calls.map(c => c[0]);
-    expect(calls.some(u => u.indexOf(INNERTUBE_URL_PART) !== -1)).toBe(true);
-    expect(calls.some(u => u.indexOf("youtube.com/watch") !== -1)).toBe(true);
+    const calls = global.fetch.mock.calls.map((c) => c[0]);
+    expect(calls.some((u) => u.indexOf(INNERTUBE_URL_PART) !== -1)).toBe(true);
+    expect(calls.some((u) => u.indexOf("youtube.com/watch") !== -1)).toBe(true);
   });
 
   test("字幕トラック取得失敗時はDOMキャプション(.ytp-caption-segment)にフォールバック", async () => {
@@ -356,10 +377,16 @@ describe("fetchYtTranscript", () => {
         });
       }
       if (url === enUrl) {
-        return Promise.resolve({ ok: true, text: async () => '<transcript><text start="0" dur="1">Hello</text></transcript>' });
+        return Promise.resolve({
+          ok: true,
+          text: async () => '<transcript><text start="0" dur="1">Hello</text></transcript>'
+        });
       }
       if (url === jaUrl) {
-        return Promise.resolve({ ok: true, text: async () => '<transcript><text start="0" dur="1">こんにちは</text></transcript>' });
+        return Promise.resolve({
+          ok: true,
+          text: async () => '<transcript><text start="0" dur="1">こんにちは</text></transcript>'
+        });
       }
       return Promise.resolve({ ok: false });
     });

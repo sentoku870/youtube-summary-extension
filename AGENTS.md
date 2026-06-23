@@ -4,9 +4,11 @@ Compact guidance for OpenCode sessions working in this repo. Verify against the 
 
 ## Commands
 
-- `npm test` — runs Jest **with coverage** (the only configured check; there is **no lint, typecheck, or formatter script** — do not invent one).
+- `npm test` — runs Jest **with coverage**.
 - Run a focused suite: `npx jest tests/utils.test.js` · single test: `npx jest -t "test name"`.
 - `npm run build` — Vite + `@crxjs/vite-plugin` bundles into `dist/`. `npm run dev` starts the Vite dev server (port 5173).
+- `npm run lint` — ESLint v9 flat config (`eslint.config.js`) over `src/ tests/`.
+- `npm run format` — Prettier auto-format `src/ tests/`. `npm run format:check` for CI-style check.
 
 ## Manifest / loading the extension
 
@@ -41,6 +43,6 @@ Domain code never manipulates the DOM directly. `src/domain/ports.js` defines a 
 ## Gotchas
 
 - **Storage keys are unified.** The authoritative key constants are `K` in `src/infrastructure/storage.js` (e.g. `K.API_CONFIGS = "apiConfigs"`). Always use `K`, never hard-coded strings.
-- `src/domain/transcript-fetcher.js` is an ESM-adapted copy of the vendored `vendor/youtube-transcript.js` (v1.3.1); the vendored file is the source of reference, not the imported one. `vendor/marked.min.js` and `vendor/purify.min.js` are legacy — the real deps come from npm `marked` / `dompurify`.
+- `src/domain/transcript-fetcher.js` is an ESM-adapted port of the `youtube-transcript` library (v1.3.1). The npm `marked` and `dompurify` packages are used directly.
 - LLM providers are user-configurable in the options page (DeepSeek, OpenRouter, OpenAI, Anthropic, Google, Groq, Mistral, Cohere, Together, localhost). API configs live in `chrome.storage`.
 - **Comments, commit messages, and UI strings are in Japanese** (commit style: `feat:`/`fix:`/`test:`/`build:`/`chore:` prefixes). Match this convention.

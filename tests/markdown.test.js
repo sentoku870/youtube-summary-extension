@@ -1,5 +1,11 @@
 // tests/markdown.test.js — Markdown→HTML変換の単体テスト（ESM版）
-import { sanitizeHTML, ALLOWED_TAGS, ALLOWED_ATTR, renderMarkdown, setMarkdown } from "../src/domain/markdown.js";
+import {
+  sanitizeHTML,
+  ALLOWED_TAGS,
+  ALLOWED_ATTR,
+  renderMarkdown,
+  setMarkdown
+} from "../src/domain/markdown.js";
 import { marked } from "marked";
 
 describe("sanitizeHTML", () => {
@@ -33,7 +39,7 @@ describe("sanitizeHTML", () => {
   });
 
   test("インジェクション試行を含むHTMLを安全に処理", () => {
-    const html = '<img src=x onerror=alert(1)><b onmouseover=alert(1)>hello</b>';
+    const html = "<img src=x onerror=alert(1)><b onmouseover=alert(1)>hello</b>";
     const result = sanitizeHTML(html);
     const img = result.querySelector("img");
     if (img) {

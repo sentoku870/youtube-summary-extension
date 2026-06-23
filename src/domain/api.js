@@ -18,7 +18,7 @@ export function isOpenRouterUrl(apiUrl) {
   if (!apiUrl) return false;
   try {
     return new URL(apiUrl).hostname === "openrouter.ai";
-  } catch (e) {
+  } catch {
     // 不正URLは部分一致フォールバック
     return apiUrl.indexOf("openrouter.ai") !== -1;
   }
@@ -29,7 +29,7 @@ export function isOpenRouterUrl(apiUrl) {
 export function buildAuthHeaders(apiUrl, apiKey) {
   const headers = {
     "Content-Type": "application/json",
-    Authorization: "Bearer " + apiKey,
+    Authorization: "Bearer " + apiKey
   };
   if (isOpenRouterUrl(apiUrl)) {
     headers["HTTP-Referer"] = "https://chrome.google.com/webstore";
@@ -61,7 +61,7 @@ export function deriveModelsUrl(apiUrl) {
     u.pathname = "/v1/models";
     u.search = "";
     return u.toString();
-  } catch (e) {
+  } catch {
     // 不正URLは文字列置換で最低限のフォールバック
     return apiUrl.replace("/chat/completions", "/models");
   }
@@ -81,13 +81,15 @@ export async function fetchModelList(apiUrl, apiKey) {
   const headers = buildAuthHeaders(apiUrl, apiKey);
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(function () { controller.abort(); }, API_TIMEOUT_MS);
+  const timeoutId = setTimeout(function () {
+    controller.abort();
+  }, API_TIMEOUT_MS);
   let response;
   try {
     response = await fetch(modelsUrl, {
       method: "GET",
       headers: headers,
-      signal: controller.signal,
+      signal: controller.signal
     });
   } catch (e) {
     clearTimeout(timeoutId);
@@ -100,12 +102,19 @@ export async function fetchModelList(apiUrl, apiKey) {
 
   if (!response.ok) {
     let errText = "";
-    try { errText = await response.text(); } catch (e) { /* noop */ }
+    try {
+      errText = await response.text();
+    } catch {
+      /* noop */
+    }
     let msg;
     if (response.status === 401 || response.status === 403) {
       msg = "APIキーが無効です（" + response.status + "）";
     } else if (response.status === 404) {
-      msg = "モデル一覧エンドポイントが見つかりません（" + modelsUrl + "）。手動でモデル名を入力してください。";
+      msg =
+        "モデル一覧エンドポイントが見つかりません（" +
+        modelsUrl +
+        "）。手動でモデル名を入力してください。";
     } else {
       msg = "モデル一覧の取得に失敗しました（" + response.status + "）";
     }
@@ -115,13 +124,13 @@ export async function fetchModelList(apiUrl, apiKey) {
   let data;
   try {
     data = await response.json();
-  } catch (e) {
+  } catch {
     throw new Error("モデル一覧のレスポンスがJSON形式ではありません");
   }
 
   // OpenAI互換: { data: [{ id, ... }] }
   // OpenRouter: { data: [{ id, name, ... }] }
-  const list = Array.isArray(data) ? data : (data && data.data) ? data.data : [];
+  const list = Array.isArray(data) ? data : data && data.data ? data.data : [];
   const models = [];
   for (let i = 0; i < list.length; i++) {
     const m = list[i];
@@ -146,7 +155,7 @@ export function buildRequestConfig(config, messages, stream) {
     messages: messages,
     max_tokens: parseInt(config.maxTokens || String(DEFAULT_MAX_TOKENS), 10),
     temperature: parseFloat(config.temperature || String(DEFAULT_TEMPERATURE)),
-    stream: stream,
+    stream: stream
   };
 
   // extraParams のマージ（深いマージで上書きによる破壊を防止）
@@ -156,7 +165,7 @@ export function buildRequestConfig(config, messages, stream) {
       const extra = JSON.parse(config.extraParams);
       deepMergeBody(body, extra);
     } catch (e) {
-      console.error("[ys] extraParams JSON parse error:", e);
+      console.error("[YouTube 要約] extraParams JSON parse error:", e);
     }
   }
 
@@ -171,7 +180,7 @@ function deepMergeBody(target, src) {
   if (!target || typeof target !== "object" || Array.isArray(target)) return target;
   if (!src || typeof src !== "object" || Array.isArray(src)) return target;
   for (const key in src) {
-    if (!src.hasOwnProperty(key)) continue;
+    if (!Object.prototype.hasOwnProperty.call(src, key)) continue;
     // 既定項目（model, messages, max_tokens, temperature, stream）の
     // 上書きはユーザー意図が不明瞭なため許容するが、
     // 安全のため undefined のみ無視
@@ -179,8 +188,12 @@ function deepMergeBody(target, src) {
     if (val === undefined) continue;
     const cur = target[key];
     if (
-      cur && typeof cur === "object" && !Array.isArray(cur) &&
-      val && typeof val === "object" && !Array.isArray(val)
+      cur &&
+      typeof cur === "object" &&
+      !Array.isArray(cur) &&
+      val &&
+      typeof val === "object" &&
+      !Array.isArray(val)
     ) {
       // 両側プレーンオブジェクト → 再帰マージ
       deepMergeBody(cur, val);
@@ -197,15 +210,20 @@ export async function handleErrorResponse(response) {
   try {
     errText = await response.text();
   } catch (e) {
-    console.error("[ys] failed to read error response body:", e);
+    console.error("[YouTube 要約] failed to read error response body:", e);
   }
   let statusMsg = "";
   if (response.status === 429) {
     statusMsg = "APIの利用制限中です（レート制限）。しばらく待ってから再試行してください。";
   } else if (response.status >= 500) {
-    statusMsg = "APIサーバーでエラーが発生しました（" + response.status + "）。後ほど再試行してください。";
+    statusMsg =
+      "APIサーバーでエラーが発生しました（" + response.status + "）。後ほど再試行してください。";
   } else {
-    statusMsg = "APIエラー (" + response.status + "): " + (errText.length > 100 ? errText.substring(0, 100) + "..." : errText);
+    statusMsg =
+      "APIエラー (" +
+      response.status +
+      "): " +
+      (errText.length > 100 ? errText.substring(0, 100) + "..." : errText);
   }
   throw new YsAPIError(statusMsg, response.status, response.statusText);
 }
@@ -248,7 +266,7 @@ async function attemptFetch(url, options, externalSignal) {
       method: "POST",
       headers: options.headers,
       body: options.body,
-      signal: controller.signal,
+      signal: controller.signal
     });
     return { response: response, abortedByExternal: abortedByExternal, timedOut: false };
   } catch (e) {
@@ -275,13 +293,19 @@ export async function fetchWithRetry(url, options, maxRetries) {
   let lastResponse = null;
   let lastError = null;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    const { response, abortedByExternal, timedOut, error } = await attemptFetch(url, options, externalSignal);
+    const { response, abortedByExternal, timedOut, error } = await attemptFetch(
+      url,
+      options,
+      externalSignal
+    );
 
     if (response) {
       if (response.ok) return response;
       lastResponse = response;
       if (isRetryableHttpStatus(response.status) && attempt < maxRetries) {
-        await new Promise(function (r) { setTimeout(r, backoffMs(attempt, API_RETRY_BASE_WAIT_MS)); });
+        await new Promise(function (r) {
+          setTimeout(r, backoffMs(attempt, API_RETRY_BASE_WAIT_MS));
+        });
         continue;
       }
       return response;
@@ -297,7 +321,9 @@ export async function fetchWithRetry(url, options, maxRetries) {
     lastError = error;
     lastResponse = null;
     if (isRetryableNetworkError(error) && attempt < maxRetries) {
-      await new Promise(function (r) { setTimeout(r, backoffMs(attempt, API_RETRY_NET_BASE_WAIT_MS)); });
+      await new Promise(function (r) {
+        setTimeout(r, backoffMs(attempt, API_RETRY_NET_BASE_WAIT_MS));
+      });
       continue;
     }
     throw error;
@@ -330,14 +356,13 @@ export async function readStream(reader, onChunk, onDone) {
           const jsonStr = line.substring(6);
           try {
             const parsed = JSON.parse(jsonStr);
-            const delta =
-              parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
+            const delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
             if (delta && delta.content) {
               accumulated += delta.content;
               onChunk(accumulated);
             }
           } catch (e) {
-            console.error("[ys] JSON parse error in SSE stream:", e);
+            console.error("[YouTube 要約] JSON parse error in SSE stream:", e);
           }
         }
       }
@@ -345,7 +370,7 @@ export async function readStream(reader, onChunk, onDone) {
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError")
       throw new YsAbortError("API応答が中断されました。");
-    console.error("[ys] SSE stream read error:", e);
+    console.error("[YouTube 要約] SSE stream read error:", e);
     throw e;
   }
   onDone(accumulated);
@@ -363,7 +388,8 @@ export async function callChatAPINonStream(messages, config, abortSignal) {
   }
 
   const data = await response.json();
-  const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  const content =
+    data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   return content || "";
 }
 

@@ -411,7 +411,7 @@ describe("loadSummaryCache", () => {
   });
 
   test("7日以上経過したキャッシュは削除してnullを返す", async () => {
-    const eightDaysAgo = Date.now() - (8 * 24 * 60 * 60 * 1000);
+    const eightDaysAgo = Date.now() - 8 * 24 * 60 * 60 * 1000;
     chrome.storage.local.get.mockResolvedValue({
       summary_cache_video123: {
         content: "古い要約",

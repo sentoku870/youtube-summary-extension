@@ -16,14 +16,14 @@ export const K = {
   THEME: "theme",
   SYSTEM_PROMPT_LEGACY: "systemPrompt",
   LATEST_SUMMARY: "latestSummary",
-  LATEST_CAPTIONS: "latestCaptions",
+  LATEST_CAPTIONS: "latestCaptions"
 };
 
 // ===== コンテキスト有効性チェック =====
 export function isExtensionContextValid() {
   try {
     return !!(chrome && chrome.runtime && chrome.runtime.id);
-  } catch (e) {
+  } catch {
     return false;
   }
 }
@@ -36,7 +36,7 @@ export async function get(key) {
     return r[key];
   } catch (e) {
     if (e.message && e.message.indexOf("context invalidated") !== -1) {
-      console.warn("[ys] storage.get skipped (extension context invalidated)");
+      console.warn("[YouTube 要約] storage.get skipped (extension context invalidated)");
       return null;
     }
     throw e;
@@ -49,7 +49,7 @@ export async function set(obj) {
     await chrome.storage.local.set(obj);
   } catch (e) {
     if (e.message && e.message.indexOf("context invalidated") !== -1) {
-      console.warn("[ys] storage.set skipped (extension context invalidated)");
+      console.warn("[YouTube 要約] storage.set skipped (extension context invalidated)");
       return;
     }
     throw e;
@@ -62,7 +62,7 @@ export async function remove(key) {
     await chrome.storage.local.remove(key);
   } catch (e) {
     if (e.message && e.message.indexOf("context invalidated") !== -1) {
-      console.warn("[ys] storage.remove skipped (extension context invalidated)");
+      console.warn("[YouTube 要約] storage.remove skipped (extension context invalidated)");
       return;
     }
     throw e;
@@ -76,7 +76,7 @@ export async function getAll() {
     return await chrome.storage.local.get(null);
   } catch (e) {
     if (e.message && e.message.indexOf("context invalidated") !== -1) {
-      console.warn("[ys] storage.getAll skipped (extension context invalidated)");
+      console.warn("[YouTube 要約] storage.getAll skipped (extension context invalidated)");
       return {};
     }
     throw e;
@@ -90,7 +90,11 @@ export async function loadApiConfigs() {
 
 export async function loadApiConfigById(id) {
   const configs = await loadApiConfigs();
-  return configs.find(function (c) { return c.id === id; }) || null;
+  return (
+    configs.find(function (c) {
+      return c.id === id;
+    }) || null
+  );
 }
 
 export async function loadApiConfigLegacy() {
@@ -142,7 +146,14 @@ export async function saveToStorage(summary, captions) {
 
 export async function saveSummaryCache(videoId, data) {
   const key = "summary_cache_" + videoId;
-  await set({ [key]: { content: data.content, modelLabel: data.modelLabel, transcriptCount: data.transcriptCount, timestamp: Date.now() } });
+  await set({
+    [key]: {
+      content: data.content,
+      modelLabel: data.modelLabel,
+      transcriptCount: data.transcriptCount,
+      timestamp: Date.now()
+    }
+  });
 }
 
 export async function loadSummaryCache(videoId) {

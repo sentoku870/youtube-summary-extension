@@ -5,15 +5,23 @@
 import { uiState as S } from "../../shared/state.js";
 import { getEl } from "./panel.js";
 import {
-  clearSummaryContent, updateInfoLabel, hideChatArea,
-  hideRegenButton, hideCopyButton, hideProgress,
-  setSummaryContent, showRegenButton, showCopyButton, showChatArea,
-  appendChatMessage, focusChatInput
+  clearSummaryContent,
+  updateInfoLabel,
+  hideChatArea,
+  hideRegenButton,
+  hideCopyButton,
+  hideProgress,
+  setSummaryContent,
+  showRegenButton,
+  showCopyButton,
+  showChatArea,
+  appendChatMessage,
+  focusChatInput
 } from "./ui.js";
 
 // ===== タブUI更新（ドット表示） =====
 export function updateTabUI() {
-  (S.tabIds || ["summary", "customA", "customB"]).forEach(function(id) {
+  (S.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
     const btn = getEl("#ys-btn-" + id);
     if (!btn) return;
     const tab = S.tabs[id];
@@ -34,7 +42,7 @@ export function updateTabUI() {
 
 // ===== タブのアクティブ状態更新 =====
 export function updateTabActive() {
-  (S.tabIds || ["summary", "customA", "customB"]).forEach(function(id) {
+  (S.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
     const btn = getEl("#ys-btn-" + id);
     if (!btn) return;
     btn.classList.toggle("ys-active", S.activeTab === id);

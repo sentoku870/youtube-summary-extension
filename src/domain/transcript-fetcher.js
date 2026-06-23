@@ -4,12 +4,15 @@
  * Phase 7: ESM化
  */
 
-const RE_YOUTUBE = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
-const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)";
+const RE_YOUTUBE =
+  /(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/i;
+const USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.83 Safari/537.36,gzip(gfe)";
 const RE_XML_TRANSCRIPT = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
 const INNERTUBE_API_URL = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
 const INNERTUBE_CLIENT_VERSION = "20.10.38";
-const INNERTUBE_USER_AGENT = "com.google.android.youtube/" + INNERTUBE_CLIENT_VERSION + " (Linux; U; Android 14)";
+const INNERTUBE_USER_AGENT =
+  "com.google.android.youtube/" + INNERTUBE_CLIENT_VERSION + " (Linux; U; Android 14)";
 
 function decodeEntities(text) {
   const el = document.createElement("textarea");
@@ -60,13 +63,15 @@ export function extractVideoMeta(playerData) {
 async function fetchTranscriptFromTracks(captionTracks, videoId, config) {
   let track = captionTracks[0];
   if (config && config.lang) {
-    const found = captionTracks.find(function (t) { return t.languageCode === config.lang; });
+    const found = captionTracks.find(function (t) {
+      return t.languageCode === config.lang;
+    });
     if (found) track = found;
   }
 
   const transcriptURL = track.baseUrl;
   const resp = await fetch(transcriptURL, {
-    headers: { "User-Agent": USER_AGENT },
+    headers: { "User-Agent": USER_AGENT }
   });
   if (!resp.ok) return null;
 
@@ -112,7 +117,7 @@ export function parseTranscriptXml(xml, lang) {
       text: decodeEntities(result[3]),
       duration: parseFloat(result[2]),
       offset: parseFloat(result[1]),
-      lang: lang,
+      lang: lang
     };
   });
 }
@@ -135,9 +140,18 @@ export function extractInitialPlayerResponse(html) {
   let escape = false;
   for (let i = jsonStart; i < html.length; i++) {
     const c = html[i];
-    if (escape) { escape = false; continue; }
-    if (c === "\\") { escape = true; continue; }
-    if (c === '"') { inString = !inString; continue; }
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (c === "\\") {
+      escape = true;
+      continue;
+    }
+    if (c === '"') {
+      inString = !inString;
+      continue;
+    }
     if (inString) continue;
     if (c === "{") depth++;
     else if (c === "}") {
@@ -146,7 +160,7 @@ export function extractInitialPlayerResponse(html) {
         const candidate = html.slice(jsonStart, i + 1);
         try {
           return JSON.parse(candidate);
-        } catch (e) {
+        } catch {
           return null;
         }
       }
@@ -173,38 +187,39 @@ export async function fetchYtTranscript(config) {
         context: {
           client: {
             clientName: "ANDROID",
-            clientVersion: INNERTUBE_CLIENT_VERSION,
-          },
+            clientVersion: INNERTUBE_CLIENT_VERSION
+          }
         },
-        videoId: videoId,
+        videoId: videoId
       });
 
       const innerTubeResp = await fetch(INNERTUBE_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "User-Agent": INNERTUBE_USER_AGENT,
+          "User-Agent": INNERTUBE_USER_AGENT
         },
-        body: innerTubeBody,
+        body: innerTubeBody
       });
 
       if (innerTubeResp.ok) {
         const innerTubeData = await innerTubeResp.json();
         // メタ情報抽出（videoDetails）
         if (!videoMeta) videoMeta = extractVideoMeta(innerTubeData);
-        const captionTracks = innerTubeData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        const captionTracks =
+          innerTubeData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
         if (Array.isArray(captionTracks) && captionTracks.length > 0) {
           transcriptData = await fetchTranscriptFromTracks(captionTracks, videoId, config);
         }
       }
     } catch (e) {
-      console.error("[ys] InnerTube API error:", e);
+      console.error("[YouTube 要約] InnerTube API error:", e);
     }
 
     // Fallback: fetch via web page
     if (!transcriptData || !videoMeta) {
       const pageResp = await fetch("https://www.youtube.com/watch?v=" + videoId, {
-        headers: { "User-Agent": USER_AGENT },
+        headers: { "User-Agent": USER_AGENT }
       });
       const pageHtml = await pageResp.text();
 
@@ -215,8 +230,11 @@ export async function fetchYtTranscript(config) {
       if (pr) {
         // メタ情報抽出（fallback時）
         if (!videoMeta) videoMeta = extractVideoMeta(pr);
-        const tracks = pr && pr.captions && pr.captions.playerCaptionsTracklistRenderer
-          && pr.captions.playerCaptionsTracklistRenderer.captionTracks;
+        const tracks =
+          pr &&
+          pr.captions &&
+          pr.captions.playerCaptionsTracklistRenderer &&
+          pr.captions.playerCaptionsTracklistRenderer.captionTracks;
         if (Array.isArray(tracks) && tracks.length > 0) {
           transcriptData = await fetchTranscriptFromTracks(tracks, videoId, config);
         }
@@ -224,7 +242,9 @@ export async function fetchYtTranscript(config) {
     }
 
     if (transcriptData && transcriptData.length > 0) {
-      const texts = transcriptData.map(function (item) { return item.text; });
+      const texts = transcriptData.map(function (item) {
+        return item.text;
+      });
       result.transcript = texts;
       // オフセット情報を含む完全データ（タイムスタンプリンク用）
       result.allTimestamps = transcriptData.map(function (item) {
@@ -235,10 +255,12 @@ export async function fetchYtTranscript(config) {
     }
 
     // Also try to get player captions
-    document.querySelectorAll(".ytp-caption-segment, .captions-text span, .caption-window span").forEach(function (el) {
-      const t = (el.textContent || "").trim();
-      if (t) result.player.push(t);
-    });
+    document
+      .querySelectorAll(".ytp-caption-segment, .captions-text span, .caption-window span")
+      .forEach(function (el) {
+        const t = (el.textContent || "").trim();
+        if (t) result.player.push(t);
+      });
 
     // 字幕トラックが取得できなかった場合のみ、DOMキャプションをフォールバックとして all に設定
     if (result.all.length === 0 && result.player.length > 0) {

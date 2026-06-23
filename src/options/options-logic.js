@@ -14,7 +14,11 @@ export const PROVIDERS = {
     temperature: "0.3",
     models: [
       { id: "deepseek-chat", label: "DeepSeek Chat", extraParams: "" },
-      { id: "deepseek-reasoner", label: "DeepSeek Reasoner", extraParams: '{"thinking": {"type": "disabled"}}' }
+      {
+        id: "deepseek-reasoner",
+        label: "DeepSeek Reasoner",
+        extraParams: '{"thinking": {"type": "disabled"}}'
+      }
     ]
   },
   openrouter: {
@@ -74,7 +78,7 @@ export function detectProviderKey(apiUrl) {
     if (host === "api.deepseek.com") return "deepseek";
     if (host === "openrouter.ai") return "openrouter";
     if (host === "api.openai.com") return "openai";
-  } catch (e) {
+  } catch {
     /* fallthrough */
   }
   return "custom";
@@ -113,7 +117,7 @@ export function validateFormValues(config) {
   if (config.extraParams) {
     try {
       JSON.parse(config.extraParams);
-    } catch (e) {
+    } catch {
       return { valid: false, errorKey: VALIDATION_ERRORS.EXTRA_PARAMS_JSON };
     }
   }
@@ -200,7 +204,7 @@ export function findExistingApiKeyByHost(apiUrl, configs) {
   let host = "";
   try {
     host = new URL(apiUrl).hostname;
-  } catch (e) {
+  } catch {
     return "";
   }
   if (!host) return "";
@@ -211,7 +215,7 @@ export function findExistingApiKeyByHost(apiUrl, configs) {
       if (new URL(c.apiUrl).hostname === host) {
         return c.apiKey;
       }
-    } catch (e) {
+    } catch {
       // 不正URLは無視
     }
   }

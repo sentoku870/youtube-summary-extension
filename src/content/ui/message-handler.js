@@ -5,7 +5,7 @@
 // ============================================================
 import { uiState as S } from "../../shared/state.js";
 import { createPanel } from "./panel.js";
-import { bindEvents, applyButtonTitles, switchTab } from "./tabs.js";
+import { bindEvents, switchTab } from "./tabs.js";
 import { applyFontSize, applyTheme } from "./appearance.js";
 import { preloadTranscript, fetchTranscript } from "../../domain/transcript.js";
 
@@ -42,7 +42,7 @@ try {
           }
           sendResponse({ transcript: r.all, player: r.player || [], meta: r.meta || null });
         } catch (e) {
-          console.error("[ys] ysGetTranscript error:", e);
+          console.error("[YouTube 要約] ysGetTranscript error:", e);
           sendResponse({ error: e.message, transcript: [], player: [] });
         }
       })();
@@ -57,27 +57,29 @@ try {
       return true; // 非同期応答フラグ（popup.js が応答を待てるように）
     }
     if (msg.action === "ysTriggerAi") {
-      console.log("[ys] ysTriggerAi mode=" + msg.mode);
+      console.log("[YouTube 要約] ysTriggerAi mode=" + msg.mode);
       (async function () {
         try {
           // パネルが未生成なら生成
           ensurePanel();
           // 字幕をプリロード
           await preloadTranscript();
-          console.log("[ys] ysTriggerAi preload done, starting switchTab");
+          console.log("[YouTube 要約] ysTriggerAi preload done, starting switchTab");
           // 対象タブを切り替え（AI処理開始）— awaitせず非同期実行
-          switchTab(msg.mode).catch(function(err) {
-            console.error("[ys] ysTriggerAi switchTab error:", err);
+          switchTab(msg.mode).catch(function (err) {
+            console.error("[YouTube 要約] ysTriggerAi switchTab error:", err);
           });
           sendResponse({ success: true });
         } catch (e) {
-          console.error("[ys] ysTriggerAi error:", e);
+          console.error("[YouTube 要約] ysTriggerAi error:", e);
           sendResponse({ success: false, error: e.message });
         }
       })();
       return true;
     }
   });
-} catch (e) {
-  console.warn("[ys] runtime.onMessage listener could not be registered (extension context may be invalid).");
+} catch {
+  console.warn(
+    "[YouTube 要約] runtime.onMessage listener could not be registered (extension context may be invalid)."
+  );
 }

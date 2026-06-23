@@ -35,9 +35,7 @@ describe("listModelProviders", () => {
       { id: "google/gemini-flash" },
       { id: "deepseek-chat" } // スラッシュ無し
     ];
-    expect(listModelProviders(models)).toEqual([
-      "openai", "anthropic", "google", "(other)"
-    ]);
+    expect(listModelProviders(models)).toEqual(["openai", "anthropic", "google", "(other)"]);
   });
 
   test("空リスト・null", () => {
@@ -47,12 +45,7 @@ describe("listModelProviders", () => {
   });
 
   test("id の無い要素を除外", () => {
-    const models = [
-      { id: "openai/gpt-4o" },
-      { name: "no-id" },
-      null,
-      { id: "" }
-    ];
+    const models = [{ id: "openai/gpt-4o" }, { name: "no-id" }, null, { id: "" }];
     expect(listModelProviders(models)).toEqual(["openai"]);
   });
 });
@@ -74,7 +67,7 @@ describe("filterModels", () => {
   test("プロバイダーで絞り込み", () => {
     const result = filterModels("openrouter", sampleModels, "openai", "");
     expect(result).toHaveLength(2);
-    expect(result.every(m => m.id.startsWith("openai/"))).toBe(true);
+    expect(result.every((m) => m.id.startsWith("openai/"))).toBe(true);
   });
 
   test("キーワード検索（id と label の両方を対象）", () => {
@@ -118,7 +111,7 @@ describe("filterModels", () => {
     ];
     const r = filterModels("openrouter", models, "(other)", "");
     expect(r).toHaveLength(2);
-    expect(r.map(m => m.id).sort()).toEqual(["deepseek-chat", "gpt-3.5-turbo"]);
+    expect(r.map((m) => m.id).sort()).toEqual(["deepseek-chat", "gpt-3.5-turbo"]);
   });
 
   test("空リスト・null入力の安全性", () => {

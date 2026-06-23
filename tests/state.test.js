@@ -1,12 +1,7 @@
 // tests/state.test.js — state.js の単体テスト
 const stateModule = require("../src/shared/state");
-const {
-  uiState,
-  sessionState,
-  resetSession,
-  createInitialSessionState,
-  createInitialTabState
-} = stateModule;
+const { uiState, sessionState, resetSession, createInitialSessionState, createInitialTabState } =
+  stateModule;
 
 describe("uiState（UI 状態）", () => {
   test("期待される全プロパティを持つ", () => {
@@ -50,7 +45,7 @@ describe("resetSession", () => {
     sessionState.transcriptText = "dirty";
     sessionState.preloadedTranscript = { all: ["x"] };
     sessionState.videoMeta = { title: "t" };
-    sessionState.abortController = { abort: function() {} };
+    sessionState.abortController = { abort: function () {} };
 
     resetSession();
 

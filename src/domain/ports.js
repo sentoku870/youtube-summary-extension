@@ -30,18 +30,22 @@ export function getUiAdapter() {
  */
 function createNoopAdapter() {
   return {
-    showError: function(m) { console.error(m); },
-    hideError: function() {},
-    hideProgress: function() {},
-    showProgress: function() {},
-    setSummaryContent: function() {},
-    clearSummaryContent: function() {},
-    updateInfoLabel: function() {},
-    showChatArea: function() {},
-    focusChatInput: function() {},
-    showCopyButton: function() {},
-    showRegenButton: function() {},
-    getSummaryTextEl: function() { return null; },
-    updateTabUI: function() {}
+    showError: function (m) {
+      console.error("[YouTube 要約] ports noop adapter:", m);
+    },
+    hideError: function () {},
+    hideProgress: function () {},
+    showProgress: function () {},
+    setSummaryContent: function () {},
+    clearSummaryContent: function () {},
+    updateInfoLabel: function () {},
+    showChatArea: function () {},
+    focusChatInput: function () {},
+    showCopyButton: function () {},
+    showRegenButton: function () {},
+    getSummaryTextEl: function () {
+      return null;
+    },
+    updateTabUI: function () {}
   };
 }

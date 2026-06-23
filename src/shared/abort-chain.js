@@ -16,16 +16,20 @@
 export function linkAbortSignal(parentSignal) {
   const controller = new AbortController();
   if (!parentSignal) {
-    return { controller: controller, disconnect: function() {} };
+    return { controller: controller, disconnect: function () {} };
   }
-  const onAbort = function() { controller.abort("parent-aborted"); };
+  const onAbort = function () {
+    controller.abort("parent-aborted");
+  };
   if (parentSignal.aborted) {
     controller.abort("parent-already-aborted");
-    return { controller: controller, disconnect: function() {} };
+    return { controller: controller, disconnect: function () {} };
   }
   parentSignal.addEventListener("abort", onAbort, { once: true });
   return {
     controller: controller,
-    disconnect: function() { parentSignal.removeEventListener("abort", onAbort); }
+    disconnect: function () {
+      parentSignal.removeEventListener("abort", onAbort);
+    }
   };
 }

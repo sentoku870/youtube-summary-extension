@@ -10,9 +10,14 @@ import { MAX_CONCURRENCY, CHUNK_MAX_ATTEMPTS } from "../shared/constants.js";
 import { uiState, sessionState } from "../shared/state.js";
 import { setMarkdown } from "./markdown.js";
 import {
-  loadBtnApiConfigId, loadApiConfigById, loadApiConfigs,
-  loadApiConfigLegacy, loadCustomPrompt, getDefaultPrompt,
-  saveToStorage, saveSummaryCache
+  loadBtnApiConfigId,
+  loadApiConfigById,
+  loadApiConfigs,
+  loadApiConfigLegacy,
+  loadCustomPrompt,
+  getDefaultPrompt,
+  saveToStorage,
+  saveSummaryCache
 } from "../infrastructure/storage.js";
 import { fetchTranscript } from "./transcript.js";
 
@@ -25,12 +30,7 @@ import {
 } from "./ai-utils.js";
 
 // テスト後方互換用の再エクスポート
-export {
-  formatTranscriptWithTimestamps,
-  linkTimestamps,
-  buildMetaContext,
-  createTimeoutPromise
-};
+export { formatTranscriptWithTimestamps, linkTimestamps, buildMetaContext, createTimeoutPromise };
 
 // ===== Port/Adapter パターン: UI表示IF =====
 // ドメイン層は ports.js（抽象）にのみ依存し、
@@ -86,7 +86,9 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
   if (uiState.activeTab === mode) {
     ui.hideProgress();
     ui.setSummaryContent(content);
-    ui.updateInfoLabel("使用モデル: " + config.apiModel + " | 字幕 " + transcript.all.length + " 件");
+    ui.updateInfoLabel(
+      "使用モデル: " + config.apiModel + " | 字幕 " + transcript.all.length + " 件"
+    );
     ui.showChatArea();
     ui.focusChatInput();
     ui.showCopyButton();
@@ -97,7 +99,9 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
 
   saveToStorage(content, transcript.all);
   try {
-    const videoId = new URLSearchParams(window.location.search).get("v") || window.location.pathname.match(/\/shorts\/([^/?]+)/)?.[1];
+    const videoId =
+      new URLSearchParams(window.location.search).get("v") ||
+      window.location.pathname.match(/\/shorts\/([^/?]+)/)?.[1];
     if (videoId) {
       saveSummaryCache(videoId, {
         content: content,
@@ -106,7 +110,7 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
       });
     }
   } catch (e) {
-    console.error("[ys] Failed to save summary cache:", e);
+    console.error("[YouTube 要約] Failed to save summary cache:", e);
   }
 }
 
@@ -147,12 +151,14 @@ export async function fetchConfigAndPrompt(mode) {
 async function processSingleStream(messages, config, signal, summaryTextEl, timeoutPromise) {
   let accumulated = "";
   await Promise.race([
-    callChatAPIStream(messages, config,
-      function(chunk) {
+    callChatAPIStream(
+      messages,
+      config,
+      function (chunk) {
         accumulated = chunk;
         if (summaryTextEl) setMarkdown(summaryTextEl, accumulated);
       },
-      function(fullText) {
+      function (fullText) {
         accumulated = fullText || accumulated;
       },
       signal
@@ -174,9 +180,14 @@ async function processSingleChunk(chunkMessages, config, signal, idx, total, max
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") throw e;
       if (attempt < maxAttempts) {
-        console.warn("[YouTube 要約] チャンク " + (idx + 1) + " リトライ " + attempt + "/" + maxAttempts + ":", e.message);
+        console.warn(
+          "[YouTube 要約] チャンク " + (idx + 1) + " リトライ " + attempt + "/" + maxAttempts + ":",
+          e.message
+        );
         ui.showProgress("⚠️ チャンク " + (idx + 1) + " リトライ中");
-        await new Promise(function(r) { setTimeout(r, 500); });
+        await new Promise(function (r) {
+          setTimeout(r, 500);
+        });
       } else {
         console.warn("[YouTube 要約] チャンク " + (idx + 1) + " の処理に最終失敗:", e.message);
         ui.showProgress("⚠️ チャンク " + (idx + 1) + " をスキップ");
@@ -200,12 +211,25 @@ async function processMapReduce(chunks, config, signal, prompt, timeoutPromise, 
   async function worker() {
     let idx;
     while ((idx = nextIdx++) < chunks.length && !signal.aborted) {
-      const chunkMessage = "以下の字幕（チャンク " + (idx + 1) + "/" + chunks.length + "）を要約してください:\n\n" + chunks[idx];
+      const chunkMessage =
+        "以下の字幕（チャンク " +
+        (idx + 1) +
+        "/" +
+        chunks.length +
+        "）を要約してください:\n\n" +
+        chunks[idx];
       const chunkMessages = [
         { role: "system", content: prompt + "\n\nこれは動画の一部分です。" },
         { role: "user", content: chunkMessage }
       ];
-      const outcome = await processSingleChunk(chunkMessages, config, signal, idx, chunks.length, maxAttempts);
+      const outcome = await processSingleChunk(
+        chunkMessages,
+        config,
+        signal,
+        idx,
+        chunks.length,
+        maxAttempts
+      );
       if (outcome.success) {
         results[idx] = outcome.result;
         successCount++;
@@ -225,21 +249,28 @@ async function processMapReduce(chunks, config, signal, prompt, timeoutPromise, 
   }
 
   // 結果を抽出
-  const chunkSummaries = results.filter(function(r) { return r !== null; });
+  const chunkSummaries = results.filter(function (r) {
+    return r !== null;
+  });
   if (chunkSummaries.length === 0) {
     showError("すべてのチャンクの処理に失敗しました。");
     return null;
   }
 
-  const combinedSummaries = chunkSummaries.map(function(s, idx) {
-    return "=== チャンク " + (idx + 1) + " ===\n" + s;
-  }).join("\n\n");
+  const combinedSummaries = chunkSummaries
+    .map(function (s, idx) {
+      return "=== チャンク " + (idx + 1) + " ===\n" + s;
+    })
+    .join("\n\n");
 
   ui.showProgress("🔄 " + successCount + "/" + chunks.length + "チャンクの要約を統合中...");
 
   // 統合プロンプト
-  const finalMessage = "以下はYouTube動画の各チャンクの要約結果です。これらを統合して、動画全体の一貫した要約を作成してください。情報の重複を避け、論理的な流れで整理してください:\n\n" + combinedSummaries;
-  const finalMergePrompt = "あなたはYouTube動画の複数のチャンク要約を統合するアシスタントです。各チャンクの内容を踏まえ、動画全体として一貫性のある要約を日本語で箇条書きで作成してください。";
+  const finalMessage =
+    "以下はYouTube動画の各チャンクの要約結果です。これらを統合して、動画全体の一貫した要約を作成してください。情報の重複を避け、論理的な流れで整理してください:\n\n" +
+    combinedSummaries;
+  const finalMergePrompt =
+    "あなたはYouTube動画の複数のチャンク要約を統合するアシスタントです。各チャンクの内容を踏まえ、動画全体として一貫性のある要約を日本語で箇条書きで作成してください。";
   const finalMessages = [
     { role: "system", content: finalMergePrompt },
     { role: "user", content: finalMessage }
@@ -247,12 +278,14 @@ async function processMapReduce(chunks, config, signal, prompt, timeoutPromise, 
 
   let accumulated = "";
   await Promise.race([
-    callChatAPIStream(finalMessages, config,
-      function(chunk) {
+    callChatAPIStream(
+      finalMessages,
+      config,
+      function (chunk) {
         accumulated = chunk;
         if (summaryTextEl) setMarkdown(summaryTextEl, accumulated);
       },
-      function(fullText) {
+      function (fullText) {
         accumulated = fullText || accumulated;
       },
       signal
@@ -298,7 +331,6 @@ export async function callAI(mode, useAbort) {
     // 4. 結果確定
     finalizeResult(mode, tab, accumulated, ctx.config, ctx.prompt, userMessage, ctx.transcript);
     return true;
-
   } catch (e) {
     return handleErrors(e);
   }
@@ -361,7 +393,13 @@ async function runSummary(ctx, signal, summaryTextEl) {
     ];
     // processSingleStream は signal を見て中断を内部処理する
     const timeoutPromise = createTimeoutPromise();
-    const accumulated = await processSingleStream(messages, config, signal, summaryTextEl, timeoutPromise);
+    const accumulated = await processSingleStream(
+      messages,
+      config,
+      signal,
+      summaryTextEl,
+      timeoutPromise
+    );
     return { accumulated: accumulated, userMessage: baseUser };
   }
 
@@ -369,7 +407,14 @@ async function runSummary(ctx, signal, summaryTextEl) {
   ui.showProgress("チャンク処理を開始...");
   const chunks = splitIntoChunks(transcriptText, availableTokens);
   const timeoutPromise = createTimeoutPromise();
-  const accumulated = await processMapReduce(chunks, config, signal, prompt, timeoutPromise, summaryTextEl);
+  const accumulated = await processMapReduce(
+    chunks,
+    config,
+    signal,
+    prompt,
+    timeoutPromise,
+    summaryTextEl
+  );
   ui.hideProgress();
   return { accumulated: accumulated === undefined ? null : accumulated, userMessage: baseUser };
 }

@@ -8,7 +8,12 @@ jest.mock("../src/content/ui/appearance.js", () => ({
   applyPanelHeight: jest.fn()
 }));
 
-const { getEl, disableAllButtons, enableAllButtons, createPanel } = require("../src/content/ui/panel");
+const {
+  getEl,
+  disableAllButtons,
+  enableAllButtons,
+  createPanel
+} = require("../src/content/ui/panel");
 
 describe("panel", () => {
   beforeEach(() => {

@@ -91,7 +91,7 @@ dlBtn.addEventListener("click", async function () {
 
     statusText.textContent = "✅ 字幕をダウンロードしました (" + transcript.length + " 件)";
   } catch (e) {
-    console.error("[popup] 字幕DL失敗:", e);
+    console.error("[YouTube 要約 popup] 字幕DL失敗:", e);
     showError(RELOAD_HINT);
   } finally {
     dlBtn.textContent = originalText;
@@ -111,7 +111,7 @@ document.getElementById("settingsBtn").addEventListener("click", function () {
 
 // ===== AIボタン共通処理 =====
 async function triggerAI(mode) {
-  console.log("[popup] triggerAI mode=" + mode);
+  console.log("[YouTube 要約 popup] triggerAI mode=" + mode);
   // アクティブなYouTubeタブを探す
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
@@ -129,9 +129,9 @@ async function triggerAI(mode) {
   // パネルを強制表示
   try {
     await chrome.tabs.sendMessage(tab.id, { action: "ysForcePanel" });
-    console.log("[popup] ysForcePanel done");
+    console.log("[YouTube 要約 popup] ysForcePanel done");
   } catch (e) {
-    console.error("[popup] ysForcePanel failed:", e);
+    console.error("[YouTube 要約 popup] ysForcePanel failed:", e);
     showError(RELOAD_HINT);
     return;
   }
@@ -141,24 +141,34 @@ async function triggerAI(mode) {
   // ※ Promise として扱い、送信失敗を検知できるようにする
   try {
     const sendPromise = chrome.tabs.sendMessage(tab.id, { action: "ysTriggerAi", mode: mode });
-    sendPromise.then(function() {
-      console.log("[popup] ysTriggerAi sent, closing popup");
-    }).catch(function(e) {
-      console.error("[popup] ysTriggerAi send failed:", e);
-      showError(RELOAD_HINT);
-    });
+    sendPromise
+      .then(function () {
+        console.log("[YouTube 要約 popup] ysTriggerAi sent, closing popup");
+      })
+      .catch(function (e) {
+        console.error("[YouTube 要約 popup] ysTriggerAi send failed:", e);
+        showError(RELOAD_HINT);
+      });
   } catch (e) {
-    console.error("[popup] ysTriggerAi send failed:", e);
+    console.error("[YouTube 要約 popup] ysTriggerAi send failed:", e);
     showError(RELOAD_HINT);
     return;
   }
   statusText.textContent = "✅ AI処理を開始しました（サイドバーを確認）";
   // 0.5秒後にポップアップを閉じる
-  setTimeout(function () { window.close(); }, 500);
+  setTimeout(function () {
+    window.close();
+  }, 500);
 }
 
-summaryBtn.addEventListener("click", function () { triggerAI("summary"); });
-customABtn.addEventListener("click", function () { triggerAI("customA"); });
-customBBtn.addEventListener("click", function () { triggerAI("customB"); });
+summaryBtn.addEventListener("click", function () {
+  triggerAI("summary");
+});
+customABtn.addEventListener("click", function () {
+  triggerAI("customA");
+});
+customBBtn.addEventListener("click", function () {
+  triggerAI("customB");
+});
 
 updateUI();

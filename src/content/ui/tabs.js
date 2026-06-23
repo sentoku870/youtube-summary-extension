@@ -5,8 +5,13 @@
 import { uiState as S, sessionState } from "../../shared/state.js";
 import { getEl, enableAllButtons } from "./panel.js";
 import {
-  setSummaryRaw, disableRegenButton, enableRegenButton, appendChatMessage,
-  appendAssistantPlaceholder, updateChatMessageBody, scrollContentToElement
+  setSummaryRaw,
+  disableRegenButton,
+  enableRegenButton,
+  appendChatMessage,
+  appendAssistantPlaceholder,
+  updateChatMessageBody,
+  scrollContentToElement
 } from "./ui.js";
 import { updateTabUI, updateTabActive, renderTabContent } from "./tabs-ui.js";
 import { callAI, abortCurrentStream, resolveApiConfig } from "../../domain/ai.js";
@@ -47,8 +52,8 @@ function copyContent() {
   if (!tab || !tab.content) return;
   try {
     navigator.clipboard.writeText(tab.content);
-  } catch (_) {
-    console.error("[ys] clipboard write failed");
+  } catch {
+    console.error("[YouTube 要約] clipboard write failed");
   }
 }
 
@@ -69,7 +74,9 @@ export async function switchTab(mode) {
   updateTabActive();
   if (tab.generated) {
     renderTabContent(mode);
-    requestAnimationFrame(function() { scrollContentTop(); });
+    requestAnimationFrame(function () {
+      scrollContentTop();
+    });
   } else {
     const btn = getEl("#ys-btn-" + mode);
     if (btn) {
@@ -86,7 +93,9 @@ export async function switchTab(mode) {
         applyButtonTitles();
       }
     }
-    requestAnimationFrame(function() { scrollContentTop(); });
+    requestAnimationFrame(function () {
+      scrollContentTop();
+    });
   }
 }
 
@@ -139,7 +148,10 @@ async function onChatSend() {
   const input = getEl("#ys-chatInput");
   const text = input ? input.value.trim() : "";
   if (!text) return;
-  if (input) { input.value = ""; resetChatInputHeight(input); }
+  if (input) {
+    input.value = "";
+    resetChatInputHeight(input);
+  }
 
   const tab = S.tabs[S.activeTab];
   if (!tab || !tab.generated) {
@@ -155,7 +167,9 @@ async function onChatSend() {
   // 進行中のチャットがあれば中断して新しいリクエストを開始
   abortChatStream();
   // 親（要約セッション）の abort に連動：動画切替時にチャットも自動中断される
-  const chain = linkAbortSignal(sessionState.abortController && sessionState.abortController.signal);
+  const chain = linkAbortSignal(
+    sessionState.abortController && sessionState.abortController.signal
+  );
   const controller = chain.controller;
   chatAbortController = controller;
   chatAbortChain = chain;
@@ -172,7 +186,7 @@ async function onChatSend() {
   let accumulated = "";
   // ストリーミング描画のスロットル（頻繁な marked+DOMPurify による卡回避）
   // RAF + 60ms 間隔で 1フレーム内の連続チャンクをまとめて1回だけ描画
-  const renderThrottled = createRafThrottle(function(arg) {
+  const renderThrottled = createRafThrottle(function (arg) {
     if (placeholder) updateChatMessageBody(placeholder.body, arg || "");
   }, 60);
 
@@ -182,18 +196,21 @@ async function onChatSend() {
       config = await resolveApiConfig(S.activeTab);
     }
     if (!config || !config.apiKey) {
-      if (placeholder) updateChatMessageBody(placeholder.body, "[エラー] API設定がされていません。");
+      if (placeholder)
+        updateChatMessageBody(placeholder.body, "[エラー] API設定がされていません。");
       return;
     }
 
     await callChatAPIStream(
-      [{ role: "system", content: S.tabs[S.activeTab].chatHistory[0].content }].concat(tab.chatHistory),
+      [{ role: "system", content: S.tabs[S.activeTab].chatHistory[0].content }].concat(
+        tab.chatHistory
+      ),
       config,
-      function(chunk) {
+      function (chunk) {
         accumulated = chunk;
         renderThrottled(accumulated);
       },
-      function(fullText) {
+      function (fullText) {
         accumulated = fullText || accumulated;
         // 最終確定描画（スロットルを待たず即時反映）
         renderThrottled.flush(accumulated);
@@ -212,7 +229,10 @@ async function onChatSend() {
       chatAbortController = null;
     }
     chatBusy = false;
-    if (input) { input.readOnly = false; input.focus(); }
+    if (input) {
+      input.readOnly = false;
+      input.focus();
+    }
     // 親 abort との連動を解除（次の送信に備えてリセット）
     if (chatAbortChain) {
       chatAbortChain.disconnect();
@@ -279,46 +299,50 @@ export function bindEvents() {
   if (S.eventsBound) return;
   S.eventsBound = true;
 
-  (S.tabIds || ["summary", "customA", "customB"]).forEach(function(id) {
+  (S.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
     const btn = getEl("#ys-btn-" + id);
-    if (btn) btn.addEventListener("click", function() { switchTab(id); });
+    if (btn)
+      btn.addEventListener("click", function () {
+        switchTab(id);
+      });
   });
 
   const chatInput = getEl("#ys-chatInput");
   if (chatInput) {
     // Enter=送信 / Shift+Enter=改行。IME 変換中と送信中(readOnly)は無視。
-    chatInput.addEventListener("keydown", function(e) {
+    chatInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !chatInput.readOnly) {
         e.preventDefault();
         onChatSend();
       }
     });
     // 入力に応じて高さ自動調整
-    chatInput.addEventListener("input", function() {
+    chatInput.addEventListener("input", function () {
       resetChatInputHeight(chatInput);
     });
   }
 
   const chatClearBtn = getEl("#ys-chatClearBtn");
-  if (chatClearBtn) chatClearBtn.addEventListener("click", function() {
-    if (chatBusy) return;
-    // chatHistory の先頭3件 (system/要約/初期プロンプト) は保持
-    const tab = S.tabs[S.activeTab];
-    if (tab) tab.chatHistory = tab.chatHistory.slice(0, 3);
-    const hist = getEl("#ys-chatHistory");
-    if (hist) hist.innerHTML = "";
-    if (chatInput) {
-      chatInput.value = "";
-      resetChatInputHeight(chatInput);
-      chatInput.focus();
-    }
-  });
+  if (chatClearBtn)
+    chatClearBtn.addEventListener("click", function () {
+      if (chatBusy) return;
+      // chatHistory の先頭3件 (system/要約/初期プロンプト) は保持
+      const tab = S.tabs[S.activeTab];
+      if (tab) tab.chatHistory = tab.chatHistory.slice(0, 3);
+      const hist = getEl("#ys-chatHistory");
+      if (hist) hist.innerHTML = "";
+      if (chatInput) {
+        chatInput.value = "";
+        resetChatInputHeight(chatInput);
+        chatInput.focus();
+      }
+    });
 
   // 編集ボタンのクリックをチャット履歴全体で delegation
   // （appendChatMessage で動的に生成されるため、都度 bind せず親で一括受領）
   const chatHistoryEl = getEl("#ys-chatHistory");
   if (chatHistoryEl) {
-    chatHistoryEl.addEventListener("click", function(e) {
+    chatHistoryEl.addEventListener("click", function (e) {
       const editBtn = e.target.closest(".ys-chat-edit-btn");
       if (!editBtn) return;
       const idx = parseInt(editBtn.getAttribute("data-edit-index"), 10);
@@ -336,7 +360,7 @@ export function bindEvents() {
   // 設定変更を150msデバウンス（saveAllBtnの一括保存時に複数回発火するのを防止）
   let debounceTimer = null;
   try {
-    chrome.storage.onChanged.addListener(function(changes) {
+    chrome.storage.onChanged.addListener(function (changes) {
       let shouldUpdate = false;
       for (const key in changes) {
         if (key.indexOf("btnTitle_") === 0 || key.indexOf("prompt_") === 0) {
@@ -346,11 +370,13 @@ export function bindEvents() {
       }
       if (!shouldUpdate) return;
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(function() {
+      debounceTimer = setTimeout(function () {
         applyButtonTitles();
       }, 150);
     });
-  } catch (e) {
-    console.warn("[ys] storage.onChanged listener could not be registered (extension context may be invalid).");
+  } catch {
+    console.warn(
+      "[YouTube 要約] storage.onChanged listener could not be registered (extension context may be invalid)."
+    );
   }
 }

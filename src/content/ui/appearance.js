@@ -23,8 +23,11 @@ export async function applyPanelHeight() {
 // テーマ属性を #yt-summary-root に反映
 export async function applyTheme() {
   const theme = await loadThemeSetting();
-  const isDark = theme === "dark" ||
-    (theme === "auto" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const isDark =
+    theme === "dark" ||
+    (theme === "auto" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
   const root = document.querySelector("#yt-summary-root");
   if (root) root.setAttribute("data-theme", isDark ? "dark" : "light");
 }

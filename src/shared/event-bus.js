@@ -46,7 +46,7 @@ export function emit(event, payload) {
     try {
       cbs[i](payload);
     } catch (e) {
-      console.error("[ys][event-bus] listener error for '" + event + "':", e);
+      console.error("[YouTube 要約][event-bus] listener error for '" + event + "':", e);
     }
   }
 }
@@ -65,7 +65,7 @@ export function clearAll() {
 // 内部イベント "nav:finish" に橋渡ししている。両方を定義。
 export const EVENTS = {
   YT_NAVIGATE_FINISH: "yt-navigate-finish", // 生のYouTube DOMイベント名
-  NAV_FINISH: "nav:finish",                  // 内部イベント名（index.js で使用）
+  NAV_FINISH: "nav:finish", // 内部イベント名（index.js で使用）
   TRANSCRIPT_READY: "transcript-ready",
   TRANSCRIPT_FAILED: "transcript-failed",
   TRANSCRIPT_RETRY: "transcript-retry",

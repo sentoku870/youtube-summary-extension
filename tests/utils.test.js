@@ -160,7 +160,9 @@ describe("isYouTubeWatchPage", () => {
 
   test("YouTube以外のホストは false（偽陽性防止）", () => {
     // 第三者サイトのクエリに youtube.com/watch が含まれていても弾く
-    expect(isYouTubeWatchPage("https://example.com/?redirect=https://youtube.com/watch?v=test")).toBe(false);
+    expect(
+      isYouTubeWatchPage("https://example.com/?redirect=https://youtube.com/watch?v=test")
+    ).toBe(false);
     expect(isYouTubeWatchPage("https://evil.com/path/youtube.com/watch")).toBe(false);
     expect(isYouTubeWatchPage("https://www.youtube.com.evil.com/watch?v=test")).toBe(false);
   });

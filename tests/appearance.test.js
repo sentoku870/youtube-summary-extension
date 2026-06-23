@@ -7,11 +7,7 @@ jest.spyOn(storage, "loadPanelHeight").mockResolvedValue("900");
 jest.spyOn(storage, "loadThemeSetting").mockResolvedValue("auto");
 
 // テスト対象（モック適用後に require）
-const {
-  applyFontSize,
-  applyPanelHeight,
-  applyTheme
-} = require("../src/content/ui/appearance");
+const { applyFontSize, applyPanelHeight, applyTheme } = require("../src/content/ui/appearance");
 
 describe("appearance", () => {
   beforeEach(() => {
@@ -132,13 +128,19 @@ describe("appearance", () => {
     test("theme='auto' で window.matchMedia が無い場合は light 扱い", async () => {
       const orig = window.matchMedia;
       Object.defineProperty(window, "matchMedia", {
-        value: undefined, configurable: true, writable: true
+        value: undefined,
+        configurable: true,
+        writable: true
       });
       storage.loadThemeSetting.mockResolvedValueOnce("auto");
       const root = makeRoot();
       await applyTheme();
       expect(root.getAttribute("data-theme")).toBe("light");
-      Object.defineProperty(window, "matchMedia", { value: orig, configurable: true, writable: true });
+      Object.defineProperty(window, "matchMedia", {
+        value: orig,
+        configurable: true,
+        writable: true
+      });
     });
 
     test("#yt-summary-root が無い場合は no-op", async () => {

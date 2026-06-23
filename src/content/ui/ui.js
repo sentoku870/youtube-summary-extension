@@ -28,17 +28,20 @@ export function showError(msg) {
   const el = getEl("#ys-error");
   if (!el) return;
   if (!navigator.onLine) {
-    el.innerHTML = '<span>🌐 オフラインです。インターネット接続を確認してください。</span>';
+    el.innerHTML = "<span>🌐 オフラインです。インターネット接続を確認してください。</span>";
     el.style.display = "block";
     return;
   }
-  el.innerHTML = '<span>' + msg + '</span>' +
+  el.innerHTML =
+    "<span>" +
+    msg +
+    "</span>" +
     '<button id="ys-errorRetryBtn" class="ys-action-btn" style="margin-left:8px;">🔄 再試行</button>';
   el.style.display = "block";
 
   const retryBtn = el.querySelector("#ys-errorRetryBtn");
   if (retryBtn) {
-    retryBtn.onclick = function() {
+    retryBtn.onclick = function () {
       el.style.display = "none";
       if (S.activeTab) {
         switchTab(S.activeTab);
@@ -120,7 +123,11 @@ export function hideCopyButton() {
 
 export function focusChatInput() {
   const el = getEl("#ys-chatInput");
-  if (el) { el.value = ""; el.style.height = "auto"; el.focus(); }
+  if (el) {
+    el.value = "";
+    el.style.height = "auto";
+    el.focus();
+  }
 }
 
 // ===== チャット履歴 =====

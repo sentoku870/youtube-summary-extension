@@ -4,12 +4,7 @@
 global.window = global.window || {};
 
 // state.js の uiState / sessionState を直接 import
-const {
-  uiState: U,
-  sessionState: S,
-  resetSession,
-  createInitialSessionState
-} = require("../src/shared/state");
+const { uiState: U, sessionState: S, resetSession } = require("../src/shared/state");
 
 // YsUI のモック
 global.YsUI = {
@@ -70,8 +65,6 @@ const {
   resolveApiConfig,
   fetchConfigAndPrompt,
   abortCurrentStream,
-  showError,
-  linkTimestamps,
   callAI
 } = require("../src/domain/ai");
 
@@ -104,7 +97,9 @@ setUiAdapter({
   enableSendButton: global.YsUI.enableSendButton,
   showCopyButton: global.YsUI.showCopyButton,
   showRegenButton: global.YsUI.showRegenButton,
-  getSummaryTextEl: function() { return global.YsPanel.getEl("#ys-summaryText"); },
+  getSummaryTextEl: function () {
+    return global.YsPanel.getEl("#ys-summaryText");
+  },
   updateTabUI: global.YsTabs.updateTabUI
 });
 
@@ -129,10 +124,7 @@ describe("formatTranscriptWithTimestamps", () => {
   });
 
   test("オフセットがない場合はタイムスタンプなし", () => {
-    const items = [
-      { text: "Hello" },
-      { text: "World" }
-    ];
+    const items = [{ text: "Hello" }, { text: "World" }];
     const result = formatTranscriptWithTimestamps(items);
     expect(result).toBe("Hello\nWorld");
   });
@@ -237,7 +229,15 @@ describe("finalizeResult", () => {
     const config = { apiModel: "gpt-4o" };
     const transcript = { all: ["line1", "line2"] };
 
-    finalizeResult("summary", tab, "要約テキスト", config, "システムプロンプト", "ユーザーメッセージ", transcript);
+    finalizeResult(
+      "summary",
+      tab,
+      "要約テキスト",
+      config,
+      "システムプロンプト",
+      "ユーザーメッセージ",
+      transcript
+    );
 
     expect(tab.generated).toBe(true);
     expect(tab.content).toBe("要約テキスト");
@@ -296,7 +296,12 @@ describe("resolveApiConfig", () => {
     chrome.storage.local.get
       .mockResolvedValueOnce({ btnApiConfig_summary: "cfg999" })
       .mockResolvedValueOnce({ apiConfigs: [{ id: "cfg999" }] }) // apiKeyなし
-      .mockResolvedValue({ apiConfigs: [{ id: "cfg1", apiKey: "key1" }, { id: "cfg2", apiKey: "key2" }] });
+      .mockResolvedValue({
+        apiConfigs: [
+          { id: "cfg1", apiKey: "key1" },
+          { id: "cfg2", apiKey: "key2" }
+        ]
+      });
 
     const result = await resolveApiConfig("summary");
     expect(result.id).toBe("cfg1");
@@ -357,7 +362,7 @@ describe("abortCurrentStream", () => {
   test("アクティブなAbortControllerを中断する", () => {
     const abortSpy = jest.fn();
     S.abortController = { abort: abortSpy };
-    
+
     abortCurrentStream();
     expect(abortSpy).toHaveBeenCalled();
     expect(S.abortController).toBeNull();
@@ -409,9 +414,7 @@ describe("callAI", () => {
     chrome.storage.local.get
       .mockResolvedValueOnce({ btnApiConfig_summary: "cfg1" })
       .mockResolvedValueOnce({
-        apiConfigs: [
-          { id: "cfg1", apiKey: "key1", apiModel: "gpt-4", maxTokens: "4096" }
-        ]
+        apiConfigs: [{ id: "cfg1", apiKey: "key1", apiModel: "gpt-4", maxTokens: "4096" }]
       })
       .mockResolvedValueOnce({ prompt_summary: "カスタムプロンプト" });
     chrome.storage.local.set.mockResolvedValue(undefined);
@@ -435,12 +438,7 @@ describe("callAI", () => {
     });
     setupConfigStorage();
 
-    callChatAPIStream.mockImplementation(async function (
-      messages,
-      config,
-      onChunk,
-      onDone
-    ) {
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onChunk("途中の要約");
       onDone("最終的な要約");
     });
@@ -477,12 +475,7 @@ describe("callAI", () => {
     // 各チャンク要約を返す
     callChatAPINonStream.mockResolvedValue("チャンク要約");
     // 最終統合ストリーム
-    callChatAPIStream.mockImplementation(async function (
-      messages,
-      config,
-      onChunk,
-      onDone
-    ) {
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onDone("統合された要約");
     });
 
@@ -548,9 +541,7 @@ describe("callAI", () => {
     });
     setupConfigStorage();
 
-    callChatAPIStream.mockRejectedValue(
-      new YsTimeoutError("タイムアウトしました")
-    );
+    callChatAPIStream.mockRejectedValue(new YsTimeoutError("タイムアウトしました"));
 
     const result = await callAI("summary", false);
 
@@ -602,12 +593,7 @@ describe("callAI", () => {
     const abortSpy = jest.fn();
     S.abortController = { abort: abortSpy };
 
-    callChatAPIStream.mockImplementation(async function (
-      messages,
-      config,
-      onChunk,
-      onDone
-    ) {
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onDone("要約");
     });
 
@@ -648,9 +634,7 @@ describe("callAI", () => {
 
     // 最初のリトライで成功 → リトライはスキップされる
     callChatAPINonStream.mockResolvedValue("部分要約");
-    callChatAPIStream.mockImplementation(async function (
-      messages, config, onChunk, onDone
-    ) {
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onDone("統合結果");
     });
 
@@ -677,11 +661,11 @@ describe("callAI", () => {
     });
     setupConfigStorage();
 
-    callChatAPIStream.mockImplementation(async function (
-      messages, config, onChunk, onDone
-    ) {
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       // messages の user content に [00:00] 形式が含まれることを確認
-      const userContent = messages.find(function (m) { return m.role === "user"; }).content;
+      const userContent = messages.find(function (m) {
+        return m.role === "user";
+      }).content;
       expect(userContent).toContain("[00:00] あ");
       expect(userContent).toContain("[01:00] い");
       expect(userContent).toContain("[02:00] う");
@@ -739,9 +723,7 @@ describe("callAI", () => {
     });
     setupConfigStorage();
 
-    callChatAPIStream.mockImplementation(async function (
-      messages, config, onChunk, onDone
-    ) {
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onDone("要約");
     });
 
@@ -774,9 +756,7 @@ describe("callAI", () => {
       configurable: true
     });
 
-    callChatAPIStream.mockImplementation(async function (
-      messages, config, onChunk, onDone
-    ) {
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onDone("ok");
     });
 

@@ -8,13 +8,60 @@ import DOMPurify from "dompurify";
 
 // ===== 許可タグのホワイトリスト（DOMPurifyフォールバック用） =====
 export const ALLOWED_TAGS = [
-  "b","i","s","u","br","hr","h1","h2","h3","h4","h5","h6",
-  "pre","code","ul","ol","li","table","tr","td","th","thead","tbody",
-  "strong","em","p","div","span","a","blockquote","dl","dt","dd",
-  "img","caption","col","colgroup","figure","figcaption"
+  "b",
+  "i",
+  "s",
+  "u",
+  "br",
+  "hr",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "pre",
+  "code",
+  "ul",
+  "ol",
+  "li",
+  "table",
+  "tr",
+  "td",
+  "th",
+  "thead",
+  "tbody",
+  "strong",
+  "em",
+  "p",
+  "div",
+  "span",
+  "a",
+  "blockquote",
+  "dl",
+  "dt",
+  "dd",
+  "img",
+  "caption",
+  "col",
+  "colgroup",
+  "figure",
+  "figcaption"
 ];
-export const ALLOWED_ATTR = ["href", "target", "class", "id", "style",
-  "colspan", "rowspan", "scope", "align", "src", "alt", "title"];
+export const ALLOWED_ATTR = [
+  "href",
+  "target",
+  "class",
+  "id",
+  "style",
+  "colspan",
+  "rowspan",
+  "scope",
+  "align",
+  "src",
+  "alt",
+  "title"
+];
 
 // ===== marked のデフォルト設定 =====
 marked.setOptions({
@@ -55,9 +102,13 @@ export function sanitizeHTML(html) {
       return document.createTextNode(node.textContent);
     }
     const clone = document.createElement(tag);
-    for (let attr of node.attributes) {
+    for (const attr of node.attributes) {
       if (ALLOWED_ATTR.indexOf(attr.name) !== -1 && attr.name.indexOf("on") !== 0) {
-        try { clone.setAttribute(attr.name, attr.value); } catch (_) {}
+        try {
+          clone.setAttribute(attr.name, attr.value);
+        } catch {
+          // setAttribute が失敗する属性（例: 不正な name）は無視
+        }
       }
     }
     for (let child = node.firstChild; child; child = child.nextSibling) {
@@ -82,7 +133,7 @@ export function renderMarkdown(text) {
     // sanitizeHTML は常に DocumentFragment を返すよう統一されたため、そのまま返す
     return result;
   } catch (e) {
-    console.error("[ys] Markdown parse error:", e);
+    console.error("[YouTube 要約] Markdown parse error:", e);
     const frag = document.createDocumentFragment();
     frag.appendChild(document.createTextNode(text));
     return frag;

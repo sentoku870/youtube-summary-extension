@@ -118,7 +118,7 @@ describe("cssEscape", () => {
     expect(cssEscape("hello\\world")).toBe("hello\\\\world");
   });
 
-  test("スラッシュはそのまま（モデルIDの"/"は問題なし）", () => {
+  test("スラッシュはそのまま（モデルIDの" / "は問題なし）", () => {
     expect(cssEscape("openai/gpt-4o")).toBe("openai/gpt-4o");
   });
 
@@ -229,8 +229,12 @@ describe("buildConfig", () => {
 
   test("空文字のtemperature/maxTokensもデフォルトにフォールバック", () => {
     const result = buildConfig({
-      label: "x", apiKey: "k", apiUrl: "u", apiModel: "m",
-      temperature: "", maxTokens: ""
+      label: "x",
+      apiKey: "k",
+      apiUrl: "u",
+      apiModel: "m",
+      temperature: "",
+      maxTokens: ""
     });
     expect(result.temperature).toBe("0.3");
     expect(result.maxTokens).toBe("4096");
@@ -293,8 +297,8 @@ describe("convertLegacyToConfigs", () => {
     };
     const result = convertLegacyToConfigs(storage, fakeId);
     expect(result).toHaveLength(2);
-    expect(result.map(c => c.apiKey)).toContain("ds-key");
-    expect(result.map(c => c.apiKey)).toContain("legacy-key");
+    expect(result.map((c) => c.apiKey)).toContain("ds-key");
+    expect(result.map((c) => c.apiKey)).toContain("legacy-key");
   });
 
   test("複数プロバイダーの個別設定を変換（oldConfig含む）", () => {
@@ -318,7 +322,7 @@ describe("convertLegacyToConfigs", () => {
     const result = convertLegacyToConfigs(storage, fakeId);
     // openrouter + oldConfig = 2件（deepseekはapiKey空なのでスキップ）
     expect(result).toHaveLength(2);
-    expect(result.find(c => c.apiKey === "or-key")).toBeDefined();
+    expect(result.find((c) => c.apiKey === "or-key")).toBeDefined();
   });
 
   test("legacy apiConfigのみ（プロバイダー個別なし）から1件変換", () => {
@@ -369,7 +373,7 @@ describe("convertLegacyToConfigs", () => {
       apiConfig_deepseek: { apiKey: "k" }
     };
     const result = convertLegacyToConfigs(storage, fakeId);
-    const dsConfig = result.find(c => c.apiKey === "k");
+    const dsConfig = result.find((c) => c.apiKey === "k");
     expect(dsConfig.apiUrl).toBe("");
     expect(dsConfig.apiModel).toBe("");
     expect(dsConfig.temperature).toBe("0.3");
@@ -407,21 +411,22 @@ describe("findExistingApiKeyByHost", () => {
     const configs = [
       { id: "1", apiKey: "key-1", apiUrl: "https://api.deepseek.com/v1/chat/completions" }
     ];
-    const result = findExistingApiKeyByHost(
-      "https://api.openai.com/v1/chat/completions",
-      configs
-    );
+    const result = findExistingApiKeyByHost("https://api.openai.com/v1/chat/completions", configs);
     expect(result).toBe("");
   });
 
   test("apiUrl が空文字 → 空文字", () => {
     expect(findExistingApiKeyByHost("", [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe("");
     expect(findExistingApiKeyByHost(null, [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe("");
-    expect(findExistingApiKeyByHost(undefined, [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe("");
+    expect(findExistingApiKeyByHost(undefined, [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe(
+      ""
+    );
   });
 
   test("apiUrl が不正な URL 文字列 → 空文字", () => {
-    expect(findExistingApiKeyByHost("not-a-url", [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe("");
+    expect(findExistingApiKeyByHost("not-a-url", [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe(
+      ""
+    );
   });
 
   test("configs が null / undefined / 空配列 → 空文字", () => {
@@ -450,7 +455,7 @@ describe("findExistingApiKeyByHost", () => {
 
   test("apiUrl / apiKey が空の config はスキップ", () => {
     const configs = [
-      { id: "1" },  // apiKey, apiUrl なし
+      { id: "1" }, // apiKey, apiUrl なし
       { id: "2", apiKey: "k", apiUrl: "" },
       { id: "3", apiKey: "real", apiUrl: "https://api.deepseek.com" }
     ];

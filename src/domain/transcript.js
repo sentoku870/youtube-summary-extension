@@ -13,7 +13,7 @@ export async function fetchTranscript() {
   if (S.preloadedTranscript) return S.preloadedTranscript;
   // 既にロード中のPromiseがあればそれに乗る（競合防止）
   if (S._transcriptPromise) return S._transcriptPromise;
-  const promise = (async function() {
+  const promise = (async function () {
     const lang = await loadSubtitleLang();
     const config = lang && lang !== "auto" ? { lang: lang } : undefined;
     const r = await fetchYtTranscript(config);
@@ -43,9 +43,14 @@ export async function preloadTranscript() {
         return;
       }
     } catch (e) {
-      console.log("[YouTube 要約] 字幕プリロード失敗 (" + attempt + "/" + retries + "):", e.message);
+      console.log(
+        "[YouTube 要約] 字幕プリロード失敗 (" + attempt + "/" + retries + "):",
+        e.message
+      );
       if (attempt < retries) {
-        await new Promise(function(r) { setTimeout(r, 1500 * attempt); });
+        await new Promise(function (r) {
+          setTimeout(r, 1500 * attempt);
+        });
       }
     }
   }

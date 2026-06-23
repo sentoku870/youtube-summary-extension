@@ -12,18 +12,21 @@ import {
 // ===== 字幕テキストをタイムスタンプ付きフォーマットに変換 =====
 export function formatTranscriptWithTimestamps(transcriptItems) {
   if (!transcriptItems || transcriptItems.length === 0) return "";
-  return transcriptItems.map(function(item) {
-    var text = item.text || item || "";
-    if (item.offset != null) {
-      var ms = item.offset;
-      var totalSec = Math.floor(ms / 1000);
-      var min = Math.floor(totalSec / 60);
-      var sec = totalSec % 60;
-      var ts = "[" + min.toString().padStart(2, "0") + ":" + sec.toString().padStart(2, "0") + "] ";
-      return ts + text;
-    }
-    return text;
-  }).join("\n");
+  return transcriptItems
+    .map(function (item) {
+      var text = item.text || item || "";
+      if (item.offset != null) {
+        var ms = item.offset;
+        var totalSec = Math.floor(ms / 1000);
+        var min = Math.floor(totalSec / 60);
+        var sec = totalSec % 60;
+        var ts =
+          "[" + min.toString().padStart(2, "0") + ":" + sec.toString().padStart(2, "0") + "] ";
+        return ts + text;
+      }
+      return text;
+    })
+    .join("\n");
 }
 
 // ===== テキストノード内の[MM:SS]をYouTubeシークリンクに変換（DOMベース） =====
@@ -34,7 +37,7 @@ export function linkTimestamps(el) {
 
   // 委譲リスナーが未登録なら登録（重複防止フラグで管理）
   if (!el.dataset || !el.dataset[TIMESTAMP_DELEGATION_FLAG]) {
-    el.addEventListener("click", function(e) {
+    el.addEventListener("click", function (e) {
       // クリック対象が（または祖先が）タイムスタンプリンクか判定
       var target = e.target;
       var anchor = target && target.closest ? target.closest("." + TS_LINK_CLASS) : null;
@@ -95,7 +98,10 @@ export function buildMetaContext(meta) {
   if (meta.title) parts.push("タイトル: " + meta.title);
   if (meta.author) parts.push("チャンネル: " + meta.author);
   if (meta.shortDescription) {
-    var desc = meta.shortDescription.length > 200 ? meta.shortDescription.substring(0, 200) + "..." : meta.shortDescription;
+    var desc =
+      meta.shortDescription.length > 200
+        ? meta.shortDescription.substring(0, 200) + "..."
+        : meta.shortDescription;
     parts.push("説明: " + desc);
   }
   if (meta.viewCount) parts.push("視聴回数: " + Number(meta.viewCount).toLocaleString());
@@ -112,9 +118,11 @@ export function buildMetaContext(meta) {
 
 // ===== 全体タイムアウトPromise =====
 export function createTimeoutPromise() {
-  return new Promise(function(_, reject) {
-    setTimeout(function() {
-      reject(new YsTimeoutError("処理がタイムアウトしました（" + (GLOBAL_TIMEOUT_MS / 1000) + "秒）。"));
+  return new Promise(function (_, reject) {
+    setTimeout(function () {
+      reject(
+        new YsTimeoutError("処理がタイムアウトしました（" + GLOBAL_TIMEOUT_MS / 1000 + "秒）。")
+      );
     }, GLOBAL_TIMEOUT_MS);
   });
 }

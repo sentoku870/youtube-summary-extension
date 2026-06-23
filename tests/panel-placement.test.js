@@ -14,7 +14,7 @@ jest.mock("../src/content/ui/appearance.js", () => ({
 }));
 
 const { uiState: S } = require("../src/shared/state");
-const { createPanel, getEl } = require("../src/content/ui/panel");
+const { createPanel } = require("../src/content/ui/panel");
 
 // テスト用：document.body の YouTube レイアウトを構築
 function buildYouTubeWatchPage(opts) {
@@ -214,7 +214,9 @@ describe("panel.js パネル配置 (placement)", () => {
       // YouTube 側が後から .hidden を付与した状況を再現
       panel.classList.add("hidden");
       // MutationObserver はマイクロタスクで発火するため、待つ
-      await new Promise(function(r) { setTimeout(r, 10); });
+      await new Promise(function (r) {
+        setTimeout(r, 10);
+      });
       expect(panel.classList.contains("hidden")).toBe(false);
     });
 
@@ -229,7 +231,9 @@ describe("panel.js パネル配置 (placement)", () => {
       // 直接 DOM 操作で発火条件を再現（副作用がないこと）
       const panel = S.panelEl;
       panel.classList.add("hidden");
-      await new Promise(function(r) { setTimeout(r, 10); });
+      await new Promise(function (r) {
+        setTimeout(r, 10);
+      });
       expect(panel.classList.contains("hidden")).toBe(false);
     });
 

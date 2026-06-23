@@ -51,7 +51,7 @@ function createMockStream(chunks) {
 
 // ReadableStream が存在しない場合のフォールバック
 if (typeof ReadableStream === "undefined") {
-  global.ReadableStream = function() {};
+  global.ReadableStream = function () {};
 }
 
 // ===== buildRequestConfig のテスト =====
@@ -110,7 +110,7 @@ describe("buildRequestConfig", () => {
     const config = {
       apiKey: "key",
       apiUrl: "https://api.test.com",
-      apiModel: "gpt-4o",
+      apiModel: "gpt-4o"
     };
     const streamTrue = buildRequestConfig(config, [], true);
     expect(JSON.parse(streamTrue.body).stream).toBe(true);
@@ -123,11 +123,16 @@ describe("buildRequestConfig", () => {
 // ===== readStream のテスト =====
 describe("readStream", () => {
   test("SSEデータを正しくパースする", async () => {
-    const sseData = "data: " + JSON.stringify({
-      choices: [{ delta: { content: "Hello" } }]
-    }) + "\n\ndata: " + JSON.stringify({
-      choices: [{ delta: { content: " World" } }]
-    }) + "\n\ndata: [DONE]\n\n";
+    const sseData =
+      "data: " +
+      JSON.stringify({
+        choices: [{ delta: { content: "Hello" } }]
+      }) +
+      "\n\ndata: " +
+      JSON.stringify({
+        choices: [{ delta: { content: " World" } }]
+      }) +
+      "\n\ndata: [DONE]\n\n";
 
     const reader = createMockStream([sseData]).getReader();
     const onChunk = jest.fn();
@@ -160,11 +165,16 @@ describe("callChatAPIStream", () => {
   });
 
   test("ストリーミング応答を処理する", async () => {
-    const sseData = "data: " + JSON.stringify({
-      choices: [{ delta: { content: "Hello" } }]
-    }) + "\n\ndata: " + JSON.stringify({
-      choices: [{ delta: { content: " World" } }]
-    }) + "\n\ndata: [DONE]\n\n";
+    const sseData =
+      "data: " +
+      JSON.stringify({
+        choices: [{ delta: { content: "Hello" } }]
+      }) +
+      "\n\ndata: " +
+      JSON.stringify({
+        choices: [{ delta: { content: " World" } }]
+      }) +
+      "\n\ndata: [DONE]\n\n";
 
     global.fetch.mockResolvedValue({
       ok: true,
@@ -176,7 +186,13 @@ describe("callChatAPIStream", () => {
 
     await callChatAPIStream(
       [{ role: "user", content: "test" }],
-      { apiKey: "test-key", apiUrl: "https://api.test.com", apiModel: "gpt-4o", maxTokens: "4096", temperature: "0.3" },
+      {
+        apiKey: "test-key",
+        apiUrl: "https://api.test.com",
+        apiModel: "gpt-4o",
+        maxTokens: "4096",
+        temperature: "0.3"
+      },
       onChunk,
       onDone
     );
@@ -197,7 +213,13 @@ describe("callChatAPIStream", () => {
 
     await callChatAPIStream(
       [{ role: "user", content: "test" }],
-      { apiKey: "test-key", apiUrl: "https://openrouter.ai/api/v1/chat/completions", apiModel: "gpt-4o", maxTokens: "4096", temperature: "0.3" },
+      {
+        apiKey: "test-key",
+        apiUrl: "https://openrouter.ai/api/v1/chat/completions",
+        apiModel: "gpt-4o",
+        maxTokens: "4096",
+        temperature: "0.3"
+      },
       onChunk,
       onDone
     );
@@ -226,7 +248,13 @@ describe("callChatAPIStream", () => {
     await expect(
       callChatAPIStream(
         [{ role: "user", content: "test" }],
-        { apiKey: "test-key", apiUrl: "https://api.test.com", apiModel: "gpt-4o", maxTokens: "4096", temperature: "0.3" },
+        {
+          apiKey: "test-key",
+          apiUrl: "https://api.test.com",
+          apiModel: "gpt-4o",
+          maxTokens: "4096",
+          temperature: "0.3"
+        },
         onChunk,
         onDone
       )
@@ -276,7 +304,13 @@ describe("callChatAPIStream", () => {
 
     await callChatAPIStream(
       [{ role: "user", content: "test" }],
-      { apiKey: "test-key", apiUrl: "https://api.test.com", apiModel: "gpt-4o", maxTokens: "4096", temperature: "0.3" },
+      {
+        apiKey: "test-key",
+        apiUrl: "https://api.test.com",
+        apiModel: "gpt-4o",
+        maxTokens: "4096",
+        temperature: "0.3"
+      },
       onChunk,
       onDone
     );
@@ -289,17 +323,21 @@ describe("callChatAPIStream", () => {
 // ===== deriveModelsUrl のテスト =====
 describe("deriveModelsUrl", () => {
   test("chat/completions URL から /models を導出する", () => {
-    expect(deriveModelsUrl("https://api.deepseek.com/v1/chat/completions"))
-      .toBe("https://api.deepseek.com/v1/models");
-    expect(deriveModelsUrl("https://openrouter.ai/api/v1/chat/completions"))
-      .toBe("https://openrouter.ai/api/v1/models");
-    expect(deriveModelsUrl("https://api.openai.com/v1/chat/completions"))
-      .toBe("https://api.openai.com/v1/models");
+    expect(deriveModelsUrl("https://api.deepseek.com/v1/chat/completions")).toBe(
+      "https://api.deepseek.com/v1/models"
+    );
+    expect(deriveModelsUrl("https://openrouter.ai/api/v1/chat/completions")).toBe(
+      "https://openrouter.ai/api/v1/models"
+    );
+    expect(deriveModelsUrl("https://api.openai.com/v1/chat/completions")).toBe(
+      "https://api.openai.com/v1/models"
+    );
   });
 
   test("クエリ文字列を除去する", () => {
-    expect(deriveModelsUrl("https://api.test.com/v1/chat/completions?foo=bar"))
-      .toBe("https://api.test.com/v1/models");
+    expect(deriveModelsUrl("https://api.test.com/v1/chat/completions?foo=bar")).toBe(
+      "https://api.test.com/v1/models"
+    );
   });
 
   test("chat/completions が含まれない場合はフォールバック", () => {
@@ -310,8 +348,7 @@ describe("deriveModelsUrl", () => {
   test("空文字・無効URLのフォールバック", () => {
     expect(deriveModelsUrl("")).toBe("");
     // 文字列置換による最低限のフォールバック
-    expect(deriveModelsUrl("not-a-valid-url/chat/completions"))
-      .toBe("not-a-valid-url/models");
+    expect(deriveModelsUrl("not-a-valid-url/chat/completions")).toBe("not-a-valid-url/models");
   });
 });
 
@@ -351,22 +388,15 @@ describe("fetchModelList", () => {
     global.fetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        data: [
-          { id: "gpt-4o" },
-          { id: "gpt-4o-mini" },
-          { id: "gpt-3.5-turbo" }
-        ]
+        data: [{ id: "gpt-4o" }, { id: "gpt-4o-mini" }, { id: "gpt-3.5-turbo" }]
       })
     });
 
-    const models = await fetchModelList(
-      "https://api.test.com/v1/chat/completions",
-      "key-123"
-    );
+    const models = await fetchModelList("https://api.test.com/v1/chat/completions", "key-123");
 
     expect(models).toHaveLength(3);
     // アルファベット順でソートされる
-    expect(models.map(m => m.id)).toEqual(["gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"]);
+    expect(models.map((m) => m.id)).toEqual(["gpt-3.5-turbo", "gpt-4o", "gpt-4o-mini"]);
     // GET リクエストで /models にアクセス
     expect(global.fetch).toHaveBeenCalledWith(
       "https://api.test.com/v1/models",
@@ -385,13 +415,10 @@ describe("fetchModelList", () => {
       })
     });
 
-    const models = await fetchModelList(
-      "https://openrouter.ai/api/v1/chat/completions",
-      "or-key"
-    );
+    const models = await fetchModelList("https://openrouter.ai/api/v1/chat/completions", "or-key");
 
     expect(models).toHaveLength(2);
-    const gpt4o = models.find(m => m.id === "openai/gpt-4o");
+    const gpt4o = models.find((m) => m.id === "openai/gpt-4o");
     expect(gpt4o.label).toBe("OpenAI: GPT-4o");
     // OpenRouter 用ヘッダーが付与されている
     const callArgs = global.fetch.mock.calls[0][1];
@@ -402,16 +429,10 @@ describe("fetchModelList", () => {
   test("配列形式レスポンスも処理できる", async () => {
     global.fetch.mockResolvedValue({
       ok: true,
-      json: async () => [
-        { id: "model-a" },
-        { id: "model-b" }
-      ]
+      json: async () => [{ id: "model-a" }, { id: "model-b" }]
     });
 
-    const models = await fetchModelList(
-      "https://api.test.com/v1/chat/completions",
-      "key"
-    );
+    const models = await fetchModelList("https://api.test.com/v1/chat/completions", "key");
 
     expect(models).toHaveLength(2);
     expect(models[0].id).toBe("model-a");
@@ -421,34 +442,24 @@ describe("fetchModelList", () => {
     global.fetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        data: [
-          { id: "valid-model" },
-          { name: "no-id-model" },
-          null,
-          { id: "" }
-        ]
+        data: [{ id: "valid-model" }, { name: "no-id-model" }, null, { id: "" }]
       })
     });
 
-    const models = await fetchModelList(
-      "https://api.test.com/v1/chat/completions",
-      "key"
-    );
+    const models = await fetchModelList("https://api.test.com/v1/chat/completions", "key");
 
     expect(models).toHaveLength(1);
     expect(models[0].id).toBe("valid-model");
   });
 
   test("APIキー未入力時に分かりやすいエラー", async () => {
-    await expect(
-      fetchModelList("https://api.test.com/v1/chat/completions", "")
-    ).rejects.toThrow("APIキーが必要");
+    await expect(fetchModelList("https://api.test.com/v1/chat/completions", "")).rejects.toThrow(
+      "APIキーが必要"
+    );
   });
 
   test("URL未入力時にエラー", async () => {
-    await expect(
-      fetchModelList("", "key")
-    ).rejects.toThrow("エンドポイントURLが未設定");
+    await expect(fetchModelList("", "key")).rejects.toThrow("エンドポイントURLが未設定");
   });
 
   test("401/403 エラー時にAPIキー無効のメッセージ", async () => {
@@ -470,9 +481,9 @@ describe("fetchModelList", () => {
       text: async () => "Not Found"
     });
 
-    await expect(
-      fetchModelList("https://api.test.com/v1/chat/completions", "key")
-    ).rejects.toThrow("手動でモデル名を入力");
+    await expect(fetchModelList("https://api.test.com/v1/chat/completions", "key")).rejects.toThrow(
+      "手動でモデル名を入力"
+    );
   });
 
   test("OpenRouter のエンドポイントURLから正しく /models を導出してアクセス", async () => {
@@ -481,10 +492,7 @@ describe("fetchModelList", () => {
       json: async () => ({ data: [] })
     });
 
-    await fetchModelList(
-      "https://openrouter.ai/api/v1/chat/completions",
-      "or-key"
-    );
+    await fetchModelList("https://openrouter.ai/api/v1/chat/completions", "or-key");
 
     expect(global.fetch).toHaveBeenCalledWith(
       "https://openrouter.ai/api/v1/models",
@@ -496,17 +504,31 @@ describe("fetchModelList", () => {
 // ===== handleErrorResponse のテスト =====
 describe("handleErrorResponse", () => {
   test("429エラー時にレート制限メッセージでYsAPIErrorを投げる", async () => {
-    const response = { status: 429, statusText: "Too Many Requests", text: async () => "rate limited" };
+    const response = {
+      status: 429,
+      statusText: "Too Many Requests",
+      text: async () => "rate limited"
+    };
     await expect(handleErrorResponse(response)).rejects.toThrow("APIの利用制限中");
   });
 
   test("5xxエラー時にサーバーエラーメッセージでYsAPIErrorを投げる", async () => {
-    const response = { status: 503, statusText: "Service Unavailable", text: async () => "unavailable" };
-    await expect(handleErrorResponse(response)).rejects.toThrow("APIサーバーでエラーが発生しました");
+    const response = {
+      status: 503,
+      statusText: "Service Unavailable",
+      text: async () => "unavailable"
+    };
+    await expect(handleErrorResponse(response)).rejects.toThrow(
+      "APIサーバーでエラーが発生しました"
+    );
   });
 
   test("4xxエラー時に詳細を含むメッセージでYsAPIErrorを投げる", async () => {
-    const response = { status: 400, statusText: "Bad Request", text: async () => "invalid request" };
+    const response = {
+      status: 400,
+      statusText: "Bad Request",
+      text: async () => "invalid request"
+    };
     await expect(handleErrorResponse(response)).rejects.toThrow("APIエラー (400)");
   });
 
@@ -541,10 +563,11 @@ describe("callChatAPINonStream", () => {
       json: async () => ({ choices: [{ message: { content: "要約結果" } }] })
     });
 
-    const result = await callChatAPINonStream(
-      [{ role: "user", content: "test" }],
-      { apiKey: "k", apiUrl: "https://api.test.com", apiModel: "gpt-4o" }
-    );
+    const result = await callChatAPINonStream([{ role: "user", content: "test" }], {
+      apiKey: "k",
+      apiUrl: "https://api.test.com",
+      apiModel: "gpt-4o"
+    });
     expect(result).toBe("要約結果");
   });
 
@@ -557,10 +580,11 @@ describe("callChatAPINonStream", () => {
     });
 
     await expect(
-      callChatAPINonStream(
-        [{ role: "user", content: "test" }],
-        { apiKey: "k", apiUrl: "https://api.test.com", apiModel: "gpt-4o" }
-      )
+      callChatAPINonStream([{ role: "user", content: "test" }], {
+        apiKey: "k",
+        apiUrl: "https://api.test.com",
+        apiModel: "gpt-4o"
+      })
     ).rejects.toThrow("APIサーバーでエラー");
   });
 
@@ -570,10 +594,11 @@ describe("callChatAPINonStream", () => {
       json: async () => ({ choices: [] })
     });
 
-    const result = await callChatAPINonStream(
-      [{ role: "user", content: "test" }],
-      { apiKey: "k", apiUrl: "https://api.test.com", apiModel: "gpt-4o" }
-    );
+    const result = await callChatAPINonStream([{ role: "user", content: "test" }], {
+      apiKey: "k",
+      apiUrl: "https://api.test.com",
+      apiModel: "gpt-4o"
+    });
     expect(result).toBe("");
   });
 
@@ -606,11 +631,7 @@ describe("fetchWithRetry", () => {
   test("初回成功時はfetchを1回だけ呼ぶ", async () => {
     global.fetch.mockResolvedValue({ ok: true });
 
-    const response = await fetchWithRetry(
-      "https://api.test.com",
-      { headers: {}, body: "{}" },
-      3
-    );
+    const response = await fetchWithRetry("https://api.test.com", { headers: {}, body: "{}" }, 3);
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(response.ok).toBe(true);

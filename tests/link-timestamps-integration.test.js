@@ -25,7 +25,7 @@ describe("linkTimestamps イベント委譲 (統合)", () => {
   });
 
   test("[MM:SS] リンク click → document.querySelector('video').currentTime が更新", () => {
-    container.innerHTML = '前のテキスト [01:30] シーク先';
+    container.innerHTML = "前のテキスト [01:30] シーク先";
     linkTimestamps(container);
 
     const anchor = container.querySelector("a.ys-timestamp-link");
@@ -40,7 +40,7 @@ describe("linkTimestamps イベント委譲 (統合)", () => {
   });
 
   test("リンク以外（テキスト部分）のクリックでは video.currentTime 変化なし", () => {
-    container.innerHTML = '普通のテキスト [01:30] リンク';
+    container.innerHTML = "普通のテキスト [01:30] リンク";
     linkTimestamps(container);
 
     // リンクではないテキスト部分をクリック
@@ -99,7 +99,7 @@ describe("linkTimestamps イベント委譲 (統合)", () => {
   });
 
   test("複数の [MM:SS] を含むテキストで全てのリンクがシーク可能", () => {
-    container.innerHTML = '[00:10] 一つ目 [02:30] 二つ目 [59:59] 三つ目';
+    container.innerHTML = "[00:10] 一つ目 [02:30] 二つ目 [59:59] 三つ目";
     linkTimestamps(container);
     const anchors = container.querySelectorAll("a.ys-timestamp-link");
     expect(anchors.length).toBe(3);

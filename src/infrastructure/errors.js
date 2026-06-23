@@ -8,8 +8,8 @@
  */
 export class YsAbortError extends Error {
   constructor(message) {
-    super(message || 'API呼び出しが中断されました。');
-    this.name = 'YsAbortError';
+    super(message || "API呼び出しが中断されました。");
+    this.name = "YsAbortError";
   }
 }
 
@@ -18,8 +18,8 @@ export class YsAbortError extends Error {
  */
 export class YsTimeoutError extends Error {
   constructor(message) {
-    super(message || 'API応答がタイムアウトしました。');
-    this.name = 'YsTimeoutError';
+    super(message || "API応答がタイムアウトしました。");
+    this.name = "YsTimeoutError";
   }
 }
 
@@ -29,7 +29,7 @@ export class YsTimeoutError extends Error {
 export class YsAPIError extends Error {
   constructor(message, status, statusText) {
     super(message);
-    this.name = 'YsAPIError';
+    this.name = "YsAPIError";
     this.status = status;
     this.statusText = statusText;
   }

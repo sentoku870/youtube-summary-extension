@@ -8,36 +8,36 @@ const mockSessionState = {
   preloadedTranscript: null,
   transcriptReady: false,
   _transcriptPromise: null,
-  pendingRetry: false,
+  pendingRetry: false
 };
-jest.mock("../src/shared/state.js", function() {
+jest.mock("../src/shared/state.js", function () {
   return { sessionState: mockSessionState };
 });
 
 // loadSubtitleLang のモック
 const mockLoadSubtitleLang = jest.fn();
-jest.mock("../src/infrastructure/storage.js", function() {
+jest.mock("../src/infrastructure/storage.js", function () {
   return { loadSubtitleLang: mockLoadSubtitleLang };
 });
 
 // event-bus のモック（emit をスパイ）
 const mockEmit = jest.fn();
 const mockOn = jest.fn();
-jest.mock("../src/shared/event-bus.js", function() {
+jest.mock("../src/shared/event-bus.js", function () {
   return {
     emit: mockEmit,
     on: mockOn,
     EVENTS: {
       TRANSCRIPT_READY: "TRANSCRIPT_READY",
       TRANSCRIPT_FAILED: "TRANSCRIPT_FAILED",
-      TRANSCRIPT_RETRY: "TRANSCRIPT_RETRY",
-    },
+      TRANSCRIPT_RETRY: "TRANSCRIPT_RETRY"
+    }
   };
 });
 
 // fetchYtTranscript のモック
 const mockFetchYtTranscript = jest.fn();
-jest.mock("../src/domain/transcript-fetcher.js", function() {
+jest.mock("../src/domain/transcript-fetcher.js", function () {
   return { fetchYtTranscript: mockFetchYtTranscript };
 });
 
@@ -45,7 +45,7 @@ jest.mock("../src/domain/transcript-fetcher.js", function() {
 const { fetchTranscript, preloadTranscript, retryTranscript } = require("../src/domain/transcript");
 
 // 各テスト前にモック・stateをリセット
-beforeEach(function() {
+beforeEach(function () {
   mockSessionState.preloadedTranscript = null;
   mockSessionState.transcriptReady = false;
   mockSessionState._transcriptPromise = null;
@@ -56,15 +56,15 @@ beforeEach(function() {
 });
 
 // ===== fetchTranscript =====
-describe("fetchTranscript", function() {
-  test("preloadedTranscript があればそれを返す", async function() {
+describe("fetchTranscript", function () {
+  test("preloadedTranscript があればそれを返す", async function () {
     mockSessionState.preloadedTranscript = { all: ["cached"] };
     const r = await fetchTranscript();
     expect(r).toEqual({ all: ["cached"] });
     expect(mockFetchYtTranscript).not.toHaveBeenCalled();
   });
 
-  test("lang=auto の場合は config undefined で fetchYtTranscript を呼ぶ", async function() {
+  test("lang=auto の場合は config undefined で fetchYtTranscript を呼ぶ", async function () {
     mockLoadSubtitleLang.mockResolvedValue("auto");
     mockFetchYtTranscript.mockResolvedValue({ all: ["a"] });
     const r = await fetchTranscript();
@@ -72,7 +72,7 @@ describe("fetchTranscript", function() {
     expect(r).toEqual({ all: ["a"] });
   });
 
-  test("lang が指定されていれば { lang } を渡す", async function() {
+  test("lang が指定されていれば { lang } を渡す", async function () {
     mockLoadSubtitleLang.mockResolvedValue("en");
     mockFetchYtTranscript.mockResolvedValue({ all: ["en1"] });
     const r = await fetchTranscript();
@@ -80,7 +80,7 @@ describe("fetchTranscript", function() {
     expect(r).toEqual({ all: ["en1"] });
   });
 
-  test("ロード中のPromiseがあればそれに乗る（競合防止）", async function() {
+  test("ロード中のPromiseがあればそれに乗る（競合防止）", async function () {
     mockLoadSubtitleLang.mockResolvedValue("auto");
     mockFetchYtTranscript.mockResolvedValue({ all: ["shared"] });
     // 1回目を await せずに2つ同時に呼ぶ
@@ -93,7 +93,7 @@ describe("fetchTranscript", function() {
     expect(mockFetchYtTranscript).toHaveBeenCalledTimes(1);
   });
 
-  test("取得失敗時はエラーを再送し _transcriptPromise をクリア", async function() {
+  test("取得失敗時はエラーを再送し _transcriptPromise をクリア", async function () {
     mockLoadSubtitleLang.mockResolvedValue("auto");
     mockFetchYtTranscript.mockRejectedValue(new Error("network"));
     await expect(fetchTranscript()).rejects.toThrow("network");
@@ -102,8 +102,8 @@ describe("fetchTranscript", function() {
 });
 
 // ===== preloadTranscript =====
-describe("preloadTranscript", function() {
-  test("成功時は preloadedTranscript を設定し TRANSCRIPT_READY を emit", async function() {
+describe("preloadTranscript", function () {
+  test("成功時は preloadedTranscript を設定し TRANSCRIPT_READY を emit", async function () {
     mockLoadSubtitleLang.mockResolvedValue("auto");
     mockFetchYtTranscript.mockResolvedValue({ all: ["ok1", "ok2"] });
 
@@ -111,17 +111,19 @@ describe("preloadTranscript", function() {
 
     expect(mockSessionState.transcriptReady).toBe(true);
     expect(mockSessionState.preloadedTranscript).toEqual({ all: ["ok1", "ok2"] });
-    expect(mockEmit).toHaveBeenCalledWith("TRANSCRIPT_READY", { transcript: { all: ["ok1", "ok2"] } });
+    expect(mockEmit).toHaveBeenCalledWith("TRANSCRIPT_READY", {
+      transcript: { all: ["ok1", "ok2"] }
+    });
   });
 
-  test("transcriptReady=true なら何もしない", async function() {
+  test("transcriptReady=true なら何もしない", async function () {
     mockSessionState.transcriptReady = true;
     await preloadTranscript();
     expect(mockFetchYtTranscript).not.toHaveBeenCalled();
     expect(mockEmit).not.toHaveBeenCalled();
   });
 
-  test("字幕が空配列の場合はリトライして最終的に TRANSCRIPT_FAILED を emit", async function() {
+  test("字幕が空配列の場合はリトライして最終的に TRANSCRIPT_FAILED を emit", async function () {
     mockLoadSubtitleLang.mockResolvedValue("auto");
     mockFetchYtTranscript.mockResolvedValue({ all: [] });
     // setTimeout を即時解決するようモック
@@ -136,7 +138,7 @@ describe("preloadTranscript", function() {
     expect(mockEmit).toHaveBeenCalledWith("TRANSCRIPT_FAILED", { reason: "all-retries-exhausted" });
   });
 
-  test("例外時もリトライし、全失敗で TRANSCRIPT_FAILED を emit", async function() {
+  test("例外時もリトライし、全失敗で TRANSCRIPT_FAILED を emit", async function () {
     mockLoadSubtitleLang.mockResolvedValue("auto");
     mockFetchYtTranscript.mockRejectedValue(new Error("fail"));
     jest.useFakeTimers();
@@ -153,15 +155,15 @@ describe("preloadTranscript", function() {
 });
 
 // ===== retryTranscript =====
-describe("retryTranscript", function() {
-  test("pendingRetry=true の場合は何もしない", async function() {
+describe("retryTranscript", function () {
+  test("pendingRetry=true の場合は何もしない", async function () {
     mockSessionState.pendingRetry = true;
     await retryTranscript();
     expect(mockEmit).not.toHaveBeenCalled();
     expect(mockFetchYtTranscript).not.toHaveBeenCalled();
   });
 
-  test("TRANSCRIPT_RETRY を emit して preloadTranscript を実行", async function() {
+  test("TRANSCRIPT_RETRY を emit して preloadTranscript を実行", async function () {
     mockLoadSubtitleLang.mockResolvedValue("auto");
     mockFetchYtTranscript.mockResolvedValue({ all: ["retry-ok"] });
 
@@ -170,12 +172,14 @@ describe("retryTranscript", function() {
     // TRANSCRIPT_RETRY が emit される
     expect(mockEmit).toHaveBeenCalledWith("TRANSCRIPT_RETRY", {});
     // 成功時は TRANSCRIPT_READY も emit される
-    expect(mockEmit).toHaveBeenCalledWith("TRANSCRIPT_READY", { transcript: { all: ["retry-ok"] } });
+    expect(mockEmit).toHaveBeenCalledWith("TRANSCRIPT_READY", {
+      transcript: { all: ["retry-ok"] }
+    });
     expect(mockSessionState.pendingRetry).toBe(false);
     expect(mockSessionState.transcriptReady).toBe(true);
   });
 
-  test("実行前にキャッシュをクリアする", async function() {
+  test("実行前にキャッシュをクリアする", async function () {
     mockSessionState.preloadedTranscript = { all: ["old"] };
     mockSessionState.transcriptReady = true;
     mockLoadSubtitleLang.mockResolvedValue("auto");

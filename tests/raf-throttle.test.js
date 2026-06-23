@@ -18,19 +18,23 @@ describe("createRafThrottle", () => {
         if (args.length === 0) return new originalDate(now);
         return new originalDate(...args);
       }
-      static now() { return now; }
+      static now() {
+        return now;
+      }
     };
     rafCallbacks = [];
     rafIdCounter = 0;
     originalRaf = global.requestAnimationFrame;
     originalCaf = global.cancelAnimationFrame;
-    global.requestAnimationFrame = function(cb) {
+    global.requestAnimationFrame = function (cb) {
       const id = ++rafIdCounter;
       rafCallbacks.push({ id, cb });
       return id;
     };
-    global.cancelAnimationFrame = function(id) {
-      rafCallbacks = rafCallbacks.filter(function(r) { return r.id !== id; });
+    global.cancelAnimationFrame = function (id) {
+      rafCallbacks = rafCallbacks.filter(function (r) {
+        return r.id !== id;
+      });
     };
   });
 
@@ -43,7 +47,9 @@ describe("createRafThrottle", () => {
   function tickRaf() {
     const pending = rafCallbacks.slice();
     rafCallbacks = [];
-    pending.forEach(function(r) { r.cb(); });
+    pending.forEach(function (r) {
+      r.cb();
+    });
   }
 
   test("初回呼び出しは即時実行される", () => {

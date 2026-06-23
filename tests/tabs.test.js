@@ -4,8 +4,12 @@
 
 // requestAnimationFrame の polyfill（jsdom には存在しない）
 if (typeof requestAnimationFrame === "undefined") {
-  global.requestAnimationFrame = function (cb) { return setTimeout(cb, 0); };
-  global.cancelAnimationFrame = function (id) { clearTimeout(id); };
+  global.requestAnimationFrame = function (cb) {
+    return setTimeout(cb, 0);
+  };
+  global.cancelAnimationFrame = function (id) {
+    clearTimeout(id);
+  };
 }
 
 // chrome.storage.onChanged をモック
@@ -58,7 +62,14 @@ jest.mock("../src/infrastructure/storage.js", () => ({
 
 // 初期状態のデフォルト戻り値
 beforeAll(function () {
-  const fakeResult = { div: { querySelector: function () { return null; } }, body: {} };
+  const fakeResult = {
+    div: {
+      querySelector: function () {
+        return null;
+      }
+    },
+    body: {}
+  };
   mockAppendChatMessage.mockReturnValue(fakeResult);
   mockAppendAssistantPlaceholder.mockReturnValue(fakeResult);
 });
@@ -85,36 +96,59 @@ function buildPanelDOM() {
   root.id = "yt-summary-root";
   root.innerHTML =
     '<div class="ys-tab-row">' +
-      '<button id="ys-btn-summary">📝 要約</button>' +
-      '<button id="ys-btn-customA">📊 分析</button>' +
-      '<button id="ys-btn-customB">💡 考察</button>' +
-    '</div>' +
+    '<button id="ys-btn-summary">📝 要約</button>' +
+    '<button id="ys-btn-customA">📊 分析</button>' +
+    '<button id="ys-btn-customB">💡 考察</button>' +
+    "</div>" +
     '<div id="ys-panel" style="display:none">' +
-      '<div id="ys-content-area"></div>' +
-      '<div id="ys-error"></div>' +
-      '<div id="ys-summaryText"></div>' +
-      '<div id="ys-progress"></div>' +
-      '<div id="ys-infoRow"><span id="ys-infoLabel"></span>' +
-        '<button id="ys-copyBtn"></button>' +
-        '<button id="ys-regenBtn"></button>' +
-      '</div>' +
-      '<div id="ys-chatHistory"></div>' +
-    '</div>' +
+    '<div id="ys-content-area"></div>' +
+    '<div id="ys-error"></div>' +
+    '<div id="ys-summaryText"></div>' +
+    '<div id="ys-progress"></div>' +
+    '<div id="ys-infoRow"><span id="ys-infoLabel"></span>' +
+    '<button id="ys-copyBtn"></button>' +
+    '<button id="ys-regenBtn"></button>' +
+    "</div>" +
+    '<div id="ys-chatHistory"></div>' +
+    "</div>" +
     '<div id="ys-chatArea" style="display:none">' +
-      '<textarea id="ys-chatInput" rows="1"></textarea>' +
-      '<button id="ys-chatClearBtn"></button>' +
-    '</div>';
+    '<textarea id="ys-chatInput" rows="1"></textarea>' +
+    '<button id="ys-chatClearBtn"></button>' +
+    "</div>";
   document.body.appendChild(root);
   S.panelEl = root;
   S.tabIds = ["summary", "customA", "customB"];
   S.tabs = {
-    summary: { generated: false, content: "", config: null, modelLabel: "", transcriptCount: 0, chatHistory: [] },
-    customA: { generated: false, content: "", config: null, modelLabel: "", transcriptCount: 0, chatHistory: [] },
-    customB: { generated: false, content: "", config: null, modelLabel: "", transcriptCount: 0, chatHistory: [] }
+    summary: {
+      generated: false,
+      content: "",
+      config: null,
+      modelLabel: "",
+      transcriptCount: 0,
+      chatHistory: []
+    },
+    customA: {
+      generated: false,
+      content: "",
+      config: null,
+      modelLabel: "",
+      transcriptCount: 0,
+      chatHistory: []
+    },
+    customB: {
+      generated: false,
+      content: "",
+      config: null,
+      modelLabel: "",
+      transcriptCount: 0,
+      chatHistory: []
+    }
   };
   S.activeTab = null;
   S.eventsBound = false;
-  getEl.mockImplementation(function (sel) { return root.querySelector(sel); });
+  getEl.mockImplementation(function (sel) {
+    return root.querySelector(sel);
+  });
 }
 
 // マイクロタスクフラッシュ用ヘルパ
@@ -131,7 +165,7 @@ describe("tabs", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     buildPanelDOM();
-    storage.loadButtonTitle.mockImplementation(async function (btn) {
+    storage.loadButtonTitle.mockImplementation(async function (_btn) {
       return null;
     });
   });
@@ -147,7 +181,13 @@ describe("tabs", () => {
       bindEvents();
 
       // Enter キーで送信
-      const event = new KeyboardEvent("keydown", { key: "Enter", shiftKey: false, isComposing: false, bubbles: true, cancelable: true });
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        shiftKey: false,
+        isComposing: false,
+        bubbles: true,
+        cancelable: true
+      });
       chatInput.dispatchEvent(event);
       // 送信は非同期
       // abortChatStream を呼ぶ
@@ -218,7 +258,11 @@ describe("tabs", () => {
       S.tabs.summary.generated = false;
       const btn = getEl("#ys-btn-summary");
       let resolveCall;
-      ai.callAI.mockReturnValueOnce(new Promise(function (r) { resolveCall = r; }));
+      ai.callAI.mockReturnValueOnce(
+        new Promise(function (r) {
+          resolveCall = r;
+        })
+      );
 
       const p = switchTab("summary");
       // 同期的にボタンテキスト書き換えが走っている
@@ -265,7 +309,6 @@ describe("tabs", () => {
 
     test("2 回呼んでも重複バインドされない", () => {
       bindEvents();
-      const btn = getEl("#ys-btn-summary");
       // 2 回目の bindEvents 後もイベントリスナーは重複しない
       bindEvents();
       // クリックで switchTab が 1 回しか呼ばれないことを確認するため、
@@ -292,7 +335,11 @@ describe("tabs", () => {
       chatInput.value = "質問";
 
       const event = new KeyboardEvent("keydown", {
-        key: "Enter", shiftKey: false, isComposing: false, bubbles: true, cancelable: true
+        key: "Enter",
+        shiftKey: false,
+        isComposing: false,
+        bubbles: true,
+        cancelable: true
       });
       chatInput.dispatchEvent(event);
 
@@ -307,7 +354,11 @@ describe("tabs", () => {
       chatInput.value = "改行";
 
       const event = new KeyboardEvent("keydown", {
-        key: "Enter", shiftKey: true, isComposing: false, bubbles: true, cancelable: true
+        key: "Enter",
+        shiftKey: true,
+        isComposing: false,
+        bubbles: true,
+        cancelable: true
       });
       chatInput.dispatchEvent(event);
 
@@ -320,7 +371,11 @@ describe("tabs", () => {
       chatInput.value = "変換中";
 
       const event = new KeyboardEvent("keydown", {
-        key: "Enter", shiftKey: false, isComposing: true, bubbles: true, cancelable: true
+        key: "Enter",
+        shiftKey: false,
+        isComposing: true,
+        bubbles: true,
+        cancelable: true
       });
       chatInput.dispatchEvent(event);
 
@@ -404,9 +459,7 @@ describe("tabs", () => {
       S.activeTab = "summary";
       S.tabs.summary.generated = true;
       S.tabs.summary.content = "old";
-      S.tabs.summary.chatHistory = [
-        { role: "system" }, { role: "user" }, { role: "assistant" }
-      ];
+      S.tabs.summary.chatHistory = [{ role: "system" }, { role: "user" }, { role: "assistant" }];
       ai.callAI.mockResolvedValue(true);
 
       const regenBtn = getEl("#ys-regenBtn");
@@ -487,7 +540,11 @@ describe("tabs", () => {
       const chatInput = getEl("#ys-chatInput");
       chatInput.value = "";
       const event = new KeyboardEvent("keydown", {
-        key: "Enter", shiftKey: false, isComposing: false, bubbles: true, cancelable: true
+        key: "Enter",
+        shiftKey: false,
+        isComposing: false,
+        bubbles: true,
+        cancelable: true
       });
       chatInput.dispatchEvent(event);
       // onChatSend は呼ばれるが早期 return
@@ -504,13 +561,23 @@ describe("tabs", () => {
       const chatInput = getEl("#ys-chatInput");
       chatInput.value = "質問";
 
-      chatInput.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "Enter", shiftKey: false, isComposing: false, bubbles: true, cancelable: true
-      }));
+      chatInput.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          shiftKey: false,
+          isComposing: false,
+          bubbles: true,
+          cancelable: true
+        })
+      );
       await flushPromises();
 
       const calls = mockAppendChatMessage.mock.calls;
-      const lastAssistantCall = calls.filter(function (c) { return c[0] === "assistant"; }).pop();
+      const lastAssistantCall = calls
+        .filter(function (c) {
+          return c[0] === "assistant";
+        })
+        .pop();
       expect(lastAssistantCall).toBeDefined();
       expect(lastAssistantCall[1]).toEqual(expect.stringContaining("先に要約"));
     });
@@ -524,15 +591,22 @@ describe("tabs", () => {
       const chatInput = getEl("#ys-chatInput");
       chatInput.value = "質問";
 
-      chatInput.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "Enter", shiftKey: false, isComposing: false, bubbles: true, cancelable: true
-      }));
+      chatInput.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          shiftKey: false,
+          isComposing: false,
+          bubbles: true,
+          cancelable: true
+        })
+      );
       await flushPromises();
       await flushPromises();
 
       // updateChatMessageBody が呼ばれ、エラーメッセージを含む
       expect(ui.updateChatMessageBody).toHaveBeenCalled();
-      const lastCall = ui.updateChatMessageBody.mock.calls[ui.updateChatMessageBody.mock.calls.length - 1];
+      const lastCall =
+        ui.updateChatMessageBody.mock.calls[ui.updateChatMessageBody.mock.calls.length - 1];
       expect(lastCall[1]).toEqual(expect.stringContaining("API設定がされていません"));
     });
 
@@ -546,18 +620,22 @@ describe("tabs", () => {
         { role: "user", content: "prompt" },
         { role: "assistant", content: "answer" }
       ];
-      api.callChatAPIStream.mockImplementation(async function (
-        messages, config, onChunk, onDone
-      ) {
+      api.callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
         onChunk("回答テキスト");
         onDone("回答テキスト");
       });
       const chatInput = getEl("#ys-chatInput");
       chatInput.value = "質問";
 
-      chatInput.dispatchEvent(new KeyboardEvent("keydown", {
-        key: "Enter", shiftKey: false, isComposing: false, bubbles: true, cancelable: true
-      }));
+      chatInput.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          shiftKey: false,
+          isComposing: false,
+          bubbles: true,
+          cancelable: true
+        })
+      );
       await flushPromises();
       await flushPromises();
 

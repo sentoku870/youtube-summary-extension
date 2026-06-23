@@ -43,9 +43,27 @@ describe("tabs-ui", () => {
     // state をリセット
     S.tabIds = ["summary", "customA", "customB"];
     S.tabs = {
-      summary: { generated: false, content: "", modelLabel: "", transcriptCount: 0, chatHistory: [] },
-      customA: { generated: false, content: "", modelLabel: "", transcriptCount: 0, chatHistory: [] },
-      customB: { generated: false, content: "", modelLabel: "", transcriptCount: 0, chatHistory: [] }
+      summary: {
+        generated: false,
+        content: "",
+        modelLabel: "",
+        transcriptCount: 0,
+        chatHistory: []
+      },
+      customA: {
+        generated: false,
+        content: "",
+        modelLabel: "",
+        transcriptCount: 0,
+        chatHistory: []
+      },
+      customB: {
+        generated: false,
+        content: "",
+        modelLabel: "",
+        transcriptCount: 0,
+        chatHistory: []
+      }
     };
     S.activeTab = null;
   });
@@ -164,11 +182,11 @@ describe("tabs-ui", () => {
     test("chatHistoryの先頭3件はスキップして[3..]を再描画", () => {
       S.tabs.summary.generated = true;
       S.tabs.summary.chatHistory = [
-        { role: "system", content: "sys" },       // [0] skip
-        { role: "user", content: "prompt" },      // [1] skip
-        { role: "assistant", content: "answer" },  // [2] skip
-        { role: "user", content: "質問1" },        // [3] render
-        { role: "assistant", content: "回答1" },   // [4] render
+        { role: "system", content: "sys" }, // [0] skip
+        { role: "user", content: "prompt" }, // [1] skip
+        { role: "assistant", content: "answer" }, // [2] skip
+        { role: "user", content: "質問1" }, // [3] render
+        { role: "assistant", content: "回答1" } // [4] render
       ];
 
       renderTabContent("summary");
@@ -183,7 +201,7 @@ describe("tabs-ui", () => {
       S.tabs.summary.chatHistory = [
         { role: "system", content: "sys" },
         { role: "user", content: "prompt" },
-        { role: "assistant", content: "answer" },
+        { role: "assistant", content: "answer" }
       ];
 
       renderTabContent("summary");
@@ -194,9 +212,11 @@ describe("tabs-ui", () => {
     test("systemロールのメッセージは再描画されない", () => {
       S.tabs.summary.generated = true;
       S.tabs.summary.chatHistory = [
-        {}, {}, {},
+        {},
+        {},
+        {},
         { role: "system", content: "extra sys" },
-        { role: "user", content: "質問" },
+        { role: "user", content: "質問" }
       ];
 
       renderTabContent("summary");

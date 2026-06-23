@@ -17,12 +17,7 @@ import "./event-bridge.js";
 import "./message-handler.js";
 
 // ===== index.js 向けの再エクスポート =====
-export {
-  createPanel,
-  bindEvents,
-  applyButtonTitles,
-  switchTab
-};
+export { createPanel, bindEvents, applyButtonTitles, switchTab };
 export { preloadTranscript };
 
 // ===== パネル状態参照 =====

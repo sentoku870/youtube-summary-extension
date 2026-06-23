@@ -16,7 +16,9 @@ jest.mock("../src/content/ui/appearance.js", () => ({
 }));
 jest.mock("../src/domain/transcript.js", () => ({
   preloadTranscript: jest.fn().mockResolvedValue({ all: ["x"] }),
-  fetchTranscript: jest.fn().mockResolvedValue({ all: ["a", "b"], player: [], meta: { title: "t" } })
+  fetchTranscript: jest
+    .fn()
+    .mockResolvedValue({ all: ["a", "b"], player: [], meta: { title: "t" } })
 }));
 
 const { uiState: S } = require("../src/shared/state");
@@ -72,18 +74,22 @@ describe("message-handler", () => {
       listener({ action: "ysGetTranscript" }, {}, sendResponse);
 
       // 非同期応答なので待つ
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(function (r) {
+        setTimeout(r, 0);
+      });
 
       expect(panel.createPanel).toHaveBeenCalled();
       expect(tabs.bindEvents).toHaveBeenCalled();
       expect(appearance.applyFontSize).toHaveBeenCalled();
       expect(appearance.applyTheme).toHaveBeenCalled();
       expect(transcript.fetchTranscript).toHaveBeenCalled();
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        transcript: ["a", "b"],
-        player: [],
-        meta: { title: "t" }
-      }));
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transcript: ["a", "b"],
+          player: [],
+          meta: { title: "t" }
+        })
+      );
     });
 
     test("パネル生成済 → createPanel は呼ばれない、表示は維持", async () => {
@@ -96,7 +102,9 @@ describe("message-handler", () => {
       const sendResponse = jest.fn();
       listener({ action: "ysGetTranscript" }, {}, sendResponse);
 
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(function (r) {
+        setTimeout(r, 0);
+      });
 
       expect(panel.createPanel).not.toHaveBeenCalled();
       expect(root.style.display).toBe("");
@@ -110,13 +118,17 @@ describe("message-handler", () => {
       const sendResponse = jest.fn();
       listener({ action: "ysGetTranscript" }, {}, sendResponse);
 
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(function (r) {
+        setTimeout(r, 0);
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        error: expect.stringContaining("字幕が見つかりません"),
-        transcript: [],
-        player: []
-      }));
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.stringContaining("字幕が見つかりません"),
+          transcript: [],
+          player: []
+        })
+      );
     });
 
     test("fetchTranscript が例外を投げた場合はエラーメッセージを返す", async () => {
@@ -127,13 +139,17 @@ describe("message-handler", () => {
       const sendResponse = jest.fn();
       listener({ action: "ysGetTranscript" }, {}, sendResponse);
 
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(function (r) {
+        setTimeout(r, 0);
+      });
 
-      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({
-        error: "transcript error",
-        transcript: [],
-        player: []
-      }));
+      expect(sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: "transcript error",
+          transcript: [],
+          player: []
+        })
+      );
     });
 
     test("return true（非同期応答フラグ）を返す", () => {
@@ -157,7 +173,9 @@ describe("message-handler", () => {
 
       listener({ action: "ysForcePanel" }, {}, sendResponse);
 
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(function (r) {
+        setTimeout(r, 0);
+      });
 
       expect(panel.createPanel).toHaveBeenCalled();
       expect(tabs.bindEvents).toHaveBeenCalled();
@@ -176,7 +194,9 @@ describe("message-handler", () => {
       const sendResponse = jest.fn();
       listener({ action: "ysForcePanel" }, {}, sendResponse);
 
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(function (r) {
+        setTimeout(r, 0);
+      });
 
       expect(panel.createPanel).not.toHaveBeenCalled();
       expect(transcript.preloadTranscript).toHaveBeenCalled();
@@ -199,7 +219,9 @@ describe("message-handler", () => {
 
       listener({ action: "ysTriggerAi", mode: "customA" }, {}, sendResponse);
 
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(function (r) {
+        setTimeout(r, 0);
+      });
 
       expect(transcript.preloadTranscript).toHaveBeenCalled();
       expect(tabs.switchTab).toHaveBeenCalledWith("customA");
@@ -214,7 +236,9 @@ describe("message-handler", () => {
 
       listener({ action: "ysTriggerAi", mode: "summary" }, {}, sendResponse);
 
-      await new Promise(function (r) { setTimeout(r, 10); });
+      await new Promise(function (r) {
+        setTimeout(r, 10);
+      });
 
       // switchTab 内部の .catch で握り潰され success:true が返る
       expect(sendResponse).toHaveBeenCalledWith({ success: true });
@@ -228,7 +252,9 @@ describe("message-handler", () => {
 
       listener({ action: "ysTriggerAi", mode: "summary" }, {}, sendResponse);
 
-      await new Promise(function (r) { setTimeout(r, 10); });
+      await new Promise(function (r) {
+        setTimeout(r, 10);
+      });
 
       expect(sendResponse).toHaveBeenCalledWith({
         success: false,

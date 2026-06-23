@@ -41,12 +41,16 @@ export function getEl(id) {
 // ===== ボタン制御 =====
 export function disableAllButtons() {
   const btns = S.panelEl ? S.panelEl.querySelectorAll(".ys-tab-row button") : [];
-  btns.forEach(function(b) { b.disabled = true; });
+  btns.forEach(function (b) {
+    b.disabled = true;
+  });
 }
 
 export function enableAllButtons() {
   const btns = S.panelEl ? S.panelEl.querySelectorAll(".ys-tab-row button") : [];
-  btns.forEach(function(b) { b.disabled = false; });
+  btns.forEach(function (b) {
+    b.disabled = false;
+  });
 }
 
 // ===== 動画ページのサイドバーを取得（YouTube レイアウト変更に対応） =====
@@ -84,8 +88,8 @@ function getWatchSecondary() {
 // 早すぎるフォールバック（#related や body）を防ぐ。
 // source が "#secondary..." を含む場合のみ「正しい位置が見つかった」とみなす。
 function waitForSecondary(maxWaitMs) {
-  return new Promise(function(resolve) {
-    const isSecondary = function(r) {
+  return new Promise(function (resolve) {
+    const isSecondary = function (r) {
       return !!r && r.source.indexOf("#secondary") !== -1;
     };
     const direct = getWatchSecondary();
@@ -94,7 +98,7 @@ function waitForSecondary(maxWaitMs) {
       return;
     }
     const start = Date.now();
-    const tick = function() {
+    const tick = function () {
       const r = getWatchSecondary();
       if (isSecondary(r)) {
         resolve(r);
@@ -123,7 +127,7 @@ function ensureVisibleAndWatch(panel) {
   }
   panel.removeAttribute("hidden");
   if (hiddenObservers.has(panel)) return;
-  const mo = new MutationObserver(function() {
+  const mo = new MutationObserver(function () {
     if (panel.classList.contains("hidden")) {
       panel.classList.remove("hidden");
       console.warn("[YouTube 要約] YouTube 側から .hidden が付与されたため除去しました");
@@ -142,16 +146,22 @@ function logPlacement(panel) {
     const cs = getComputedStyle(panel);
     const parent = panel.parentNode;
     console.log(
-      "[YouTube 要約] パネル状態: display=" + cs.display +
-      " width=" + panel.offsetWidth + "px" +
-      " parent=" + (parent ? parent.tagName + "#" + parent.id : "null")
+      "[YouTube 要約] パネル状態: display=" +
+        cs.display +
+        " width=" +
+        panel.offsetWidth +
+        "px" +
+        " parent=" +
+        (parent ? parent.tagName + "#" + parent.id : "null")
     );
-  } catch (e) { /* 計測失敗は無視 */ }
+  } catch {
+    /* 計測失敗は無視 */
+  }
 }
 
 // ===== body フォールバック後、secondary 出現で再配置 =====
 function relocateWhenReady(panel) {
-  const obs = new MutationObserver(function() {
+  const obs = new MutationObserver(function () {
     const r = getWatchSecondary();
     if (r && r.source.indexOf("#secondary") !== -1 && panel.parentNode !== r.el) {
       let refNode = null;
@@ -167,7 +177,9 @@ function relocateWhenReady(panel) {
     }
   });
   obs.observe(document.documentElement || document.body, { childList: true, subtree: true });
-  setTimeout(function() { obs.disconnect(); }, 30000);
+  setTimeout(function () {
+    obs.disconnect();
+  }, 30000);
 }
 
 // ===== パネルの配置（非同期） =====
@@ -175,38 +187,44 @@ function relocateWhenReady(panel) {
 // 関連動画の上（#related の手前）に挿入する。
 // 戻り値: Promise（配置完了後にテーマ・フォントサイズを適用するため）
 function placePanel(panel) {
-  return waitForSecondary(5000).then(function(result) {
-    if (!result) {
-      // どこにも入れない場合は body にフォールバックし、後で再挑戦
-      console.warn("[YouTube 要約] サイドバーが見つかりません。body直下にフォールバックします。");
-      if (panel.parentNode !== document.body) {
-        document.body.appendChild(panel);
+  return waitForSecondary(5000)
+    .then(function (result) {
+      if (!result) {
+        // どこにも入れない場合は body にフォールバックし、後で再挑戦
+        console.warn("[YouTube 要約] サイドバーが見つかりません。body直下にフォールバックします。");
+        if (panel.parentNode !== document.body) {
+          document.body.appendChild(panel);
+        }
+        relocateWhenReady(panel);
+        ensureVisibleAndWatch(panel);
+        logPlacement(panel);
+        return;
       }
-      relocateWhenReady(panel);
+      const parent = result.el;
+      // secondary-inner の場合は #related の手前に（関連動画の上）
+      let refNode = null;
+      if (result.preferRelatedRef) {
+        const related = parent.querySelector(":scope > #related");
+        if (related) refNode = related;
+      }
+      if (panel.parentNode !== parent || panel.nextSibling !== refNode) {
+        parent.insertBefore(panel, refNode);
+      }
       ensureVisibleAndWatch(panel);
       logPlacement(panel);
-      return;
-    }
-    const parent = result.el;
-    // secondary-inner の場合は #related の手前に（関連動画の上）
-    let refNode = null;
-    if (result.preferRelatedRef) {
-      const related = parent.querySelector(":scope > #related");
-      if (related) refNode = related;
-    }
-    if (panel.parentNode !== parent || panel.nextSibling !== refNode) {
-      parent.insertBefore(panel, refNode);
-    }
-    ensureVisibleAndWatch(panel);
-    logPlacement(panel);
-    console.log("[YouTube 要約] パネルを挿入しました @ " + result.source);
-  }).catch(function(err) {
-    // 配置処理中の例外を捕捉（MutationObserver / DOM 操作の想定外失敗対策）
-    console.error("[YouTube 要約] パネル配置に失敗しました:", err);
-    if (panel.parentNode !== document.body) {
-      try { document.body.appendChild(panel); } catch (e) { /* body 不在時など */ }
-    }
-  });
+      console.log("[YouTube 要約] パネルを挿入しました @ " + result.source);
+    })
+    .catch(function (err) {
+      // 配置処理中の例外を捕捉（MutationObserver / DOM 操作の想定外失敗対策）
+      console.error("[YouTube 要約] パネル配置に失敗しました:", err);
+      if (panel.parentNode !== document.body) {
+        try {
+          document.body.appendChild(panel);
+        } catch {
+          /* body 不在時など */
+        }
+      }
+    });
 }
 
 // ===== サイドバーDOM生成 =====
@@ -215,10 +233,14 @@ export function createPanel() {
 
   S.tabIds = ["summary", "customA", "customB"];
   S.tabs = {};
-  S.tabIds.forEach(function(id) {
+  S.tabIds.forEach(function (id) {
     S.tabs[id] = {
-      generated: false, content: "", config: null,
-      modelLabel: "", transcriptCount: 0, chatHistory: []
+      generated: false,
+      content: "",
+      config: null,
+      modelLabel: "",
+      transcriptCount: 0,
+      chatHistory: []
     };
   });
 
@@ -226,29 +248,29 @@ export function createPanel() {
   S.panelEl.id = "yt-summary-root";
   S.panelEl.innerHTML =
     '<div class="ys-tab-row">' +
-      '<button id="ys-btn-summary" class="ys-tab-btn">📝 要約</button>' +
-      '<button id="ys-btn-customA" class="ys-tab-btn">📊 分析</button>' +
-      '<button id="ys-btn-customB" class="ys-tab-btn">💡 考察</button>' +
-    '</div>' +
+    '<button id="ys-btn-summary" class="ys-tab-btn">📝 要約</button>' +
+    '<button id="ys-btn-customA" class="ys-tab-btn">📊 分析</button>' +
+    '<button id="ys-btn-customB" class="ys-tab-btn">💡 考察</button>' +
+    "</div>" +
     '<div id="ys-panel" style="display:none">' +
-      '<div id="ys-error"></div>' +
-      '<div id="ys-content-area">' +
-        '<div id="ys-summaryText" class="ys-md"></div>' +
-        '<div id="ys-progress" style="display:none;padding:8px;background:#444;color:#fff;border-radius:4px;font-size:12px;margin:4px 0;"></div>' +
-        '<div id="ys-infoRow">' +
-          '<span id="ys-infoLabel"></span>' +
-          '<button id="ys-copyBtn" class="ys-action-btn" style="display:none;margin-left:8px;">📋 コピー</button>' +
-          '<button id="ys-regenBtn" class="ys-action-btn" style="display:none;margin-left:4px;">🔄 再生成</button>' +
-        '</div>' +
-        '<div id="ys-chatHistory"></div>' +
-      '</div>' +
-      '<div id="ys-chatArea" style="display:none;">' +
-        '<div class="chat-row">' +
-          '<textarea id="ys-chatInput" rows="1" placeholder="質問を入力... (Enter=送信 / Shift+Enter=改行)"></textarea>' +
-          '<button id="ys-chatClearBtn">クリア</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
+    '<div id="ys-error"></div>' +
+    '<div id="ys-content-area">' +
+    '<div id="ys-summaryText" class="ys-md"></div>' +
+    '<div id="ys-progress" style="display:none;padding:8px;background:#444;color:#fff;border-radius:4px;font-size:12px;margin:4px 0;"></div>' +
+    '<div id="ys-infoRow">' +
+    '<span id="ys-infoLabel"></span>' +
+    '<button id="ys-copyBtn" class="ys-action-btn" style="display:none;margin-left:8px;">📋 コピー</button>' +
+    '<button id="ys-regenBtn" class="ys-action-btn" style="display:none;margin-left:4px;">🔄 再生成</button>' +
+    "</div>" +
+    '<div id="ys-chatHistory"></div>' +
+    "</div>" +
+    '<div id="ys-chatArea" style="display:none;">' +
+    '<div class="chat-row">' +
+    '<textarea id="ys-chatInput" rows="1" placeholder="質問を入力... (Enter=送信 / Shift+Enter=改行)"></textarea>' +
+    '<button id="ys-chatClearBtn">クリア</button>' +
+    "</div>" +
+    "</div>" +
+    "</div>";
 
   disableAllButtons();
   const btnSummary = getEl("#ys-btn-summary");
@@ -258,7 +280,7 @@ export function createPanel() {
   // テーマ・フォントサイズは「配置完了後」に適用する
   // （applyTheme/applyFontSize が document.querySelector で要素を探すため、
   //   挿入前に呼ぶと null になり適用されないバグを修正）
-  placePanel(S.panelEl).then(function() {
+  placePanel(S.panelEl).then(function () {
     applyTheme();
     applyFontSize();
     applyPanelHeight();

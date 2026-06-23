@@ -33,7 +33,11 @@ describe("ui", () => {
   // ===== showError =====
   describe("showError", () => {
     test("オンライン時: メッセージと再試行ボタンを表示", () => {
-      Object.defineProperty(navigator, "onLine", { value: true, configurable: true, writable: true });
+      Object.defineProperty(navigator, "onLine", {
+        value: true,
+        configurable: true,
+        writable: true
+      });
       const errorEl = document.createElement("div");
       getEl.mockReturnValue(errorEl);
 
@@ -45,7 +49,11 @@ describe("ui", () => {
     });
 
     test("オフライン時: オフラインメッセージを表示（再試行ボタンなし）", () => {
-      Object.defineProperty(navigator, "onLine", { value: false, configurable: true, writable: true });
+      Object.defineProperty(navigator, "onLine", {
+        value: false,
+        configurable: true,
+        writable: true
+      });
       const errorEl = document.createElement("div");
       getEl.mockReturnValue(errorEl);
 
@@ -62,7 +70,11 @@ describe("ui", () => {
     });
 
     test("再試行ボタンクリックでactiveTabがあればswitchTabを呼ぶ", () => {
-      Object.defineProperty(navigator, "onLine", { value: true, configurable: true, writable: true });
+      Object.defineProperty(navigator, "onLine", {
+        value: true,
+        configurable: true,
+        writable: true
+      });
       const errorEl = document.createElement("div");
       getEl.mockReturnValue(errorEl);
       S.activeTab = "summary";
@@ -77,7 +89,11 @@ describe("ui", () => {
     });
 
     test("再試行ボタンクリックでactiveTabがnullならswitchTabを呼ばない", () => {
-      Object.defineProperty(navigator, "onLine", { value: true, configurable: true, writable: true });
+      Object.defineProperty(navigator, "onLine", {
+        value: true,
+        configurable: true,
+        writable: true
+      });
       const errorEl = document.createElement("div");
       getEl.mockReturnValue(errorEl);
       S.activeTab = null;

@@ -28,17 +28,25 @@ describe("ports (Port/Adapter パターン)", () => {
       // showError はデフォルトで console.error を呼ぶ
       const errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
       expect(() => a.showError("x")).not.toThrow();
-      expect(errSpy).toHaveBeenCalledWith("x");
+      // [YouTube 要約] プレフィックス付きでログ出力
+      expect(errSpy).toHaveBeenCalledWith("[YouTube 要約] ports noop adapter:", "x");
       errSpy.mockRestore();
     });
 
     test("no-op アダプタ: hideError / hideProgress / showProgress などは副作用なし", () => {
       const a = getUiAdapter();
       [
-        "hideError", "hideProgress", "showProgress",
-        "setSummaryContent", "clearSummaryContent", "updateInfoLabel",
-        "showChatArea", "focusChatInput",
-        "showCopyButton", "showRegenButton", "updateTabUI"
+        "hideError",
+        "hideProgress",
+        "showProgress",
+        "setSummaryContent",
+        "clearSummaryContent",
+        "updateInfoLabel",
+        "showChatArea",
+        "focusChatInput",
+        "showCopyButton",
+        "showRegenButton",
+        "updateTabUI"
       ].forEach(function (m) {
         expect(typeof a[m]).toBe("function");
         expect(() => a[m]("anything", 1, { x: 1 })).not.toThrow();
@@ -102,10 +110,18 @@ describe("ports (Port/Adapter パターン)", () => {
       const { getUiAdapter } = freshPortsModule();
       const a = getUiAdapter();
       const expected = [
-        "showError", "hideError", "hideProgress", "showProgress",
-        "setSummaryContent", "clearSummaryContent", "updateInfoLabel",
-        "showChatArea", "focusChatInput",
-        "showCopyButton", "showRegenButton", "getSummaryTextEl",
+        "showError",
+        "hideError",
+        "hideProgress",
+        "showProgress",
+        "setSummaryContent",
+        "clearSummaryContent",
+        "updateInfoLabel",
+        "showChatArea",
+        "focusChatInput",
+        "showCopyButton",
+        "showRegenButton",
+        "getSummaryTextEl",
         "updateTabUI"
       ];
       for (const key of expected) {
