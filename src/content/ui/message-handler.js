@@ -9,6 +9,7 @@ import { bindEvents, switchTab } from "./tabs.js";
 import { applyFontSize, applyTheme } from "./appearance.js";
 import { preloadTranscript, fetchTranscript } from "../../domain/transcript.js";
 import { createLogger } from "../../shared/logger.js";
+import { emit, EVENTS } from "../../shared/event-bus.js";
 
 const log = createLogger("message-handler");
 
@@ -78,6 +79,15 @@ try {
           sendResponse({ success: false, error: e.message });
         }
       })();
+      return true;
+    }
+    // Phase F-1: Service Worker からの URL 変更通知
+    // (即時 SPA ナビ検出、ポーリング負荷削減)
+    if (msg.action === "ysTabUpdated") {
+      log.log("ysTabUpdated url=" + msg.url);
+      // 内部 NAV_FINISH イベントを発火 → index.js が handleNavigation 経由で処理
+      emit(EVENTS.NAV_FINISH, { url: msg.url });
+      sendResponse({ received: true });
       return true;
     }
   });

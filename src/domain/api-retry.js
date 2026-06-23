@@ -1,0 +1,150 @@
+// ============================================================
+//  api-retry.js — リトライ戦略 (fetchWithRetry)
+//  HTTP/ネットワーク/タイムアウト/外部 abort の 4 経路を判定し、
+//  指数バックオフでリトライする。
+// ============================================================
+import {
+  API_TIMEOUT_MS,
+  API_RETRY_BASE_WAIT_MS,
+  API_RETRY_NET_BASE_WAIT_MS
+} from "../shared/constants.js";
+import { YsAPIError, YsAbortError, YsTimeoutError } from "../infrastructure/errors.js";
+import { createLogger } from "../shared/logger.js";
+
+const log = createLogger("api-retry");
+
+/**
+ * HTTPステータスコードがリトライ対象か判定（429 および 5xx）
+ */
+export function isRetryableHttpStatus(status) {
+  return status === 429 || status >= 500;
+}
+
+/**
+ * ネットワークエラーがリトライ対象か判定（AbortError は対象外）
+ */
+export function isRetryableNetworkError(err) {
+  if (!err) return false;
+  if (err instanceof DOMException && err.name === "AbortError") return false;
+  return true;
+}
+
+// 1回の fetch 試行を実行（タイムアウト + 外部 abort 連携）
+async function attemptFetch(url, options, externalSignal) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(function () {
+    controller.abort("timeout");
+  }, API_TIMEOUT_MS);
+  let abortedByExternal = false;
+  let onAbortExternal = null;
+  if (externalSignal) {
+    onAbortExternal = function () {
+      abortedByExternal = true;
+      controller.abort("external");
+    };
+    externalSignal.addEventListener("abort", onAbortExternal, { once: true });
+  }
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: options.headers,
+      body: options.body,
+      signal: controller.signal
+    });
+    return { response: response, abortedByExternal: abortedByExternal, timedOut: false };
+  } catch (e) {
+    const timedOut = !abortedByExternal && e instanceof DOMException && e.name === "AbortError";
+    return { response: null, abortedByExternal: abortedByExternal, timedOut: timedOut, error: e };
+  } finally {
+    clearTimeout(timeoutId);
+    if (onAbortExternal && externalSignal) {
+      externalSignal.removeEventListener("abort", onAbortExternal);
+    }
+  }
+}
+
+// 線形バックオフ（attempt × baseMs）
+function backoffMs(attempt, baseMs) {
+  return attempt * baseMs;
+}
+
+/**
+ * リトライ付き API 呼び出し
+ * @param {string} url
+ * @param {Object} options - fetch options (headers, body, signal)
+ * @param {number} maxRetries
+ * @returns {Promise<Response>} 成功時は ok な Response
+ * @throws {YsAbortError} 外部 abort
+ * @throws {YsTimeoutError} タイムアウト
+ * @throws {Error} 全リトライ失敗時
+ */
+export async function fetchWithRetry(url, options, maxRetries) {
+  const externalSignal = options.signal || null;
+  let lastResponse = null;
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const { response, abortedByExternal, timedOut, error } = await attemptFetch(
+      url,
+      options,
+      externalSignal
+    );
+
+    if (response) {
+      if (response.ok) return response;
+      lastResponse = response;
+      if (isRetryableHttpStatus(response.status) && attempt < maxRetries) {
+        await new Promise(function (r) {
+          setTimeout(r, backoffMs(attempt, API_RETRY_BASE_WAIT_MS));
+        });
+        continue;
+      }
+      return response;
+    }
+
+    if (abortedByExternal) {
+      throw new YsAbortError("API呼び出しが中断されました。");
+    }
+    if (timedOut) {
+      throw new YsTimeoutError("API応答が30秒でタイムアウトしました。");
+    }
+    lastError = error;
+    lastResponse = null;
+    if (isRetryableNetworkError(error) && attempt < maxRetries) {
+      await new Promise(function (r) {
+        setTimeout(r, backoffMs(attempt, API_RETRY_NET_BASE_WAIT_MS));
+      });
+      continue;
+    }
+    throw error;
+  }
+  // ループ終了後のフォールスルー対策（理論上到達しない）
+  if (lastResponse) return lastResponse;
+  if (lastError) throw lastError;
+  throw new Error("fetchWithRetry: retries exhausted unexpectedly");
+}
+
+/**
+ * エラーレスポンスを解析して YsAPIError を投げる
+ */
+export async function handleErrorResponse(response) {
+  let errText = "";
+  try {
+    errText = await response.text();
+  } catch (e) {
+    log.error("failed to read error response body:", e);
+  }
+  let statusMsg = "";
+  if (response.status === 429) {
+    statusMsg = "APIの利用制限中です（レート制限）。しばらく待ってから再試行してください。";
+  } else if (response.status >= 500) {
+    statusMsg =
+      "APIサーバーでエラーが発生しました（" + response.status + "）。後ほど再試行してください。";
+  } else {
+    statusMsg =
+      "APIエラー (" +
+      response.status +
+      "): " +
+      (errText.length > 100 ? errText.substring(0, 100) + "..." : errText);
+  }
+  throw new YsAPIError(statusMsg, response.status, response.statusText);
+}

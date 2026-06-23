@@ -5,11 +5,11 @@
 // ============================================================
 import { YsAPIError, YsAbortError, YsTimeoutError } from "../infrastructure/errors.js";
 import { getAvailableTokens, estimateTokens, splitIntoChunks } from "../shared/utils.js";
-import { callChatAPIStream, callChatAPINonStream } from "./api.js";
-import { MAX_CONCURRENCY, CHUNK_MAX_ATTEMPTS } from "../shared/constants.js";
+import { callChatAPIStream } from "./api.js";
 import { uiState, sessionState } from "../shared/state.js";
 import { setMarkdown } from "./markdown.js";
 import { createLogger } from "../shared/logger.js";
+import { processMapReduce } from "./ai-map-reduce.js";
 
 const log = createLogger("ai");
 import {
@@ -156,133 +156,6 @@ async function processSingleStream(messages, config, signal, summaryTextEl, time
   await Promise.race([
     callChatAPIStream(
       messages,
-      config,
-      function (chunk) {
-        accumulated = chunk;
-        if (summaryTextEl) setMarkdown(summaryTextEl, accumulated);
-      },
-      function (fullText) {
-        accumulated = fullText || accumulated;
-      },
-      signal
-    ),
-    timeoutPromise
-  ]);
-  return accumulated;
-}
-
-// ===== 1チャンクの処理（リトライ付き） =====
-async function processSingleChunk(chunkMessages, config, signal, idx, total, maxAttempts) {
-  const ui = UI();
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      ui.showProgress("📄 チャンク " + (idx + 1) + "/" + total + " を要約中...");
-      const r = await callChatAPINonStream(chunkMessages, config, signal);
-      ui.showProgress("📄 完了");
-      return { success: true, result: r };
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") throw e;
-      if (attempt < maxAttempts) {
-        log.warn(
-          "チャンク " + (idx + 1) + " リトライ " + attempt + "/" + maxAttempts + ":",
-          e.message
-        );
-        ui.showProgress("⚠️ チャンク " + (idx + 1) + " リトライ中");
-        await new Promise(function (r) {
-          setTimeout(r, 500);
-        });
-      } else {
-        log.warn("チャンク " + (idx + 1) + " の処理に最終失敗:", e.message);
-        ui.showProgress("⚠️ チャンク " + (idx + 1) + " をスキップ");
-        return { success: false, result: null };
-      }
-    }
-  }
-  return { success: false, result: null };
-}
-
-// ===== Map-Reduce: 並列チャンク処理＋統合（中断対応） =====
-async function processMapReduce(chunks, config, signal, prompt, timeoutPromise, summaryTextEl) {
-  const ui = UI();
-  const results = new Array(chunks.length).fill(null);
-  let successCount = 0;
-  const maxAttempts = CHUNK_MAX_ATTEMPTS;
-
-  let nextIdx = 0;
-
-  // 並列ワーカー
-  async function worker() {
-    let idx;
-    while ((idx = nextIdx++) < chunks.length && !signal.aborted) {
-      const chunkMessage =
-        "以下の字幕（チャンク " +
-        (idx + 1) +
-        "/" +
-        chunks.length +
-        "）を要約してください:\n\n" +
-        chunks[idx];
-      const chunkMessages = [
-        { role: "system", content: prompt + "\n\nこれは動画の一部分です。" },
-        { role: "user", content: chunkMessage }
-      ];
-      const outcome = await processSingleChunk(
-        chunkMessages,
-        config,
-        signal,
-        idx,
-        chunks.length,
-        maxAttempts
-      );
-      if (outcome.success) {
-        results[idx] = outcome.result;
-        successCount++;
-      }
-    }
-  }
-
-  const workers = [];
-  const numWorkers = Math.min(MAX_CONCURRENCY, chunks.length); // MAX_CONCURRENCY は import した定数
-  for (let i = 0; i < numWorkers; i++) {
-    workers.push(worker());
-  }
-  await Promise.race([Promise.allSettled(workers), timeoutPromise]);
-
-  if (signal.aborted) {
-    throw new DOMException("AbortError", "AbortError");
-  }
-
-  // 結果を抽出
-  const chunkSummaries = results.filter(function (r) {
-    return r !== null;
-  });
-  if (chunkSummaries.length === 0) {
-    showError("すべてのチャンクの処理に失敗しました。");
-    return null;
-  }
-
-  const combinedSummaries = chunkSummaries
-    .map(function (s, idx) {
-      return "=== チャンク " + (idx + 1) + " ===\n" + s;
-    })
-    .join("\n\n");
-
-  ui.showProgress("🔄 " + successCount + "/" + chunks.length + "チャンクの要約を統合中...");
-
-  // 統合プロンプト
-  const finalMessage =
-    "以下はYouTube動画の各チャンクの要約結果です。これらを統合して、動画全体の一貫した要約を作成してください。情報の重複を避け、論理的な流れで整理してください:\n\n" +
-    combinedSummaries;
-  const finalMergePrompt =
-    "あなたはYouTube動画の複数のチャンク要約を統合するアシスタントです。各チャンクの内容を踏まえ、動画全体として一貫性のある要約を日本語で箇条書きで作成してください。";
-  const finalMessages = [
-    { role: "system", content: finalMergePrompt },
-    { role: "user", content: finalMessage }
-  ];
-
-  let accumulated = "";
-  await Promise.race([
-    callChatAPIStream(
-      finalMessages,
       config,
       function (chunk) {
         accumulated = chunk;
