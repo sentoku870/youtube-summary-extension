@@ -358,6 +358,7 @@ describe("loadThemeSetting", () => {
 describe("saveSummaryCache", () => {
   beforeEach(() => {
     chrome.storage.local.set.mockReset();
+    storage.__resetSummaryCacheMemory();
   });
 
   test("videoId単位でタイムスタンプ付きでキャッシュ保存する", async () => {
@@ -386,6 +387,8 @@ describe("loadSummaryCache", () => {
   beforeEach(() => {
     chrome.storage.local.get.mockReset();
     chrome.storage.local.remove.mockReset();
+    // T2-C1: in-memory キャッシュをテスト毎にリセット
+    storage.__resetSummaryCacheMemory();
   });
 
   test("キャッシュがない場合はnullを返す", async () => {
@@ -436,6 +439,57 @@ describe("loadSummaryCache", () => {
     const result = await storage.loadSummaryCache("video123");
     expect(result).not.toBeNull();
     expect(result.content).toBe("期限ギリギリ");
+  });
+
+  // T2-C1: メモリキャッシュの挙動
+  test("2回目以降はstorage.getを呼ばずメモリから返す", async () => {
+    const cacheData = {
+      content: "キャッシュ",
+      modelLabel: "gpt-4o",
+      transcriptCount: 10,
+      timestamp: Date.now()
+    };
+    chrome.storage.local.get.mockResolvedValue({
+      summary_cache_video123: cacheData
+    });
+    // 1回目: storage.get が呼ばれる
+    const r1 = await storage.loadSummaryCache("video123");
+    expect(r1).toEqual(cacheData);
+    expect(chrome.storage.local.get).toHaveBeenCalledTimes(1);
+    // 2回目: メモリキャッシュヒットで storage.get は呼ばれない
+    const r2 = await storage.loadSummaryCache("video123");
+    expect(r2).toEqual(cacheData);
+    expect(chrome.storage.local.get).toHaveBeenCalledTimes(1);
+  });
+
+  test("saveSummaryCache でメモリキャッシュも更新される", async () => {
+    chrome.storage.local.set.mockResolvedValue(undefined);
+    chrome.storage.local.get.mockResolvedValue({});
+    await storage.saveSummaryCache("videoX", {
+      content: "new",
+      modelLabel: "gpt-4o",
+      transcriptCount: 1
+    });
+    // 直後の loadSummaryCache は storage.get を呼ばない
+    const r = await storage.loadSummaryCache("videoX");
+    expect(r.content).toBe("new");
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+  });
+
+  test("clearSummaryCache でメモリキャッシュもクリアされる", async () => {
+    chrome.storage.local.set.mockResolvedValue(undefined);
+    chrome.storage.local.get.mockResolvedValue({});
+    chrome.storage.local.remove.mockResolvedValue(undefined);
+    await storage.saveSummaryCache("videoX", { content: "x", modelLabel: "m", transcriptCount: 1 });
+    await storage.clearSummaryCache("videoX");
+    // クリア後の loadSummaryCache は storage.get を呼ぶ（メモリが空）
+    await storage.loadSummaryCache("videoX");
+    expect(chrome.storage.local.get).toHaveBeenCalled();
+  });
+
+  test("videoId が空文字 / null の場合は null を返す", async () => {
+    expect(await storage.loadSummaryCache("")).toBeNull();
+    expect(await storage.loadSummaryCache(null)).toBeNull();
   });
 });
 

@@ -16,6 +16,8 @@ export async function fetchTranscript() {
   if (S.preloadedTranscript) return S.preloadedTranscript;
   // 既にロード中のPromiseがあればそれに乗る（競合防止）
   if (S._transcriptPromise) return S._transcriptPromise;
+  // T2-E9: 現在の動画世代を capture。完了時に世代が違えば結果を捨てる。
+  const myGen = S._transcriptGen;
   const promise = (async function () {
     const lang = await loadSubtitleLang();
     const config = lang && lang !== "auto" ? { lang: lang } : undefined;
@@ -25,20 +27,37 @@ export async function fetchTranscript() {
   S._transcriptPromise = promise;
   try {
     const r = await promise;
+    // ナビ完了で世代が更新されていたら結果は古い動画のもの → 破棄
+    if (myGen !== S._transcriptGen) {
+      log.log("古い字幕取得結果を破棄（世代 mismatch）");
+      return r;
+    }
     return r;
   } finally {
-    S._transcriptPromise = null;
+    if (S._transcriptPromise === promise) S._transcriptPromise = null;
   }
 }
 
 // ===== 字幕プリロード（リトライ機構付き＋再試行ボタン対応） =====
 export async function preloadTranscript() {
   if (S.transcriptReady) return;
+  // T2-E9: プリロード開始時の世代を capture。
+  // リトライ中の世代変化も検出する。
+  const myGen = S._transcriptGen;
   const retries = 3;
   for (let attempt = 1; attempt <= retries; attempt++) {
+    if (myGen !== S._transcriptGen) {
+      log.log("プリロード中断（世代 mismatch, attempt=" + attempt + ")");
+      return;
+    }
     try {
       const transcript = await fetchTranscript();
       if (transcript && transcript.all && transcript.all.length > 0) {
+        // 世代チェック後にだけ state に反映
+        if (myGen !== S._transcriptGen) {
+          log.log("古い字幕取得結果を破棄（世代 mismatch at store）");
+          return;
+        }
         S.preloadedTranscript = transcript;
         S.transcriptReady = true;
         // UI層はこのイベントを購読してボタン文言を更新
@@ -54,6 +73,7 @@ export async function preloadTranscript() {
       }
     }
   }
+  if (myGen !== S._transcriptGen) return;
   // 全リトライ失敗：UI層はこのイベントを購読して再試行ボタンを表示
   emit(EVENTS.TRANSCRIPT_FAILED, { reason: "all-retries-exhausted" });
 }

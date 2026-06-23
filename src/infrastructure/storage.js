@@ -137,36 +137,61 @@ export async function loadPanelHeight() {
 }
 
 // ===== 保存・キャッシュ =====
+// T2-C1: 同一 videoId のキャッシュをメモリに保持し、storage.get を 2 回目以降スキップ。
+// chrome.storage への往復は体感で数ms〜数十ms かかるため、同じ動画を
+// タブ切替や再生成で連続参照する場合に大きな短縮になる。
+const summaryCacheMemory = new Map();
+const SUMMARY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export async function saveToStorage(summary, captions) {
   await set({ [K.LATEST_SUMMARY]: summary, [K.LATEST_CAPTIONS]: captions });
 }
 
 export async function saveSummaryCache(videoId, data) {
   const key = "summary_cache_" + videoId;
-  await set({
-    [key]: {
-      content: data.content,
-      modelLabel: data.modelLabel,
-      transcriptCount: data.transcriptCount,
-      timestamp: Date.now()
-    }
-  });
+  const value = {
+    content: data.content,
+    modelLabel: data.modelLabel,
+    transcriptCount: data.transcriptCount,
+    timestamp: Date.now()
+  };
+  summaryCacheMemory.set(videoId, value);
+  await set({ [key]: value });
 }
 
 export async function loadSummaryCache(videoId) {
+  if (!videoId) return null;
+  // 1) メモリキャッシュヒット
+  const mem = summaryCacheMemory.get(videoId);
+  if (mem) {
+    if (Date.now() - mem.timestamp > SUMMARY_CACHE_TTL_MS) {
+      summaryCacheMemory.delete(videoId);
+      await remove("summary_cache_" + videoId);
+      return null;
+    }
+    return mem;
+  }
+  // 2) storage 取得
   const key = "summary_cache_" + videoId;
   const data = await get(key);
   if (!data) return null;
-  if (Date.now() - data.timestamp > 7 * 24 * 60 * 60 * 1000) {
+  if (Date.now() - data.timestamp > SUMMARY_CACHE_TTL_MS) {
     await remove(key);
     return null;
   }
+  summaryCacheMemory.set(videoId, data);
   return data;
 }
 
 export async function clearSummaryCache(videoId) {
+  summaryCacheMemory.delete(videoId);
   const key = "summary_cache_" + videoId;
   await remove(key);
+}
+
+// テスト用: メモリキャッシュを全クリア
+export function __resetSummaryCacheMemory() {
+  summaryCacheMemory.clear();
 }
 
 // ===== テーマ設定読み込み =====

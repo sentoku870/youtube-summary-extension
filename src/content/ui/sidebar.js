@@ -11,6 +11,7 @@ import { updateTabActive, bindEvents, applyButtonTitles, switchTab } from "./tab
 import { createPanel } from "./panel.js";
 import { preloadTranscript } from "../../domain/transcript.js";
 import { createLogger } from "../../shared/logger.js";
+import { TAB_IDS } from "../../shared/constants.js";
 
 const log = createLogger("sidebar");
 log.log("sidebar.js loaded");
@@ -32,6 +33,8 @@ export function getPanelEl() {
 export function resetTranscript() {
   sessionState.preloadedTranscript = null;
   sessionState.transcriptReady = false;
+  // T2-E9: 世代カウンタをインクリメントし、進行中のプリロードの結果を無効化
+  sessionState._transcriptGen = (sessionState._transcriptGen || 0) + 1;
 }
 
 // ===== 動画切り替え用リセット =====
@@ -42,7 +45,7 @@ export function resetState() {
   if (uiState.panelEl) {
     const panel = uiState.panelEl.querySelector("#ys-panel");
     if (panel) panel.style.display = "none";
-    (uiState.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
+    (uiState.tabIds || TAB_IDS).forEach(function (id) {
       const t = uiState.tabs[id];
       if (t) {
         t.generated = false;

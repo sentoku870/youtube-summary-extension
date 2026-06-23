@@ -31,6 +31,7 @@ import {
   createTimeoutPromise
 } from "./ai-utils.js";
 import { CHAT_HISTORY_SEED_LENGTH } from "../shared/constants.js";
+import { getCurrentVideoId } from "../shared/utils.js";
 
 // テスト後方互換用の再エクスポート
 export { formatTranscriptWithTimestamps, linkTimestamps, buildMetaContext, createTimeoutPromise };
@@ -106,9 +107,7 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
 
   saveToStorage(content, transcript.all);
   try {
-    const videoId =
-      new URLSearchParams(window.location.search).get("v") ||
-      window.location.pathname.match(/\/shorts\/([^/?]+)/)?.[1];
+    const videoId = getCurrentVideoId();
     if (videoId) {
       saveSummaryCache(videoId, {
         content: content,
@@ -143,11 +142,12 @@ export function resolveTranscriptText(transcript) {
 
 // ===== API設定とプロンプトの解決 =====
 export async function fetchConfigAndPrompt(mode) {
-  const config = await resolveApiConfig(mode);
+  const [config, customPrompt] = await Promise.all([
+    resolveApiConfig(mode),
+    loadCustomPrompt(mode)
+  ]);
   if (!config || !config.apiKey) return null;
-
-  let prompt = await loadCustomPrompt(mode);
-  if (!prompt) prompt = getDefaultPrompt(mode);
+  const prompt = customPrompt || getDefaultPrompt(mode);
   return { config: config, prompt: prompt };
 }
 
@@ -280,9 +280,28 @@ async function runSummary(ctx, signal, summaryTextEl) {
     return { accumulated: accumulated, userMessage: baseUser };
   }
 
+  // T2-A3: チャンク分割結果が 1 個なら Map-Reduce を起動せず単一ストリームで処理。
+  // Map-Reduce は「分割→並列→統合」の 3 段で API コール数が チャンク+1 になるため、
+  // チャンク 1 個なら単一ストリームのほうが API コール・待ち時間ともに有利。
+  const chunks = splitIntoChunks(transcriptText, availableTokens);
+  if (chunks.length <= 1) {
+    const messages = [
+      { role: "system", content: prompt },
+      { role: "user", content: baseUser }
+    ];
+    const timeoutPromise = createTimeoutPromise();
+    const accumulated = await processSingleStream(
+      messages,
+      config,
+      signal,
+      summaryTextEl,
+      timeoutPromise
+    );
+    return { accumulated: accumulated, userMessage: baseUser };
+  }
+
   // --- Map-Reduce処理 ---
   ui.showProgress("チャンク処理を開始...");
-  const chunks = splitIntoChunks(transcriptText, availableTokens);
   const timeoutPromise = createTimeoutPromise();
   const accumulated = await processMapReduce(
     chunks,

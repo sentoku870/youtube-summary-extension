@@ -31,7 +31,7 @@ import {
 import { getEl } from "./ui/panel.js";
 import { updateTabUI } from "./ui/tabs.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
-import { uiState } from "../shared/state.js";
+import { uiState, sessionState } from "../shared/state.js";
 
 const log = createLogger("index");
 log.log("index.js loaded");
@@ -60,11 +60,19 @@ setUiAdapter({
 const MIN_INIT_INTERVAL_MS = 2000;
 
 function doInit() {
-  if (getPanelEl && getPanelEl()) return true;
-  log.log("creating panel...");
-  createPanel();
-  bindEvents();
-  preloadTranscript();
+  // T2-D1: パネル再利用時のプリロード漏れを修正
+  // 旧: パネルが存在したら即 return → 動画切替時に preloadTranscript が走らない
+  // 新: パネルがあっても字幕がプリロードされていなければ再取得する
+  if (!getPanelEl || !getPanelEl()) {
+    log.log("creating panel...");
+    createPanel();
+    bindEvents();
+  }
+  // プリロードは毎回（動画切替のたびに新字幕が必要）
+  // transcriptReady は resetTranscript() で false にリセット済み
+  if (!sessionState.transcriptReady && !sessionState.preloadedTranscript) {
+    preloadTranscript();
+  }
   return true;
 }
 
@@ -171,6 +179,8 @@ waitForYtdApp(function () {
 //  第2層: yt-page-data-updated / popstate / hashchange (ブラウザ標準)
 //  第3層: 10秒間隔ポーリング（稀に第1〜2層が発火しない環境向け）
 //  ポーリングは 5 分間ナビがなければ自動停止（CPU 負荷対策）
+//  T2-P4: ページが非表示（バックグラウンドタブ）時はポーリングを停止し、
+//  表示復帰時に再開。バックグラウンド時の CPU 負荷を 0 に近づける。
 // ============================================================
 const FALLBACK_POLL_INTERVAL_MS = 10000;
 const FALLBACK_POLL_MAX_IDLE_MS = 5 * 60 * 1000;
@@ -179,8 +189,17 @@ let lastObservedUrl = location.href;
 let lastNavAt = Date.now();
 let fallbackTimerId = null;
 
+function stopFallbackPolling() {
+  if (fallbackTimerId !== null) {
+    clearInterval(fallbackTimerId);
+    fallbackTimerId = null;
+  }
+}
+
 function startFallbackPolling() {
   if (fallbackTimerId !== null) return;
+  // visibility hidden の間は起動しない
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
   fallbackTimerId = setInterval(function () {
     const url = location.href;
     if (url !== lastObservedUrl) {
@@ -193,10 +212,23 @@ function startFallbackPolling() {
     }
     // ナビが長時間ない場合はポーリングを停止（CPU負荷軽減）
     if (Date.now() - lastNavAt > FALLBACK_POLL_MAX_IDLE_MS) {
-      clearInterval(fallbackTimerId);
-      fallbackTimerId = null;
+      stopFallbackPolling();
     }
   }, FALLBACK_POLL_INTERVAL_MS);
+}
+
+// visibilitychange に応じてポーリングの一時停止 / 再開
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      stopFallbackPolling();
+    } else if (document.visibilityState === "visible") {
+      // 表示復帰時は lastNavAt を更新し、自動停止までのタイマーをリセット
+      lastNavAt = Date.now();
+      lastObservedUrl = location.href;
+      startFallbackPolling();
+    }
+  });
 }
 
 startFallbackPolling();

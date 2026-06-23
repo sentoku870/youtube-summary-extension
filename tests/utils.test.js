@@ -178,3 +178,31 @@ describe("isYouTubeWatchPage", () => {
     expect(isYouTubeWatchPage("not-a-url")).toBe(false);
   });
 });
+
+// ===== getCurrentVideoId =====
+const { getCurrentVideoId } = require("../src/shared/utils");
+describe("getCurrentVideoId", () => {
+  test("/watch?v=XXX から v を抽出", () => {
+    expect(getCurrentVideoId("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+    expect(getCurrentVideoId("https://m.youtube.com/watch?v=abc123XYZ45")).toBe("abc123XYZ45");
+  });
+
+  test("/shorts/<id> から id を抽出", () => {
+    expect(getCurrentVideoId("https://www.youtube.com/shorts/abc123XYZ45")).toBe("abc123XYZ45");
+  });
+
+  test("YouTube 以外の URL は null", () => {
+    expect(getCurrentVideoId("https://example.com/watch?v=xxx")).toBeNull();
+  });
+
+  test("空文字 / null / 不正URL は null", () => {
+    expect(getCurrentVideoId("")).toBeNull();
+    expect(getCurrentVideoId(null)).toBeNull();
+    expect(getCurrentVideoId("not-a-url")).toBeNull();
+  });
+
+  test("ホーム・検索結果ページは null", () => {
+    expect(getCurrentVideoId("https://www.youtube.com/")).toBeNull();
+    expect(getCurrentVideoId("https://www.youtube.com/results?search_query=test")).toBeNull();
+  });
+});

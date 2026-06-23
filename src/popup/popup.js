@@ -12,6 +12,20 @@ const statusText = document.getElementById("statusText");
 
 const RELOAD_HINT = "❌ ページを再読み込みしてからお試しください";
 
+// T2-D5: latestSummary の取得結果をメモ化。
+// popup 起動中は何度も storage.get を呼ぶとオーバーヘッドが大きいため、
+// 最初の 1 回だけ storage を見て、その後はキャッシュを使う。
+// chrome.storage.onChanged で invalidation する。
+let latestSummaryCache = null;
+let latestSummaryLoaded = false;
+async function loadLatestSummary() {
+  if (latestSummaryLoaded) return latestSummaryCache;
+  const r = await chrome.storage.local.get(["latestSummary"]);
+  latestSummaryCache = r.latestSummary || null;
+  latestSummaryLoaded = true;
+  return latestSummaryCache;
+}
+
 function showError(msg) {
   statusText.textContent = msg || RELOAD_HINT;
 }
@@ -34,8 +48,8 @@ async function updateUI() {
   if (!tab) {
     statusText.textContent = "YouTube動画のページを開いてください";
   } else {
-    const r = await chrome.storage.local.get(["latestSummary"]);
-    statusText.textContent = r.latestSummary
+    const latest = await loadLatestSummary();
+    statusText.textContent = latest
       ? "✅ 要約済み（字幕DL可能）"
       : "YouTube動画のページを開いて字幕を取得できます";
   }
@@ -97,6 +111,9 @@ dlBtn.addEventListener("click", async function () {
 
 chrome.storage.onChanged.addListener(function (changes) {
   if (changes.latestSummary) {
+    // T2-D5: 変更通知が来たらメモ化キャッシュを invalidate
+    latestSummaryCache = changes.latestSummary.newValue || null;
+    latestSummaryLoaded = true;
     updateUI();
   }
 });

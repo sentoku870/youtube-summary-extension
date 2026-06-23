@@ -8,6 +8,7 @@ const mockSessionState = {
   preloadedTranscript: null,
   transcriptReady: false,
   _transcriptPromise: null,
+  _transcriptGen: 0,
   pendingRetry: false
 };
 jest.mock("../src/shared/state.js", function () {
@@ -49,6 +50,7 @@ beforeEach(function () {
   mockSessionState.preloadedTranscript = null;
   mockSessionState.transcriptReady = false;
   mockSessionState._transcriptPromise = null;
+  mockSessionState._transcriptGen = 0;
   mockSessionState.pendingRetry = false;
   mockLoadSubtitleLang.mockReset();
   mockEmit.mockReset();
@@ -188,5 +190,47 @@ describe("retryTranscript", function () {
     await retryTranscript();
 
     expect(mockSessionState.preloadedTranscript).toEqual({ all: ["new"] });
+  });
+});
+
+// ===== T2-E9: 世代カウンタによる race prevention =====
+describe("世代カウンタによる古い結果の破棄", function () {
+  test("preload 開始後に _transcriptGen を進めると古い結果を破棄", async function () {
+    mockLoadSubtitleLang.mockResolvedValue("auto");
+    // 取得が遅れて完了する transcript
+    let resolveFetch;
+    mockFetchYtTranscript.mockImplementation(function () {
+      return new Promise(function (r) {
+        resolveFetch = r;
+      });
+    });
+
+    const p = preloadTranscript();
+    // loadSubtitleLang 解決と fetchYtTranscript 呼び出しを待つ
+    await new Promise(function (r) {
+      setTimeout(r, 0);
+    });
+    expect(resolveFetch).toBeDefined();
+    // 動画切り替えをシミュレート: 世代を進める
+    mockSessionState._transcriptGen = 1;
+    // 古い transcript を返す
+    resolveFetch({ all: ["stale"] });
+    await p;
+
+    // 古い結果は破棄され、transcriptReady は false のまま
+    expect(mockSessionState.transcriptReady).toBe(false);
+    expect(mockSessionState.preloadedTranscript).toBeNull();
+    // TRANSCRIPT_READY は emit されない
+    expect(mockEmit).not.toHaveBeenCalledWith("TRANSCRIPT_READY", expect.anything());
+  });
+
+  test("世代が一致していれば結果を反映", async function () {
+    mockLoadSubtitleLang.mockResolvedValue("auto");
+    mockFetchYtTranscript.mockResolvedValue({ all: ["fresh"] });
+
+    await preloadTranscript();
+
+    expect(mockSessionState.transcriptReady).toBe(true);
+    expect(mockSessionState.preloadedTranscript).toEqual({ all: ["fresh"] });
   });
 });

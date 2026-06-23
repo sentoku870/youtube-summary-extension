@@ -15,7 +15,7 @@ if (typeof requestAnimationFrame === "undefined") {
 // chrome.storage.onChanged をモック
 global.chrome = global.chrome || {};
 global.chrome.storage = global.chrome.storage || {};
-global.chrome.storage.onChanged = { addListener: jest.fn() };
+global.chrome.storage.onChanged = { addListener: jest.fn(), removeListener: jest.fn() };
 global.chrome.runtime = global.chrome.runtime || {};
 // navigator.clipboard のモック
 Object.defineProperty(navigator, "clipboard", {
@@ -57,7 +57,8 @@ jest.mock("../src/domain/api.js", () => ({
   callChatAPIStream: jest.fn()
 }));
 jest.mock("../src/infrastructure/storage.js", () => ({
-  loadButtonTitle: jest.fn()
+  loadButtonTitle: jest.fn(),
+  loadSummaryCache: jest.fn()
 }));
 
 // 初期状態のデフォルト戻り値
@@ -146,6 +147,9 @@ function buildPanelDOM() {
   };
   S.activeTab = null;
   S.eventsBound = false;
+  // T1-U3: storage.onChanged リスナー参照もテスト毎にリセット
+  S.storageOnChangedListener = null;
+  S.storageOnChangedCleanupBound = false;
   getEl.mockImplementation(function (sel) {
     return root.querySelector(sel);
   });
@@ -168,6 +172,8 @@ describe("tabs", () => {
     storage.loadButtonTitle.mockImplementation(async function (_btn) {
       return null;
     });
+    // T2-A5: 既定は null（キャッシュヒットしない）。ヒット検証は当該テストで上書き。
+    storage.loadSummaryCache.mockResolvedValue(null);
   });
 
   // ===== abortChatStream =====
@@ -236,10 +242,46 @@ describe("tabs", () => {
 
     test("generated=false のタブ切替は callAI を呼ぶ", async () => {
       S.tabs.summary.generated = false;
+      storage.loadSummaryCache.mockResolvedValue(null);
 
       await switchTab("summary");
 
       expect(ai.callAI).toHaveBeenCalledWith("summary", true);
+    });
+
+    // T2-A5: saveSummaryCache ヒット時は callAI を呼ばずに即時表示
+    test("saveSummaryCache ヒット時は callAI を呼ばずに復元", async () => {
+      S.tabs.summary.generated = false;
+      const cached = {
+        content: "キャッシュ済み要約",
+        modelLabel: "gpt-4o",
+        transcriptCount: 100,
+        timestamp: Date.now()
+      };
+      storage.loadSummaryCache.mockResolvedValue(cached);
+      // window.location を YouTube watch 形式に
+      Object.defineProperty(window, "location", {
+        value: {
+          href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          search: "?v=dQw4w9WgXcQ",
+          pathname: "/watch"
+        },
+        writable: true,
+        configurable: true
+      });
+
+      await switchTab("summary");
+
+      // callAI は呼ばれない
+      expect(ai.callAI).not.toHaveBeenCalled();
+      // タブ状態がキャッシュから復元される
+      expect(S.tabs.summary.generated).toBe(true);
+      expect(S.tabs.summary.content).toBe("キャッシュ済み要約");
+      expect(S.tabs.summary.modelLabel).toBe("gpt-4o");
+      expect(S.tabs.summary.transcriptCount).toBe(100);
+      // 描画は renderTabContent 経由
+      expect(tabsUi.renderTabContent).toHaveBeenCalledWith("summary");
+      expect(tabsUi.updateTabUI).toHaveBeenCalled();
     });
 
     test("callAI 完了後にボタン状態が復元される", async () => {
@@ -326,7 +368,8 @@ describe("tabs", () => {
       // switchTab は内部で ai モジュールを使うので、ここでは S.activeTab の変化で検証
       // 直接は観察できないので副作用を後で観察するため、callAI を spy
       // customA は未生成なので callAI が呼ばれる
-      return Promise.resolve().then(function () {
+      // T2-A5: キャッシュチェックの await が追加されたため、複数マイクロタスク待つ
+      return flushPromises().then(function () {
         expect(ai.callAI).toHaveBeenCalledWith("customA", true);
       });
     });

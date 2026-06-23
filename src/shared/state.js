@@ -5,6 +5,7 @@
 //  UI 状態: パネル寿命で保持。動画切替で消えない。
 //  セッション状態: 動画切替ごとに resetSession() で初期化。
 // ============================================================
+import { TAB_IDS } from "./constants.js";
 
 /**
  * UI 状態（パネル・タブ・初期化制御）
@@ -15,9 +16,12 @@ export const uiState = {
   activeTab: null,
   eventsBound: false,
   tabs: {},
-  tabIds: ["summary", "customA", "customB"],
+  tabIds: [...TAB_IDS],
   initialized: false,
-  lastInitTime: 0
+  lastInitTime: 0,
+  // T1-U3: storage.onChanged リスナー参照（bindEvents 再呼び出し時・pagehide で removeListener）
+  storageOnChangedListener: null,
+  storageOnChangedCleanupBound: false
 };
 
 /**
@@ -33,6 +37,9 @@ export function createInitialSessionState() {
     abortController: null,
     pendingRetry: false,
     _transcriptPromise: null,
+    // T2-E9: 動画世代カウンタ。resetTranscript でインクリメントし、
+    // 進行中のプリロードが完了しても世代 mismatch で結果を破棄する。
+    _transcriptGen: 0,
     // チャット送信用の状態 (Phase H F-5 でモジュールスコープから移動)
     chatAbortController: null,
     chatAbortChain: null,

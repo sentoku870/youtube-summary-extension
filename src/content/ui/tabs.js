@@ -20,8 +20,10 @@ import { YsAbortError, YsTimeoutError } from "../../infrastructure/errors.js";
 import { loadButtonTitle } from "../../infrastructure/storage.js";
 import { createRafThrottle } from "../../shared/raf-throttle.js";
 import { linkAbortSignal } from "../../shared/abort-chain.js";
-import { CHAT_HISTORY_SEED_LENGTH } from "../../shared/constants.js";
+import { CHAT_HISTORY_SEED_LENGTH, TAB_IDS } from "../../shared/constants.js";
 import { createLogger } from "../../shared/logger.js";
+import { getCurrentVideoId } from "../../shared/utils.js";
+import { loadSummaryCache } from "../../infrastructure/storage.js";
 
 const log = createLogger("tabs");
 
@@ -86,6 +88,23 @@ export async function switchTab(mode) {
       btn.textContent = "⏳ 処理中...";
       btn.disabled = true;
     }
+    // T2-A5: 未生成タブでも saveSummaryCache ヒット時は即時表示。
+    // 同じ動画を再訪したときに API 0 回で要約を復元できる。
+    // ボタンは「処理中...」のまま見えるため、ヒット時は明示的に復元する。
+    const cached = await loadCachedSummary();
+    if (cached) {
+      applyCachedSummary(tab, cached);
+      renderTabContent(mode);
+      updateTabUI();
+      if (btn) {
+        btn.disabled = false;
+        applyButtonTitles();
+      }
+      requestAnimationFrame(function () {
+        scrollContentTop();
+      });
+      return;
+    }
     try {
       // callAI は内部でエラー/中断を処理し、UIも更新するため
       // ここでは戻り値を使わず、finally でボタン状態を復元する。
@@ -99,6 +118,34 @@ export async function switchTab(mode) {
     requestAnimationFrame(function () {
       scrollContentTop();
     });
+  }
+}
+
+// T2-A5: 現在の videoId に対する saveSummaryCache を取得。
+// chatHistory は保存していないため、UI 復元は content / modelLabel / transcriptCount のみ。
+async function loadCachedSummary() {
+  try {
+    const videoId = getCurrentVideoId();
+    if (!videoId) return null;
+    const cached = await loadSummaryCache(videoId);
+    if (!cached) return null;
+    return cached;
+  } catch (e) {
+    log.warn("loadCachedSummary failed:", e && e.message);
+    return null;
+  }
+}
+
+function applyCachedSummary(tab, cached) {
+  tab.generated = true;
+  tab.content = cached.content || "";
+  tab.modelLabel = cached.modelLabel || "";
+  tab.transcriptCount = cached.transcriptCount || 0;
+  // config は保存していないため null。チャット開始時に再解決される。
+  tab.config = null;
+  // chatHistory は保存していない。system ロールのみのシードを入れてチャット可能に。
+  if (!Array.isArray(tab.chatHistory) || tab.chatHistory.length < CHAT_HISTORY_SEED_LENGTH) {
+    tab.chatHistory = [];
   }
 }
 
@@ -289,11 +336,13 @@ export async function applyButtonTitles() {
   const btnSummary = getEl("#ys-btn-summary");
   const btnA = getEl("#ys-btn-customA");
   const btnB = getEl("#ys-btn-customB");
-  const titleS = await loadButtonTitle("summary");
+  const [titleS, titleA, titleB] = await Promise.all([
+    loadButtonTitle("summary"),
+    loadButtonTitle("customA"),
+    loadButtonTitle("customB")
+  ]);
   if (btnSummary) btnSummary.textContent = titleS ? "📝 " + titleS : "📝 A";
-  const titleA = await loadButtonTitle("customA");
   if (btnA) btnA.textContent = titleA ? "📊 " + titleA : "📊 B";
-  const titleB = await loadButtonTitle("customB");
   if (btnB) btnB.textContent = titleB ? "💡 " + titleB : "💡 C";
   enableAllButtons();
   updateTabUI();
@@ -304,7 +353,7 @@ export function bindEvents() {
   if (S.eventsBound) return;
   S.eventsBound = true;
 
-  (S.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
+  (S.tabIds || TAB_IDS).forEach(function (id) {
     const btn = getEl("#ys-btn-" + id);
     if (btn)
       btn.addEventListener("click", function () {
@@ -365,7 +414,11 @@ export function bindEvents() {
   // 設定変更を150msデバウンス（saveAllBtnの一括保存時に複数回発火するのを防止）
   let debounceTimer = null;
   try {
-    chrome.storage.onChanged.addListener(function (changes) {
+    // リスナーを保持（bindEvents 再呼び出し時とページ離脱時に removeListener）
+    if (S.storageOnChangedListener) {
+      chrome.storage.onChanged.removeListener(S.storageOnChangedListener);
+    }
+    const listener = function (changes) {
       let shouldUpdate = false;
       for (const key in changes) {
         if (key.indexOf("btnTitle_") === 0 || key.indexOf("prompt_") === 0) {
@@ -378,7 +431,29 @@ export function bindEvents() {
       debounceTimer = setTimeout(function () {
         applyButtonTitles();
       }, 150);
-    });
+    };
+    S.storageOnChangedListener = listener;
+    chrome.storage.onChanged.addListener(listener);
+
+    // ページ離脱 / BFCache 復元失敗時にリスナーを解放（メモリリーク予防）
+    if (!S.storageOnChangedCleanupBound) {
+      S.storageOnChangedCleanupBound = true;
+      const cleanup = function () {
+        if (S.storageOnChangedListener) {
+          try {
+            chrome.storage.onChanged.removeListener(S.storageOnChangedListener);
+          } catch {
+            /* context invalidated */
+          }
+          S.storageOnChangedListener = null;
+        }
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
+      };
+      window.addEventListener("pagehide", cleanup);
+    }
   } catch {
     log.warn(
       "storage.onChanged listener could not be registered (extension context may be invalid)."

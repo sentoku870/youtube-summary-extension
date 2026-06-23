@@ -324,11 +324,28 @@ describe("fetchConfigAndPrompt", () => {
     jest.clearAllMocks();
   });
 
+  // キー指定のモック（順序非依存）
+  // map.all 内のキー、または map 直下のキーを返す
+  function setupStorageMock(map) {
+    chrome.storage.local.get.mockImplementation(async function (key) {
+      const all = map.all || {};
+      if (key === null || key === undefined) return all;
+      if (Object.prototype.hasOwnProperty.call(map, key)) {
+        return { [key]: map[key] };
+      }
+      if (Object.prototype.hasOwnProperty.call(all, key)) {
+        return { [key]: all[key] };
+      }
+      return {};
+    });
+  }
+
   test("通常の設定とプロンプトを解決する", async () => {
-    chrome.storage.local.get
-      .mockResolvedValueOnce({ btnApiConfig_summary: "cfg1" })
-      .mockResolvedValueOnce({ apiConfigs: [{ id: "cfg1", apiKey: "key1" }] })
-      .mockResolvedValueOnce({ prompt_summary: "カスタムプロンプト" });
+    setupStorageMock({
+      btnApiConfig_summary: "cfg1",
+      all: { apiConfigs: [{ id: "cfg1", apiKey: "key1" }] },
+      prompt_summary: "カスタムプロンプト"
+    });
 
     const result = await fetchConfigAndPrompt("summary");
     expect(result.config.apiKey).toBe("key1");
@@ -336,10 +353,10 @@ describe("fetchConfigAndPrompt", () => {
   });
 
   test("カスタムプロンプトがない場合はデフォルトプロンプトを使用する", async () => {
-    chrome.storage.local.get
-      .mockResolvedValueOnce({ btnApiConfig_summary: "cfg1" })
-      .mockResolvedValueOnce({ apiConfigs: [{ id: "cfg1", apiKey: "key1" }] })
-      .mockResolvedValueOnce({ prompt_summary: undefined });
+    setupStorageMock({
+      btnApiConfig_summary: "cfg1",
+      all: { apiConfigs: [{ id: "cfg1", apiKey: "key1" }] }
+    });
 
     const result = await fetchConfigAndPrompt("summary");
     expect(result.config.apiKey).toBe("key1");
@@ -347,9 +364,10 @@ describe("fetchConfigAndPrompt", () => {
   });
 
   test("API設定がない場合はnullを返す", async () => {
-    chrome.storage.local.get
-      .mockResolvedValueOnce({ btnApiConfig_summary: null })
-      .mockResolvedValueOnce({ apiConfigs: [] });
+    setupStorageMock({
+      btnApiConfig_summary: null,
+      all: { apiConfigs: [] }
+    });
 
     const result = await fetchConfigAndPrompt("summary");
     expect(result).toBeNull();
@@ -409,13 +427,21 @@ describe("callAI", () => {
   }
 
   // API設定とプロンプトの解決に成功するよう chrome.storage を設定
+  // キー指定のモック（順序非依存）。Promise.all 化で呼び出し順序が変わるため
+  // mockImplementation ベースにする。
   function setupConfigStorage() {
-    chrome.storage.local.get
-      .mockResolvedValueOnce({ btnApiConfig_summary: "cfg1" })
-      .mockResolvedValueOnce({
-        apiConfigs: [{ id: "cfg1", apiKey: "key1", apiModel: "gpt-4", maxTokens: "4096" }]
-      })
-      .mockResolvedValueOnce({ prompt_summary: "カスタムプロンプト" });
+    const db = {
+      apiConfigs: [{ id: "cfg1", apiKey: "key1", apiModel: "gpt-4", maxTokens: "4096" }],
+      btnApiConfig_summary: "cfg1",
+      prompt_summary: "カスタムプロンプト"
+    };
+    chrome.storage.local.get.mockImplementation(async function (key) {
+      if (key === null || key === undefined) return db;
+      if (Object.prototype.hasOwnProperty.call(db, key)) {
+        return { [key]: db[key] };
+      }
+      return {};
+    });
     chrome.storage.local.set.mockResolvedValue(undefined);
   }
 

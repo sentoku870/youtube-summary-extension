@@ -41,16 +41,28 @@ export function estimateTokens(text) {
 }
 
 // ===== モデルのデフォルトコンテキストウィンドウ =====
+// 検出キーの配列（順序重要: より具体的なパターンを先に評価）
+const MODEL_CONTEXT_KEYS = Object.freeze([
+  ["gpt-4o", 128000],
+  ["gpt-4-turbo", 128000],
+  ["gpt-4", 8192],
+  ["gpt-3.5", 16384],
+  ["claude-3.5", 200000],
+  ["claude-3", 200000],
+  ["deepseek", 1000000],
+  ["gemini", 1000000],
+  ["command", 128000]
+]);
+const DEFAULT_CONTEXT_WINDOW = 32000;
+
 export function getModelContextWindow(modelName) {
   const name = (modelName || "").toLowerCase();
-  if (name.indexOf("gpt-4o") !== -1 || name.indexOf("gpt-4-turbo") !== -1) return 128000;
-  if (name.indexOf("gpt-4") !== -1) return 8192;
-  if (name.indexOf("gpt-3.5") !== -1) return 16384;
-  if (name.indexOf("claude-3.5") !== -1 || name.indexOf("claude-3") !== -1) return 200000;
-  if (name.indexOf("deepseek") !== -1) return 1000000;
-  if (name.indexOf("gemini") !== -1) return 1000000;
-  if (name.indexOf("command") !== -1) return 128000;
-  return 32000;
+  for (let i = 0; i < MODEL_CONTEXT_KEYS.length; i++) {
+    if (name.indexOf(MODEL_CONTEXT_KEYS[i][0]) !== -1) {
+      return MODEL_CONTEXT_KEYS[i][1];
+    }
+  }
+  return DEFAULT_CONTEXT_WINDOW;
 }
 
 // ===== 利用可能トークン数 =====
@@ -82,6 +94,37 @@ function splitOversizedLine(line, maxTokens) {
     result.push(line.substring(i, i + safeChars));
   }
   return result;
+}
+
+// ===== 現在の videoId を URL から抽出 =====
+// /watch?v=XXX または /shorts/XXX の形式に対応。
+// 不正URLや動画ページ以外は null を返す。
+// T2-A5: saveSummaryCache ヒット時のスキップ判定で利用。
+export function getCurrentVideoId(href) {
+  const url =
+    href || (typeof window !== "undefined" && window.location ? window.location.href : "");
+  if (!url) return null;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (
+    parsed.hostname !== "www.youtube.com" &&
+    parsed.hostname !== "youtube.com" &&
+    parsed.hostname !== "m.youtube.com"
+  ) {
+    return null;
+  }
+  if (parsed.pathname === "/watch") {
+    return parsed.searchParams.get("v") || null;
+  }
+  if (parsed.pathname.indexOf("/shorts/") === 0) {
+    const m = parsed.pathname.match(/^\/shorts\/([^/?]+)/);
+    return m ? m[1] : null;
+  }
+  return null;
 }
 
 // ===== YouTube動画ページ判定（ホスト名＋パスで厳密判定） =====
