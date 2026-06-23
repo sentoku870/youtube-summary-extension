@@ -19,6 +19,7 @@ import {
 } from "./model-card.js";
 import { initForm, openFormForNew, openFormForEdit, setOnAfterSave } from "./model-form.js";
 import { updateButtonModelSelects } from "./options-buttons.js";
+import { generateId } from "./options-logic.js";
 
 let isInitialized = false;
 
@@ -94,7 +95,7 @@ async function handleDuplicate(id) {
   const copy = Object.assign({}, src, { id: undefined });
   delete copy.id;
   copy.label = (src.label || "無名") + " (コピー)";
-  const newId = "cfg_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  const newId = generateId();
   copy.id = newId;
   configs.push(copy);
   await set({ apiConfigs: configs });

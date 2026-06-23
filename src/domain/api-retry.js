@@ -63,9 +63,11 @@ async function attemptFetch(url, options, externalSignal) {
   }
 }
 
-// 線形バックオフ（attempt × baseMs）
+// 指数バックオフ (baseMs × 2^(attempt-1))
+// 1回目: baseMs, 2回目: 2*baseMs, 3回目: 4*baseMs ...
+// 429/5xx サーバーへの負荷軽減と再試行成功率向上を狙う。
 function backoffMs(attempt, baseMs) {
-  return attempt * baseMs;
+  return baseMs * Math.pow(2, attempt - 1);
 }
 
 /**

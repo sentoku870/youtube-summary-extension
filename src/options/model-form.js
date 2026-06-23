@@ -6,7 +6,7 @@
 //  オーケストレーションは options-models.js に委譲。
 // ============================================================
 import { get, set, K } from "../infrastructure/storage.js";
-import { validateFormValues, VALIDATION_ERRORS, buildConfig } from "./options-logic.js";
+import { validateFormValues, VALIDATION_ERRORS, buildConfig, generateId } from "./options-logic.js";
 import { getVal, setVal } from "./options-shared.js";
 import { saveToast, errorToast } from "./ui/toast.js";
 
@@ -323,10 +323,6 @@ function handleCancel() {
   editingId = null;
   clearForm();
   if (onAfterSave) onAfterSave();
-}
-
-function generateId() {
-  return "cfg_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
 }
 
 export function setOnAfterSave(fn) {

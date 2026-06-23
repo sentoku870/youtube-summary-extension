@@ -18,11 +18,11 @@ import {
   appendChatMessage,
   focusChatInput
 } from "./ui.js";
-import { CHAT_HISTORY_SEED_LENGTH } from "../../shared/constants.js";
+import { CHAT_HISTORY_SEED_LENGTH, TAB_IDS } from "../../shared/constants.js";
 
 // ===== タブUI更新（ドット表示） =====
 export function updateTabUI() {
-  (S.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
+  (S.tabIds || TAB_IDS).forEach(function (id) {
     const btn = getEl("#ys-btn-" + id);
     if (!btn) return;
     const tab = S.tabs[id];
@@ -43,7 +43,7 @@ export function updateTabUI() {
 
 // ===== タブのアクティブ状態更新 =====
 export function updateTabActive() {
-  (S.tabIds || ["summary", "customA", "customB"]).forEach(function (id) {
+  (S.tabIds || TAB_IDS).forEach(function (id) {
     const btn = getEl("#ys-btn-" + id);
     if (!btn) return;
     btn.classList.toggle("ys-active", S.activeTab === id);

@@ -27,5 +27,8 @@ export const MIN_USABLE_TOKENS = 1; // 計算結果の下限クランプ
 export const TIMESTAMP_DELEGATION_FLAG = "ysTimestampBound"; // linkTimestamps委譲済みフラグ
 export const TS_LINK_CLASS = "ys-timestamp-link"; // タイムスタンプリンクのクラス名
 
+// ===== タブID =====
+export const TAB_IDS = Object.freeze(["summary", "customA", "customB"]);
+
 // ===== Chat history =====
 export const CHAT_HISTORY_SEED_LENGTH = 3; // 初期要約で生成される system + user + assistant の3件

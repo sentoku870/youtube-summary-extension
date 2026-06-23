@@ -86,8 +86,17 @@ export function confirmDialog(options) {
     document.body.appendChild(overlay);
     activeOverlay = overlay;
     document.addEventListener("keydown", onKeydown);
-    setTimeout(function () {
+    // requestAnimationFrame で次フレームにフォーカス。
+    // 旧 setTimeout(0) よりレイアウト確定後にフォーカスされチラつきを抑える。
+    // rAF 非対応環境では setTimeout(0) にフォールバック。
+    const raf =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame
+        : function (cb) {
+            return setTimeout(cb, 0);
+          };
+    raf(function () {
       okBtn.focus();
-    }, 0);
+    });
   });
 }

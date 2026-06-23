@@ -11,6 +11,7 @@
 import { uiState as S } from "../../shared/state.js";
 import { applyTheme, applyFontSize, applyPanelHeight } from "./appearance.js";
 import { createLogger } from "../../shared/logger.js";
+import { TAB_IDS } from "../../shared/constants.js";
 import "./sidebar.css";
 
 const log = createLogger("panel");
@@ -234,7 +235,7 @@ function placePanel(panel) {
 export function createPanel() {
   if (S.panelEl) return S.panelEl;
 
-  S.tabIds = ["summary", "customA", "customB"];
+  S.tabIds = [...TAB_IDS];
   S.tabs = {};
   S.tabIds.forEach(function (id) {
     S.tabs[id] = {
