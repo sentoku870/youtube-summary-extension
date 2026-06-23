@@ -27,30 +27,38 @@ export function hideProgress() {
 }
 
 // ===== エラー表示（ネットワーク状態検出付き） =====
+// XSS 対策: msg は API からの外部入力（LLM / ネットワークエラー文言）を含むため、
+// innerHTML への直接連結を行わず、textContent + createElement のみで DOM を構築する。
 export function showError(msg) {
   const el = getEl("#ys-error");
   if (!el) return;
-  if (!navigator.onLine) {
-    el.innerHTML = "<span>🌐 オフラインです。インターネット接続を確認してください。</span>";
-    el.style.display = "block";
-    return;
-  }
-  el.innerHTML =
-    "<span>" +
-    msg +
-    "</span>" +
-    '<button id="ys-errorRetryBtn" class="ys-action-btn" style="margin-left:8px;">🔄 再試行</button>';
+  el.replaceChildren();
   el.style.display = "block";
 
-  const retryBtn = el.querySelector("#ys-errorRetryBtn");
-  if (retryBtn) {
-    retryBtn.onclick = function () {
-      el.style.display = "none";
-      if (S.activeTab) {
-        switchTab(S.activeTab);
-      }
-    };
+  if (!navigator.onLine) {
+    const span = document.createElement("span");
+    span.textContent = "🌐 オフラインです。インターネット接続を確認してください。";
+    el.appendChild(span);
+    return;
   }
+
+  const span = document.createElement("span");
+  span.textContent = String(msg || "");
+  el.appendChild(span);
+
+  const retryBtn = document.createElement("button");
+  retryBtn.id = "ys-errorRetryBtn";
+  retryBtn.className = "ys-action-btn";
+  retryBtn.type = "button";
+  retryBtn.style.marginLeft = "8px";
+  retryBtn.textContent = "🔄 再試行";
+  retryBtn.addEventListener("click", function () {
+    el.style.display = "none";
+    if (S.activeTab) {
+      switchTab(S.activeTab);
+    }
+  });
+  el.appendChild(retryBtn);
 }
 
 export function hideError() {

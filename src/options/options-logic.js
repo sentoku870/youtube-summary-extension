@@ -78,30 +78,3 @@ export function buildConfig(values) {
     extraParams: (values.extraParams || "").trim()
   };
 }
-
-// ===== 同一ホストの既存APIキーを検索（再入力不要化） =====
-// 純粋関数: apiUrl を受け取り、configs 内で同一ホストの apiKey を返す。
-// 該当なしは空文字、URL パース失敗も空文字を返す。
-export function findExistingApiKeyByHost(apiUrl, configs) {
-  if (!apiUrl) return "";
-  if (!Array.isArray(configs) || configs.length === 0) return "";
-  let host = "";
-  try {
-    host = new URL(apiUrl).hostname;
-  } catch {
-    return "";
-  }
-  if (!host) return "";
-  for (let i = 0; i < configs.length; i++) {
-    const c = configs[i];
-    if (!c || !c.apiKey || !c.apiUrl) continue;
-    try {
-      if (new URL(c.apiUrl).hostname === host) {
-        return c.apiKey;
-      }
-    } catch {
-      // 不正URLは無視
-    }
-  }
-  return "";
-}

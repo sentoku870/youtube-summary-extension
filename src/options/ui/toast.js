@@ -42,8 +42,3 @@ export function errorToast(msg, duration) {
   if (!msg) return;
   showToast(msg, "error", duration || ERROR_DURATION);
 }
-
-export function infoToast(msg, duration) {
-  if (!msg) return;
-  showToast(msg, "info", duration || DEFAULT_DURATION);
-}

@@ -44,8 +44,25 @@ describe("ui", () => {
       showError("APIエラー発生");
 
       expect(errorEl.style.display).toBe("block");
-      expect(errorEl.innerHTML).toContain("APIエラー発生");
+      expect(errorEl.textContent).toContain("APIエラー発生");
       expect(errorEl.querySelector("#ys-errorRetryBtn")).toBeTruthy();
+    });
+
+    test("HTML タグを含むメッセージはエスケープされて textContent として挿入される (XSS 対策)", () => {
+      Object.defineProperty(navigator, "onLine", {
+        value: true,
+        configurable: true,
+        writable: true
+      });
+      const errorEl = document.createElement("div");
+      getEl.mockReturnValue(errorEl);
+
+      const evil = "<img src=x onerror=alert(1)><script>alert(1)</script>";
+      showError(evil);
+
+      expect(errorEl.textContent).toContain("<img src=x onerror=alert(1)>");
+      expect(errorEl.querySelector("img")).toBeNull();
+      expect(errorEl.querySelector("script")).toBeNull();
     });
 
     test("オフライン時: オフラインメッセージを表示（再試行ボタンなし）", () => {
@@ -60,7 +77,7 @@ describe("ui", () => {
       showError("何かのエラー");
 
       expect(errorEl.style.display).toBe("block");
-      expect(errorEl.innerHTML).toContain("オフライン");
+      expect(errorEl.textContent).toContain("オフライン");
       expect(errorEl.querySelector("#ys-errorRetryBtn")).toBeNull();
     });
 
@@ -82,7 +99,7 @@ describe("ui", () => {
       showError("エラー");
 
       const retryBtn = errorEl.querySelector("#ys-errorRetryBtn");
-      retryBtn.onclick();
+      retryBtn.click();
 
       expect(errorEl.style.display).toBe("none");
       expect(switchTab).toHaveBeenCalledWith("summary");
@@ -101,7 +118,7 @@ describe("ui", () => {
       showError("エラー");
 
       const retryBtn = errorEl.querySelector("#ys-errorRetryBtn");
-      retryBtn.onclick();
+      retryBtn.click();
 
       expect(switchTab).not.toHaveBeenCalled();
     });

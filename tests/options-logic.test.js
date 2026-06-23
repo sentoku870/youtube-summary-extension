@@ -7,8 +7,7 @@ const {
   cssEscape,
   validateFormValues,
   VALIDATION_ERRORS,
-  buildConfig,
-  findExistingApiKeyByHost
+  buildConfig
 } = require("../src/options/options-logic");
 
 // ===== generateId =====
@@ -187,85 +186,5 @@ describe("buildConfig", () => {
     expect(result.apiUrl).toBe("");
     expect(result.apiModel).toBe("");
     expect(result.extraParams).toBe("");
-  });
-});
-
-// ===== findExistingApiKeyByHost =====
-describe("findExistingApiKeyByHost", () => {
-  test("同一ホストの apiKey を返す", () => {
-    const configs = [
-      { id: "1", apiKey: "key-1", apiUrl: "https://api.deepseek.com/v1/chat/completions" },
-      { id: "2", apiKey: "key-2", apiUrl: "https://api.openai.com/v1/chat/completions" }
-    ];
-    const result = findExistingApiKeyByHost(
-      "https://api.deepseek.com/v1/chat/completions",
-      configs
-    );
-    expect(result).toBe("key-1");
-  });
-
-  test("ホスト名が一致しない場合は空文字", () => {
-    const configs = [
-      { id: "1", apiKey: "key-1", apiUrl: "https://api.deepseek.com/v1/chat/completions" }
-    ];
-    const result = findExistingApiKeyByHost("https://api.openai.com/v1/chat/completions", configs);
-    expect(result).toBe("");
-  });
-
-  test("apiUrl が空文字 → 空文字", () => {
-    expect(findExistingApiKeyByHost("", [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe("");
-    expect(findExistingApiKeyByHost(null, [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe("");
-    expect(findExistingApiKeyByHost(undefined, [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe(
-      ""
-    );
-  });
-
-  test("apiUrl が不正な URL 文字列 → 空文字", () => {
-    expect(findExistingApiKeyByHost("not-a-url", [{ apiKey: "k", apiUrl: "https://x.com" }])).toBe(
-      ""
-    );
-  });
-
-  test("configs が null / undefined / 空配列 → 空文字", () => {
-    expect(findExistingApiKeyByHost("https://api.deepseek.com", null)).toBe("");
-    expect(findExistingApiKeyByHost("https://api.deepseek.com", undefined)).toBe("");
-    expect(findExistingApiKeyByHost("https://api.deepseek.com", [])).toBe("");
-  });
-
-  test("apiKey が無い config はスキップ", () => {
-    const configs = [
-      { id: "1", apiKey: "", apiUrl: "https://api.deepseek.com" },
-      { id: "2", apiKey: "key-2", apiUrl: "https://api.deepseek.com" }
-    ];
-    const result = findExistingApiKeyByHost("https://api.deepseek.com", configs);
-    expect(result).toBe("key-2");
-  });
-
-  test("apiUrl が不正な config はスキップ", () => {
-    const configs = [
-      { id: "1", apiKey: "key-bad", apiUrl: "not-a-url" },
-      { id: "2", apiKey: "key-ok", apiUrl: "https://api.deepseek.com" }
-    ];
-    const result = findExistingApiKeyByHost("https://api.deepseek.com", configs);
-    expect(result).toBe("key-ok");
-  });
-
-  test("apiUrl / apiKey が空の config はスキップ", () => {
-    const configs = [
-      { id: "1" },
-      { id: "2", apiKey: "k", apiUrl: "" },
-      { id: "3", apiKey: "real", apiUrl: "https://api.deepseek.com" }
-    ];
-    const result = findExistingApiKeyByHost("https://api.deepseek.com", configs);
-    expect(result).toBe("real");
-  });
-
-  test("最初の一致を返す（複数該当時は先頭）", () => {
-    const configs = [
-      { id: "1", apiKey: "key-1", apiUrl: "https://api.deepseek.com/a" },
-      { id: "2", apiKey: "key-2", apiUrl: "https://api.deepseek.com/b" }
-    ];
-    const result = findExistingApiKeyByHost("https://api.deepseek.com/c", configs);
-    expect(result).toBe("key-1");
   });
 });

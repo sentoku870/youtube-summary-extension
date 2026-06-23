@@ -14,15 +14,3 @@ export function setVal(id, val) {
   const el = document.getElementById(id);
   if (el) el.value = val || "";
 }
-
-// ステータスメッセージを表示（成功: 2秒で自動消去 / 失敗: 表示継続）
-export function showStatus(id, msg, isError) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = msg;
-  el.style.color = isError ? "#d32f2f" : "#2d8c3c";
-  if (!isError)
-    setTimeout(function () {
-      el.textContent = "";
-    }, 2000);
-}

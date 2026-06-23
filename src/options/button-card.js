@@ -163,14 +163,10 @@ async function commitSave(key) {
       }
     }
   } catch (e) {
-    errorToastInline("保存に失敗しました: " + (e.message || e));
+    saveToast("✗ 保存に失敗しました: " + (e.message || e));
   } finally {
     delete pendingWrites[key];
   }
-}
-
-function errorToastInline(msg) {
-  saveToast("✗ " + msg);
 }
 
 function updateWarnVisibility(key) {

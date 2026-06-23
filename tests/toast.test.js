@@ -1,5 +1,5 @@
 // tests/toast.test.js — トースト通知の単体テスト
-const { saveToast, errorToast, infoToast } = require("../src/options/ui/toast.js");
+const { saveToast, errorToast } = require("../src/options/ui/toast.js");
 
 describe("toast", () => {
   beforeEach(() => {
@@ -26,12 +26,6 @@ describe("toast", () => {
     errorToast("エラー");
     const toast = document.querySelector(".ys-toast");
     expect(toast.className).toContain("ys-toast-error");
-  });
-
-  test("infoToast は info クラスを付与", () => {
-    infoToast("情報");
-    const toast = document.querySelector(".ys-toast");
-    expect(toast.className).toContain("ys-toast-info");
   });
 
   test("複数のトーストをスタックできる", () => {

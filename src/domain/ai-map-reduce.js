@@ -7,7 +7,6 @@ import { callChatAPIStream } from "./api.js";
 import { setMarkdown } from "./markdown.js";
 import { MAX_CONCURRENCY, CHUNK_MAX_ATTEMPTS } from "../shared/constants.js";
 import { getUiAdapter } from "./ports.js";
-import { showError } from "./ai.js";
 import { processSingleChunk } from "./ai-chunk.js";
 
 const CHUNK_WORKER_PROMPT_SUFFIX = "\n\nこれは動画の一部分です。";
@@ -91,7 +90,7 @@ export async function processMapReduce(
     return r !== null;
   });
   if (chunkSummaries.length === 0) {
-    showError("すべてのチャンクの処理に失敗しました。");
+    ui.showError("すべてのチャンクの処理に失敗しました。");
     return null;
   }
 

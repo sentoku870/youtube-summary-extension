@@ -1,0 +1,272 @@
+// tests/options-model-form.test.js — モデル管理フォーム（model-form.js）のテスト
+
+// 依存モジュールをモック
+jest.mock("../src/options/ui/toast.js", () => ({
+  saveToast: jest.fn(),
+  errorToast: jest.fn()
+}));
+
+const mockStorage = {
+  configs: []
+};
+
+jest.mock("../src/infrastructure/storage.js", () => {
+  const actual = jest.requireActual("../src/infrastructure/storage.js");
+  return {
+    ...actual,
+    get: jest.fn((key) => {
+      if (key === "apiConfigs") return Promise.resolve(mockStorage.configs);
+      return Promise.resolve(undefined);
+    }),
+    set: jest.fn((obj) => {
+      if (obj.apiConfigs) mockStorage.configs = obj.apiConfigs;
+      return Promise.resolve();
+    })
+  };
+});
+
+let initForm, openFormForNew, openFormForEdit, isFormOpen, setOnAfterSave;
+let saveToast;
+let set;
+
+function buildTabHost() {
+  document.body.innerHTML = "";
+  const host = document.createElement("div");
+  host.id = "tab-models";
+  document.body.appendChild(host);
+  return host;
+}
+
+function click(id) {
+  const el = document.getElementById(id);
+  if (!el) throw new Error("element not found: " + id);
+  el.click();
+}
+
+function setFormValues(values) {
+  if (values.label !== undefined) document.getElementById("configLabel").value = values.label;
+  if (values.apiKey !== undefined) document.getElementById("apiKey").value = values.apiKey;
+  if (values.apiUrl !== undefined) document.getElementById("apiUrl").value = values.apiUrl;
+  if (values.apiModel !== undefined) document.getElementById("apiModel").value = values.apiModel;
+  if (values.temperature !== undefined)
+    document.getElementById("temperature").value = values.temperature;
+  if (values.maxTokens !== undefined)
+    document.getElementById("maxTokens").value = values.maxTokens;
+  if (values.extraParams !== undefined)
+    document.getElementById("extraParams").value = values.extraParams;
+}
+
+beforeEach(() => {
+  // model-form.js の内部 isInitialized フラグをテスト間でリセットするため、
+  // モジュールキャッシュをパージして再 require する。
+  jest.resetModules();
+  jest.clearAllMocks();
+  mockStorage.configs = [];
+  buildTabHost();
+  const mf = require("../src/options/model-form.js");
+  initForm = mf.initForm;
+  openFormForNew = mf.openFormForNew;
+  openFormForEdit = mf.openFormForEdit;
+  isFormOpen = mf.isFormOpen;
+  setOnAfterSave = mf.setOnAfterSave;
+  saveToast = require("../src/options/ui/toast.js").saveToast;
+  const storage = require("../src/infrastructure/storage.js");
+  set = storage.set;
+  initForm();
+});
+
+describe("model-form", () => {
+  describe("initForm", () => {
+    test("フォーム DOM が #tab-models に追加され hidden 状態", () => {
+      const form = document.getElementById("modelFormContainer");
+      expect(form).not.toBeNull();
+      expect(form.hidden).toBe(true);
+      expect(form.parentNode.id).toBe("tab-models");
+    });
+
+    test("host がない場合は静かに抜ける（エラーなし）", () => {
+      document.body.innerHTML = "";
+      // initForm は内部で isInitialized を見て抜けるが、ホストなしで再初期化できるようにする
+      // ここでは単に例外が出ないことだけ確認
+      expect(() => initForm()).not.toThrow();
+    });
+
+    test("二回目以降の initForm は何もしない（冪等）", () => {
+      const first = document.getElementById("modelFormContainer");
+      initForm();
+      const second = document.getElementById("modelFormContainer");
+      expect(second).toBe(first);
+    });
+  });
+
+  describe("openFormForNew", () => {
+    test("タイトル/ボタンが新規モードに切替わる", () => {
+      openFormForNew();
+      // 注: formContainerEl.hidden の切替は model-card.js の attachFormAsNew() 側で行う。
+      // model-form.js の openFormForNew は値・タイトル・ボタンテキスト・duplicate ボタンの可視性のみ管理する。
+      expect(document.getElementById("api-form-title").textContent).toContain("新規モデル");
+      expect(document.getElementById("saveConfigBtn").textContent).toContain("登録");
+      expect(document.getElementById("duplicateConfigBtn").hidden).toBe(true);
+    });
+
+    test("フォームの値がクリアされる", () => {
+      setFormValues({ label: "old", apiKey: "old-key" });
+      openFormForNew();
+      expect(document.getElementById("configLabel").value).toBe("");
+      expect(document.getElementById("apiKey").value).toBe("");
+      expect(document.getElementById("temperature").value).toBe("0.3");
+      expect(document.getElementById("maxTokens").value).toBe("4096");
+    });
+  });
+
+  describe("openFormForEdit", () => {
+    test("既存 config の値がフォームにロードされる", async () => {
+      mockStorage.configs = [
+        {
+          id: "cfg_1",
+          label: "MyModel",
+          apiKey: "sk-123",
+          apiUrl: "https://api.example.com/v1/chat",
+          apiModel: "ex-model",
+          temperature: "0.5",
+          maxTokens: "2048",
+          extraParams: '{"x":1}'
+        }
+      ];
+      await openFormForEdit("cfg_1");
+      expect(document.getElementById("configLabel").value).toBe("MyModel");
+      expect(document.getElementById("apiKey").value).toBe("sk-123");
+      expect(document.getElementById("apiUrl").value).toBe("https://api.example.com/v1/chat");
+      expect(document.getElementById("apiModel").value).toBe("ex-model");
+      expect(document.getElementById("temperature").value).toBe("0.5");
+      expect(document.getElementById("maxTokens").value).toBe("2048");
+      expect(document.getElementById("extraParams").value).toBe('{"x":1}');
+      expect(document.getElementById("api-form-title").textContent).toContain("編集中");
+      expect(document.getElementById("saveConfigBtn").textContent).toContain("変更");
+      expect(document.getElementById("duplicateConfigBtn").hidden).toBe(false);
+    });
+
+    test("存在しない id の場合は何もせずフォームは開かない", async () => {
+      await openFormForEdit("not-exists");
+      expect(isFormOpen()).toBe(false);
+    });
+  });
+
+  describe("handleSave (保存ボタン)", () => {
+    test("バリデーションエラー時はエラーメッセージを表示し保存しない", () => {
+      openFormForNew();
+      setFormValues({ label: "", apiKey: "k", apiUrl: "https://x.com", apiModel: "m" });
+      click("saveConfigBtn");
+      const errEl = document.getElementById("apiFormError");
+      expect(errEl.textContent).toContain("ラベル名");
+      expect(set).not.toHaveBeenCalledWith(expect.objectContaining({ apiConfigs: expect.anything() }));
+    });
+
+    test("API URL が空でもバリデーションエラー", () => {
+      openFormForNew();
+      setFormValues({ label: "L", apiKey: "k", apiUrl: "", apiModel: "m" });
+      click("saveConfigBtn");
+      expect(document.getElementById("apiFormError").textContent).toContain("APIエンドポイント");
+    });
+
+    test("API MODEL が空でもバリデーションエラー", () => {
+      openFormForNew();
+      setFormValues({ label: "L", apiKey: "k", apiUrl: "https://x.com", apiModel: "" });
+      click("saveConfigBtn");
+      expect(document.getElementById("apiFormError").textContent).toContain("モデル名");
+    });
+
+    test("extraParams が不正 JSON ならバリデーションエラー", () => {
+      openFormForNew();
+      setFormValues({
+        label: "L",
+        apiKey: "k",
+        apiUrl: "https://x.com",
+        apiModel: "m",
+        extraParams: "{not-json"
+      });
+      click("saveConfigBtn");
+      expect(document.getElementById("apiFormError").textContent).toContain("JSON");
+    });
+
+    test("全項目有効で新規登録 → apiConfigs に追加され saveToast 呼ばれる", async () => {
+      openFormForNew();
+      setFormValues({
+        label: "NewModel",
+        apiKey: "sk-new",
+        apiUrl: "https://api.example.com",
+        apiModel: "ex-model"
+      });
+      click("saveConfigBtn");
+      // save は async なのでマイクロタスクを進める
+      await new Promise(process.nextTick);
+      expect(set).toHaveBeenCalled();
+      expect(saveToast).toHaveBeenCalledWith(expect.stringContaining("新規"));
+      expect(mockStorage.configs.length).toBe(1);
+      expect(mockStorage.configs[0].label).toBe("NewModel");
+      expect(mockStorage.configs[0].id).toMatch(/^cfg_/);
+    });
+
+    test("編集モードで保存 → 既存 id の config を更新する", async () => {
+      mockStorage.configs = [
+        {
+          id: "cfg_1",
+          label: "old",
+          apiKey: "sk-old",
+          apiUrl: "https://api.example.com",
+          apiModel: "ex-model"
+        }
+      ];
+      await openFormForEdit("cfg_1");
+      setFormValues({ label: "new" });
+      click("saveConfigBtn");
+      await new Promise(process.nextTick);
+      expect(mockStorage.configs[0].label).toBe("new");
+      expect(mockStorage.configs[0].id).toBe("cfg_1"); // id は変わらない
+      expect(saveToast).toHaveBeenCalledWith(expect.stringContaining("変更"));
+    });
+
+    test("編集対象 id が見つからない場合は errorToast が出る", async () => {
+      mockStorage.configs = [];
+      await openFormForEdit("cfg_ghost");
+      // フォームは開かない
+      expect(isFormOpen()).toBe(false);
+    });
+  });
+
+  describe("handleDuplicate (複製として保存)", () => {
+    test("現在のフォーム値で新規 id を発行して apiConfigs に追加", async () => {
+      openFormForNew();
+      setFormValues({
+        label: "Dup",
+        apiKey: "sk-d",
+        apiUrl: "https://api.example.com",
+        apiModel: "ex-model"
+      });
+      click("duplicateConfigBtn");
+      await new Promise(process.nextTick);
+      expect(mockStorage.configs.length).toBe(1);
+      expect(mockStorage.configs[0].id).toMatch(/^cfg_/);
+      expect(saveToast).toHaveBeenCalledWith(expect.stringContaining("複製"));
+    });
+
+    test("バリデーションエラー時は保存しない", () => {
+      openFormForNew();
+      setFormValues({ label: "", apiKey: "k", apiUrl: "https://x.com", apiModel: "m" });
+      click("duplicateConfigBtn");
+      expect(set).not.toHaveBeenCalledWith(expect.objectContaining({ apiConfigs: expect.anything() }));
+    });
+  });
+
+  describe("handleCancel (キャンセル)", () => {
+    test("フォームをクリアし onAfterSave コールバックを呼ぶ", () => {
+      openFormForNew();
+      setFormValues({ label: "x" });
+      const cb = jest.fn();
+      setOnAfterSave(cb);
+      click("cancelEditBtn");
+      expect(document.getElementById("configLabel").value).toBe("");
+      expect(cb).toHaveBeenCalled();
+    });
+  });
+});

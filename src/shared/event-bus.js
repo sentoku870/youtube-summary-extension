@@ -78,10 +78,7 @@ export const INTERNAL_EVENTS = {
   NAV_FINISH: "nav:finish",
   TRANSCRIPT_READY: "transcript-ready",
   TRANSCRIPT_FAILED: "transcript-failed",
-  TRANSCRIPT_RETRY: "transcript-retry",
-  SUMMARY_UPDATED: "summary-updated",
-  TAB_CHANGED: "tab-changed",
-  STATE_RESET: "state-reset"
+  TRANSCRIPT_RETRY: "transcript-retry"
 };
 
 // 既存コードが EVENTS.X で参照している場合のシム

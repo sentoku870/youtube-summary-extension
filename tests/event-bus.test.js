@@ -85,9 +85,6 @@ describe("event-bus", () => {
     expect(EVENTS.TRANSCRIPT_READY).toBe("transcript-ready");
     expect(EVENTS.TRANSCRIPT_FAILED).toBe("transcript-failed");
     expect(EVENTS.TRANSCRIPT_RETRY).toBe("transcript-retry");
-    expect(EVENTS.SUMMARY_UPDATED).toBe("summary-updated");
-    expect(EVENTS.TAB_CHANGED).toBe("tab-changed");
-    expect(EVENTS.STATE_RESET).toBe("state-reset");
   });
 
   test("DOM_EVENTS は生の DOM イベントのみを含む", () => {
@@ -99,9 +96,6 @@ describe("event-bus", () => {
     expect(INTERNAL_EVENTS.TRANSCRIPT_READY).toBe("transcript-ready");
     expect(INTERNAL_EVENTS.TRANSCRIPT_FAILED).toBe("transcript-failed");
     expect(INTERNAL_EVENTS.TRANSCRIPT_RETRY).toBe("transcript-retry");
-    expect(INTERNAL_EVENTS.SUMMARY_UPDATED).toBe("summary-updated");
-    expect(INTERNAL_EVENTS.TAB_CHANGED).toBe("tab-changed");
-    expect(INTERNAL_EVENTS.STATE_RESET).toBe("state-reset");
     // DOM_EVENTS 専用のキーは含まれない
     expect(INTERNAL_EVENTS.YT_NAVIGATE_FINISH).toBeUndefined();
   });
