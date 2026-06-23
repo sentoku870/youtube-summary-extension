@@ -16,7 +16,6 @@ import {
   loadBtnApiConfigId,
   loadApiConfigById,
   loadApiConfigs,
-  loadApiConfigLegacy,
   loadCustomPrompt,
   getDefaultPrompt,
   saveToStorage,
@@ -144,10 +143,7 @@ export function resolveTranscriptText(transcript) {
 
 // ===== API設定とプロンプトの解決 =====
 export async function fetchConfigAndPrompt(mode) {
-  let config = await resolveApiConfig(mode);
-  if (!config || !config.apiKey) {
-    config = await loadApiConfigLegacy();
-  }
+  const config = await resolveApiConfig(mode);
   if (!config || !config.apiKey) return null;
 
   let prompt = await loadCustomPrompt(mode);

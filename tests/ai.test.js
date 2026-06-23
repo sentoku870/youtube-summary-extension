@@ -349,8 +349,7 @@ describe("fetchConfigAndPrompt", () => {
   test("API設定がない場合はnullを返す", async () => {
     chrome.storage.local.get
       .mockResolvedValueOnce({ btnApiConfig_summary: null })
-      .mockResolvedValueOnce({ apiConfigs: [] })
-      .mockResolvedValue({ apiConfig: null }); // レガシーもなし
+      .mockResolvedValueOnce({ apiConfigs: [] });
 
     const result = await fetchConfigAndPrompt("summary");
     expect(result).toBeNull();

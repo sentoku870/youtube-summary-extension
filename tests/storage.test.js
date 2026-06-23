@@ -143,7 +143,6 @@ describe("getDefaultPrompt", () => {
 describe("K (ストレージキー定数)", () => {
   test("各キーが期待される文字列値を持つ", () => {
     expect(storage.K.API_CONFIGS).toBe("apiConfigs");
-    expect(storage.K.API_CONFIG_LEGACY).toBe("apiConfig");
     expect(storage.K.PROMPT_PREFIX).toBe("prompt_");
     expect(storage.K.BTN_TITLE_PREFIX).toBe("btnTitle_");
     expect(storage.K.BTN_API_PREFIX).toBe("btnApiConfig_");
@@ -151,7 +150,6 @@ describe("K (ストレージキー定数)", () => {
     expect(storage.K.FONT_SIZE).toBe("fontSize");
     expect(storage.K.PANEL_HEIGHT).toBe("panelHeight");
     expect(storage.K.THEME).toBe("theme");
-    expect(storage.K.SYSTEM_PROMPT_LEGACY).toBe("systemPrompt");
     expect(storage.K.LATEST_SUMMARY).toBe("latestSummary");
     expect(storage.K.LATEST_CAPTIONS).toBe("latestCaptions");
   });
@@ -451,26 +449,6 @@ describe("clearSummaryCache", () => {
     chrome.storage.local.remove.mockResolvedValue(undefined);
     await storage.clearSummaryCache("video123");
     expect(chrome.storage.local.remove).toHaveBeenCalledWith("summary_cache_video123");
-  });
-});
-
-// ===== loadApiConfigLegacy =====
-describe("loadApiConfigLegacy", () => {
-  beforeEach(() => {
-    chrome.storage.local.get.mockReset();
-  });
-
-  test("設定がある場合はオブジェクトを返す", async () => {
-    const legacy = { apiKey: "old-key", apiUrl: "https://old.api", apiModel: "old" };
-    chrome.storage.local.get.mockResolvedValue({ apiConfig: legacy });
-    const result = await storage.loadApiConfigLegacy();
-    expect(result).toEqual(legacy);
-  });
-
-  test("設定がない場合は null を返す", async () => {
-    chrome.storage.local.get.mockResolvedValue({});
-    const result = await storage.loadApiConfigLegacy();
-    expect(result).toBeNull();
   });
 });
 

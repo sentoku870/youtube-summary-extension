@@ -1,7 +1,7 @@
 // ============================================================
 //  message-handler.js — chrome.runtime.onMessage リスナー
 //  Phase B-2: sidebar.js からメッセージ通信ロジックを分離
-//  popup.js / background.js からのメッセージを受信して処理
+//  popup.js からのメッセージを受信して処理
 // ============================================================
 import { uiState as S } from "../../shared/state.js";
 import { createPanel } from "./panel.js";
@@ -9,8 +9,6 @@ import { bindEvents, switchTab } from "./tabs.js";
 import { applyFontSize, applyTheme } from "./appearance.js";
 import { preloadTranscript, fetchTranscript } from "../../domain/transcript.js";
 import { createLogger } from "../../shared/logger.js";
-import { emit, EVENTS } from "../../shared/event-bus.js";
-import { isYouTubeWatchPage } from "../../shared/utils.js";
 
 const log = createLogger("message-handler");
 
@@ -25,24 +23,6 @@ function ensurePanel() {
   }
   if (S.panelEl) {
     S.panelEl.style.display = "";
-  }
-}
-
-// ===== Service Worker から最新状態を取得（Phase H #6） =====
-// Manifest V3 では Service Worker 起動が content script より早いため、
-// 起動直後の SPA ナビを取りこぼすケースがある。
-// 起動時に Service Worker に問い合わせて直近の URL を取得する。
-export async function fetchInitialTabState() {
-  if (!chrome.runtime || !chrome.runtime.sendMessage) return;
-  try {
-    const resp = await chrome.runtime.sendMessage({ action: "ysGetTabState" });
-    if (resp && resp.url && isYouTubeWatchPage(resp.url)) {
-      log.log("fetchInitialTabState recovered url=" + resp.url);
-      emit(EVENTS.NAV_FINISH, { url: resp.url });
-    }
-  } catch (e) {
-    // Service Worker 未起動 / エラーは警告のみ
-    log.warn("fetchInitialTabState failed:", e && e.message ? e.message : e);
   }
 }
 
@@ -98,15 +78,6 @@ try {
           sendResponse({ success: false, error: e.message });
         }
       })();
-      return true;
-    }
-    // Phase F-1: Service Worker からの URL 変更通知
-    // (即時 SPA ナビ検出、ポーリング負荷削減)
-    if (msg.action === "ysTabUpdated") {
-      log.log("ysTabUpdated url=" + msg.url);
-      // 内部 NAV_FINISH イベントを発火 → index.js が handleNavigation 経由で処理
-      emit(EVENTS.NAV_FINISH, { url: msg.url });
-      sendResponse({ received: true });
       return true;
     }
   });

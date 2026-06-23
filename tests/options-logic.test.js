@@ -10,8 +10,9 @@ const {
   validateFormValues,
   VALIDATION_ERRORS,
   buildConfig,
-  convertLegacyToConfigs,
-  findExistingApiKeyByHost
+  findExistingApiKeyByHost,
+  getProviderChipClass,
+  getProviderLabel
 } = require("../src/options/options-logic");
 
 // ===== PROVIDERS =====
@@ -250,149 +251,6 @@ describe("buildConfig", () => {
   });
 });
 
-// ===== convertLegacyToConfigs =====
-describe("convertLegacyToConfigs", () => {
-  // テスト用の固定ID生成関数
-  const fakeId = () => "cfg_fixed";
-  // oldConfigが存在しないと早期リターンする仕様（元コード通り）のため、
-  // provider個別設定のテストには必ず apiConfig（legacy）を含める
-  const legacyOldConfig = {
-    apiKey: "legacy-key",
-    apiUrl: "https://api.legacy.com",
-    apiModel: "legacy-model",
-    apiProvider: "legacy"
-  };
-
-  test("既にapiConfigsが存在する場合は空配列を返す（移行不要）", () => {
-    const storage = {
-      apiConfigs: [{ id: "existing", apiKey: "k" }],
-      apiConfig: legacyOldConfig
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    expect(result).toEqual([]);
-  });
-
-  test("legacy oldConfigも個別プロバイダー設定も無い場合は空配列", () => {
-    const result = convertLegacyToConfigs({}, fakeId);
-    expect(result).toEqual([]);
-  });
-
-  test("oldConfigがない場合はprovider個別設定があっても空配列", () => {
-    // 元コード仕様: oldConfig(apiConfig)が存在しないと早期リターン
-    const storage = {
-      apiConfig_deepseek: { apiKey: "ds-key", apiUrl: "https://api.deepseek.com" }
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    expect(result).toEqual([]);
-  });
-
-  test("oldConfigあり + apiConfig_deepseek → 両方が変換される", () => {
-    const storage = {
-      apiConfig: legacyOldConfig,
-      apiConfig_deepseek: {
-        apiKey: "ds-key",
-        apiUrl: "https://api.deepseek.com/v1/chat/completions",
-        apiModel: "deepseek-chat"
-      }
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    expect(result).toHaveLength(2);
-    expect(result.map((c) => c.apiKey)).toContain("ds-key");
-    expect(result.map((c) => c.apiKey)).toContain("legacy-key");
-  });
-
-  test("複数プロバイダーの個別設定を変換（oldConfig含む）", () => {
-    const storage = {
-      apiConfig: legacyOldConfig,
-      apiConfig_deepseek: { apiKey: "ds-key", apiUrl: "https://api.deepseek.com" },
-      apiConfig_openrouter: { apiKey: "or-key", apiUrl: "https://openrouter.ai" },
-      apiConfig_custom: { apiKey: "custom-key", apiUrl: "https://custom.api" }
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    // 3プロバイダー + oldConfig = 4件
-    expect(result).toHaveLength(4);
-  });
-
-  test("apiKey未設定のプロバイダーはスキップ", () => {
-    const storage = {
-      apiConfig: legacyOldConfig,
-      apiConfig_deepseek: { apiKey: "", apiUrl: "https://api.deepseek.com" },
-      apiConfig_openrouter: { apiKey: "or-key", apiUrl: "https://openrouter.ai" }
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    // openrouter + oldConfig = 2件（deepseekはapiKey空なのでスキップ）
-    expect(result).toHaveLength(2);
-    expect(result.find((c) => c.apiKey === "or-key")).toBeDefined();
-  });
-
-  test("legacy apiConfigのみ（プロバイダー個別なし）から1件変換", () => {
-    const storage = {
-      apiConfig: {
-        apiKey: "legacy-key",
-        apiUrl: "https://api.legacy.com",
-        apiModel: "legacy-model",
-        apiProvider: "legacy"
-      }
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    expect(result).toHaveLength(1);
-    expect(result[0].apiKey).toBe("legacy-key");
-    expect(result[0].label).toBe("legacy");
-  });
-
-  test("oldConfigとプロバイダー個別が重複する場合はoldConfigをマージしない", () => {
-    const storage = {
-      apiConfig: {
-        apiKey: "same-key",
-        apiUrl: "https://api.deepseek.com"
-      },
-      apiConfig_deepseek: {
-        apiKey: "same-key",
-        apiUrl: "https://api.deepseek.com"
-      }
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    expect(result).toHaveLength(1);
-  });
-
-  test("oldConfigのapiProviderがない場合はlabel=Default", () => {
-    const storage = {
-      apiConfig: {
-        apiKey: "key",
-        apiUrl: "https://api.test.com"
-      }
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    expect(result).toHaveLength(1);
-    expect(result[0].label).toBe("Default");
-  });
-
-  test("未設定フィールドはデフォルト値で補完", () => {
-    const storage = {
-      apiConfig: legacyOldConfig,
-      apiConfig_deepseek: { apiKey: "k" }
-    };
-    const result = convertLegacyToConfigs(storage, fakeId);
-    const dsConfig = result.find((c) => c.apiKey === "k");
-    expect(dsConfig.apiUrl).toBe("");
-    expect(dsConfig.apiModel).toBe("");
-    expect(dsConfig.temperature).toBe("0.3");
-    expect(dsConfig.maxTokens).toBe("4096");
-    expect(dsConfig.extraParams).toBe("");
-  });
-
-  test("generateIdFnが各configに呼ばれる", () => {
-    const storage = {
-      apiConfig: legacyOldConfig,
-      apiConfig_deepseek: { apiKey: "k1" },
-      apiConfig_openrouter: { apiKey: "k2" }
-    };
-    const idFn = jest.fn(() => "id-x");
-    const result = convertLegacyToConfigs(storage, idFn);
-    expect(idFn.mock.calls.length).toBe(result.length);
-  });
-});
-
 // ===== findExistingApiKeyByHost =====
 describe("findExistingApiKeyByHost", () => {
   test("同一ホストの apiKey を返す", () => {
@@ -470,5 +328,45 @@ describe("findExistingApiKeyByHost", () => {
     ];
     const result = findExistingApiKeyByHost("https://api.deepseek.com/c", configs);
     expect(result).toBe("key-1");
+  });
+});
+
+// ===== getProviderChipClass =====
+describe("getProviderChipClass", () => {
+  test("主要プロバイダーは対応するチップクラスを返す", () => {
+    expect(getProviderChipClass("deepseek")).toBe("provider-chip-deepseek");
+    expect(getProviderChipClass("openrouter")).toBe("provider-chip-openrouter");
+    expect(getProviderChipClass("openai")).toBe("provider-chip-openai");
+  });
+
+  test("未知のキー / カスタム は provider-chip-custom", () => {
+    expect(getProviderChipClass("custom")).toBe("provider-chip-custom");
+    expect(getProviderChipClass("unknown")).toBe("provider-chip-custom");
+  });
+
+  test("null / undefined / 空文字 は provider-chip-custom", () => {
+    expect(getProviderChipClass(null)).toBe("provider-chip-custom");
+    expect(getProviderChipClass(undefined)).toBe("provider-chip-custom");
+    expect(getProviderChipClass("")).toBe("provider-chip-custom");
+  });
+});
+
+// ===== getProviderLabel =====
+describe("getProviderLabel", () => {
+  test("主要プロバイダーのラベルを返す", () => {
+    expect(getProviderLabel("deepseek")).toBe("DeepSeek（直API）");
+    expect(getProviderLabel("openrouter")).toBe("OpenRouter");
+    expect(getProviderLabel("openai")).toBe("OpenAI（直API）");
+    expect(getProviderLabel("custom")).toBe("カスタム");
+  });
+
+  test("未知のキーは「カスタム」を返す", () => {
+    expect(getProviderLabel("unknown")).toBe("カスタム");
+  });
+
+  test("null / undefined / 空文字 は「カスタム」", () => {
+    expect(getProviderLabel(null)).toBe("カスタム");
+    expect(getProviderLabel(undefined)).toBe("カスタム");
+    expect(getProviderLabel("")).toBe("カスタム");
   });
 });

@@ -12,7 +12,7 @@ Compact guidance for OpenCode sessions working in this repo. Verify against the 
 
 ## Manifest / loading the extension
 
-- `manifest.json` references **source paths** (`src/background/background.js`, `src/content/index.js`, `src/popup/popup.html`, `src/options/options.html`). These are resolved by crxjs at build time — **load the unpacked extension from `dist/`** (which has the rewritten manifest + hashed bundles), not from the repo root.
+- `manifest.json` references **source paths** (`src/content/index.js`, `src/popup/popup.html`, `src/options/options.html`). These are resolved by crxjs at build time — **load the unpacked extension from `dist/`** (which has the rewritten manifest + hashed bundles), not from the repo root.
 - `manifest_version` 3. Permissions: `storage`, `activeTab`, `tabs`, `scripting` + broad `host_permissions` covering many LLM providers and localhost.
 
 ## Module system & test interop (non-obvious)
@@ -33,8 +33,15 @@ Layered Chrome extension (content script does the real work):
 - `src/infrastructure/` — `storage.js` (chrome.storage I/O) and `errors.js` (custom error classes: `YsAPIError`, `YsAbortError`, `YsTimeoutError`).
 - `src/shared/` — `constants.js`, `state.js`, `event-bus.js`, pure utils (`estimateTokens`, `splitIntoChunks`).
 - `src/options/`, `src/popup/` — settings UI (multi-provider config) and toolbar popup.
-- `src/background/background.js` is **intentionally empty** — message handling lives in the content script. Don't add background message routing without a reason.
-- `src/content/index.js` uses a 3-second URL polling fallback (with auto-stop after 5 min idle) on top of `yt-navigate-finish` / `yt-page-data-updated` / `popstate` / `hashchange` events. Don't remove the polling layer without verifying all four event sources fire reliably in YouTube's current SPA.
+  - `src/options/options.html` (slim structure) + `src/options/options.css` (extracted styles, NOT inline).
+  - `src/options/options.js` (entry: tab switch + initial load), `src/options/options-models.js` (tab 1 orchestrator), `src/options/options-buttons.js` (tab 2 orchestrator), `src/options/options-display.js` (tab 3 orchestrator).
+  - `src/options/model-card.js` (card rendering + inline form attachment), `src/options/model-form.js` (form DOM + save/cancel), `src/options/model-picker.js` (provider/datalist UI), `src/options/model-state.js` (shared pool/provider state), `src/options/model-filter.js` (pure filter), `src/options/model-label.js` (pure label), `src/options/button-card.js` (3 cards + autosave).
+  - `src/options/options-logic.js` (pure helpers: `PROVIDERS`, `validateFormValues`, `buildConfig`, `findExistingApiKeyByHost`, `getProviderChipClass`, `getProviderLabel`, etc.).
+  - `src/options/options-shared.js` (DOM utils: `getVal`, `setVal`).
+  - `src/options/ui/toast.js` (toast notifications: `saveToast`/`errorToast`/`infoToast`).
+  - `src/options/ui/confirm.js` (delete confirmation modal: `confirmDialog` returns Promise).
+- The extension has **no Service Worker** — message handling lives entirely in the content script. Don't add background message routing without a strong reason.
+- `src/content/index.js` uses a 10-second URL polling fallback (with auto-stop after 5 min idle) on top of `yt-navigate-finish` / `yt-page-data-updated` / `popstate` / `hashchange` events. Don't remove the polling layer without verifying all four event sources fire reliably in YouTube's current SPA. The extension has no Service Worker — SPA navigation is detected entirely in the content script.
 
 ### Port/Adapter pattern (important)
 

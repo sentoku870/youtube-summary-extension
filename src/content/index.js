@@ -15,7 +15,6 @@ import {
   resetTranscript,
   getPanelEl
 } from "./ui/sidebar.js";
-import { fetchInitialTabState } from "./ui/message-handler.js";
 import {
   showError,
   hideProgress,
@@ -164,20 +163,14 @@ waitForYtdApp(function () {
   if (isYouTubeWatchPage(location.href)) {
     safeInit();
   }
-  // Phase H #6: Service Worker から直近のタブ状態を取得
-  // (起動が早い Service Worker → content script の順序で
-  // 初期ナビを取りこぼすケースをカバー)
-  fetchInitialTabState();
 });
 
 // ============================================================
 //  SPA動画切り替え対応：URL ポーリングの最終フォールバック
-//  第1層: Service Worker からの ysTabUpdated 通知 (Phase F-1)
-//  第2層: yt-navigate-finish (YouTube SPA イベント)
-//  第3層: yt-page-data-updated / popstate / hashchange (ブラウザ標準)
-//  第4層: 10秒間隔ポーリング（稀に第1〜3層が発火しない環境向け）
+//  第1層: yt-navigate-finish (YouTube SPA イベント)
+//  第2層: yt-page-data-updated / popstate / hashchange (ブラウザ標準)
+//  第3層: 10秒間隔ポーリング（稀に第1〜2層が発火しない環境向け）
 //  ポーリングは 5 分間ナビがなければ自動停止（CPU 負荷対策）
-//  Phase F-1 で第1層 (Service Worker) を追加したため、ポーリング頻度を 3秒→10秒に減速
 // ============================================================
 const FALLBACK_POLL_INTERVAL_MS = 10000;
 const FALLBACK_POLL_MAX_IDLE_MS = 5 * 60 * 1000;

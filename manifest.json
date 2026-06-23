@@ -22,10 +22,6 @@
     "page": "src/options/options.html",
     "open_in_tab": true
   },
-  "background": {
-    "service_worker": "src/background/background.js",
-    "type": "module"
-  },
   "web_accessible_resources": [
     {
       "resources": ["src/content/ui/sidebar.css"],

@@ -1,20 +1,226 @@
 // ============================================================
-//  options-display.js — 表示設定タブ UI
-//  テーマ・フォントサイズ・パネル高さ・字幕言語の保存。
+//  options-display.js — 表示設定タブ UI（自動保存 + テーマカード）
+//  テーマ: 大きなカード3つ（Auto/Light/Dark）を選択
+//  フォントサイズ / パネル高さ: 数値入力 + プリセットチップ
+//  字幕言語: 既存 select を維持
+//  全項目 change/input 時にデバウンス（300ms）で chrome.storage に保存。
 // ============================================================
 import { set, K } from "../infrastructure/storage.js";
-import { getVal, showStatus } from "./options-shared.js";
+import { saveToast } from "./ui/toast.js";
 
-// ===== イベント登録（DOMContentLoaded で呼ぶ） =====
-export function initDisplayTab() {
-  // 表示設定のみ保存
-  document.getElementById("saveDisplayBtn").addEventListener("click", async function () {
-    await set({
-      [K.FONT_SIZE]: getVal("fontSize"),
-      [K.PANEL_HEIGHT]: getVal("panelHeight"),
-      [K.THEME]: getVal("theme"),
-      [K.SUBTITLE_LANG]: getVal("subtitleLang")
+const DEBOUNCE_MS = 300;
+
+const FONT_SIZE_PRESETS = [13, 14, 15, 16, 17, 18, 19, 20];
+const PANEL_HEIGHT_PRESETS = [
+  { value: 1050, label: "小" },
+  { value: 1100, label: "標準" },
+  { value: 1150, label: "大" }
+];
+
+const THEMES = [
+  { value: "auto", icon: "🌗", name: "自動", desc: "ブラウザに合わせる" },
+  { value: "light", icon: "☀️", name: "ライト", desc: "明るい背景" },
+  { value: "dark", icon: "🌙", name: "ダーク", desc: "暗い背景" }
+];
+
+let isInitialized = false;
+let saveTimer = null;
+
+function el(tag, className, text) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// ===== テーマカード生成 =====
+function buildThemeCards() {
+  const container = document.getElementById("themeCards");
+  if (!container) return;
+  container.replaceChildren();
+  THEMES.forEach(function (t) {
+    const card = el("div", "theme-card");
+    card.setAttribute("data-theme", t.value);
+    card.setAttribute("role", "radio");
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("aria-checked", "false");
+    card.setAttribute("aria-label", t.name + " - " + t.desc);
+    const icon = el("span", "theme-icon", t.icon);
+    const name = el("div", "theme-name", t.name);
+    const preview = el("div", "theme-preview theme-preview-" + t.value);
+    preview.textContent = "A";
+    card.appendChild(icon);
+    card.appendChild(name);
+    card.appendChild(preview);
+    card.addEventListener("click", function () {
+      selectTheme(t.value);
     });
-    showStatus("displayStatus", "✓ 保存しました");
+    card.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        selectTheme(t.value);
+      }
+    });
+    container.appendChild(card);
   });
+}
+
+function selectTheme(value) {
+  const sel = document.getElementById("theme");
+  if (sel) sel.value = value;
+  document.querySelectorAll(".theme-card").forEach(function (c) {
+    const active = c.getAttribute("data-theme") === value;
+    c.classList.toggle("active", active);
+    c.setAttribute("aria-checked", active ? "true" : "false");
+  });
+  scheduleSave();
+}
+
+function setThemeFromValue(value) {
+  document.querySelectorAll(".theme-card").forEach(function (c) {
+    const active = c.getAttribute("data-theme") === value;
+    c.classList.toggle("active", active);
+    c.setAttribute("aria-checked", active ? "true" : "false");
+  });
+}
+
+// ===== プリセットチップ生成 =====
+function buildPresetChips(containerId, presets, inputId, formatLabel) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.replaceChildren();
+  presets.forEach(function (p) {
+    const value = typeof p === "object" ? p.value : p;
+    const label = typeof p === "object" ? p.label : String(p);
+    const chip = el(
+      "button",
+      "preset-chip",
+      formatLabel ? formatLabel(value, label) : String(value)
+    );
+    chip.type = "button";
+    chip.setAttribute("data-value", String(value));
+    chip.addEventListener("click", function () {
+      const input = document.getElementById(inputId);
+      if (input) {
+        input.value = String(value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    container.appendChild(chip);
+  });
+}
+
+function syncPresetActiveState(containerId, currentValue) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.querySelectorAll(".preset-chip").forEach(function (chip) {
+    const isActive = chip.getAttribute("data-value") === String(currentValue);
+    chip.classList.toggle("active", isActive);
+  });
+}
+
+// ===== 自動保存 =====
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  const status = document.getElementById("displayAutoSaveStatus");
+  if (status) {
+    status.classList.remove("saved");
+    status.classList.add("saving");
+    status.textContent = "保存中…";
+  }
+  saveTimer = setTimeout(async function () {
+    saveTimer = null;
+    await commitSave();
+  }, DEBOUNCE_MS);
+}
+
+async function commitSave() {
+  const theme = document.getElementById("theme");
+  const fontSize = document.getElementById("fontSize");
+  const panelHeight = document.getElementById("panelHeight");
+  const subtitleLang = document.getElementById("subtitleLang");
+  const payload = {};
+  if (theme) payload[K.THEME] = theme.value;
+  if (fontSize) payload[K.FONT_SIZE] = fontSize.value;
+  if (panelHeight) payload[K.PANEL_HEIGHT] = panelHeight.value;
+  if (subtitleLang) payload[K.SUBTITLE_LANG] = subtitleLang.value;
+  try {
+    await set(payload);
+    const status = document.getElementById("displayAutoSaveStatus");
+    if (status) {
+      status.classList.remove("saving");
+      status.classList.add("saved");
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      status.textContent = "✓ 自動保存しました (" + hh + ":" + mm + ")";
+      setTimeout(function () {
+        if (status.classList.contains("saved")) {
+          status.textContent = "";
+          status.classList.remove("saved");
+        }
+      }, 2500);
+    }
+  } catch (e) {
+    saveToast("✗ 保存に失敗: " + (e.message || e));
+  }
+}
+
+// ===== 公開 =====
+export function initDisplayTab() {
+  if (isInitialized) return;
+  isInitialized = true;
+  buildThemeCards();
+  buildPresetChips("fontSizePresets", FONT_SIZE_PRESETS, "fontSize", function (v) {
+    return v + "px";
+  });
+  buildPresetChips("panelHeightPresets", PANEL_HEIGHT_PRESETS, "panelHeight", function (v, l) {
+    return v + "px (" + l + ")";
+  });
+
+  // change/input で自動保存
+  const themeSel = document.getElementById("theme");
+  if (themeSel) themeSel.addEventListener("change", scheduleSave);
+  const fontSize = document.getElementById("fontSize");
+  if (fontSize) {
+    fontSize.addEventListener("input", function () {
+      syncPresetActiveState("fontSizePresets", fontSize.value);
+      scheduleSave();
+    });
+    fontSize.addEventListener("change", function () {
+      syncPresetActiveState("fontSizePresets", fontSize.value);
+      scheduleSave();
+    });
+  }
+  const panelHeight = document.getElementById("panelHeight");
+  if (panelHeight) {
+    panelHeight.addEventListener("input", function () {
+      syncPresetActiveState("panelHeightPresets", panelHeight.value);
+      scheduleSave();
+    });
+    panelHeight.addEventListener("change", function () {
+      syncPresetActiveState("panelHeightPresets", panelHeight.value);
+      scheduleSave();
+    });
+  }
+  const subtitleLang = document.getElementById("subtitleLang");
+  if (subtitleLang) subtitleLang.addEventListener("change", scheduleSave);
+}
+
+export async function flushDisplaySaves() {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    await commitSave();
+  }
+}
+
+export function setThemeActiveFromValue(value) {
+  setThemeFromValue(value);
+}
+
+export function syncPresets(fontSize, panelHeight) {
+  syncPresetActiveState("fontSizePresets", fontSize);
+  syncPresetActiveState("panelHeightPresets", panelHeight);
 }

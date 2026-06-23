@@ -9,7 +9,6 @@ const log = createLogger("storage");
 // ===== ストレージキー定数 =====
 export const K = {
   API_CONFIGS: "apiConfigs",
-  API_CONFIG_LEGACY: "apiConfig",
   PROMPT_PREFIX: "prompt_",
   BTN_TITLE_PREFIX: "btnTitle_",
   BTN_API_PREFIX: "btnApiConfig_",
@@ -17,7 +16,6 @@ export const K = {
   FONT_SIZE: "fontSize",
   PANEL_HEIGHT: "panelHeight",
   THEME: "theme",
-  SYSTEM_PROMPT_LEGACY: "systemPrompt",
   LATEST_SUMMARY: "latestSummary",
   LATEST_CAPTIONS: "latestCaptions"
 };
@@ -98,10 +96,6 @@ export async function loadApiConfigById(id) {
       return c.id === id;
     }) || null
   );
-}
-
-export async function loadApiConfigLegacy() {
-  return (await get(K.API_CONFIG_LEGACY)) || null;
 }
 
 export async function loadCustomPrompt(type) {

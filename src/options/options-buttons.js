@@ -1,52 +1,22 @@
 // ============================================================
-//  options-buttons.js — ボタン・プロンプトタブ UI
-//  3つの要約ボタンに割り当てるモデル・プロンプト・表示名、
-//  「すべて保存」ハンドラを担当。
+//  options-buttons.js — ボタン・プロンプトタブ UI（オーケストレーション）
+//  button-card.js に 3 カード描画 + 自動保存を委譲。
+//  旧「すべて保存」ボタンは廃止（自動保存に移行）。
 // ============================================================
-import { get, set, K } from "../infrastructure/storage.js";
-import { promptKey, btnTitleKey, btnApiConfigKey } from "./options-logic.js";
-import { getVal, showStatus } from "./options-shared.js";
+import { initButtonCards, refreshButtonModelSelects, flushAllSaves } from "./button-card.js";
 
-// ===== ボタンのモデル選択肢を更新 =====
-export async function updateButtonModelSelects() {
-  const configs = (await get(K.API_CONFIGS)) || [];
-  const selectIds = ["btnApiConfig_summary", "btnApiConfig_customA", "btnApiConfig_customB"];
+let isInitialized = false;
 
-  selectIds.forEach(function (selectId) {
-    const sel = document.getElementById(selectId);
-    if (!sel) return;
-    const currentVal = sel.value;
-    sel.innerHTML = '<option value="">（モデルを選択）</option>';
-    configs.forEach(function (c) {
-      const opt = document.createElement("option");
-      opt.value = c.id;
-      opt.textContent = c.label + " (" + c.apiModel + ")";
-      sel.appendChild(opt);
-    });
-    if (currentVal && sel.querySelector('option[value="' + currentVal + '"]')) {
-      sel.value = currentVal;
-    }
-  });
+export function initButtonsTab() {
+  if (isInitialized) return;
+  isInitialized = true;
+  initButtonCards();
 }
 
-// ===== イベント登録（DOMContentLoaded で呼ぶ） =====
-export function initButtonsTab() {
-  // すべて保存
-  document.getElementById("saveAllBtn").addEventListener("click", async function () {
-    const saveData = {};
-    saveData[promptKey("summary")] = getVal("prompt_summary").trim();
-    saveData[promptKey("customA")] = getVal("prompt_customA").trim();
-    saveData[promptKey("customB")] = getVal("prompt_customB").trim();
-    saveData[btnTitleKey("customA")] = getVal("btnTitle_customA").trim();
-    saveData[btnTitleKey("customB")] = getVal("btnTitle_customB").trim();
-    saveData[btnApiConfigKey("summary")] = getVal("btnApiConfig_summary");
-    saveData[btnApiConfigKey("customA")] = getVal("btnApiConfig_customA");
-    saveData[btnApiConfigKey("customB")] = getVal("btnApiConfig_customB");
-    saveData[K.FONT_SIZE] = getVal("fontSize");
-    saveData[K.PANEL_HEIGHT] = getVal("panelHeight");
-    saveData[K.THEME] = getVal("theme");
-    saveData[K.SUBTITLE_LANG] = getVal("subtitleLang");
-    await set(saveData);
-    showStatus("status", "✓ 保存しました");
-  });
+export async function updateButtonModelSelects() {
+  await refreshButtonModelSelects();
+}
+
+export async function flushButtonsSaves() {
+  await flushAllSaves();
 }

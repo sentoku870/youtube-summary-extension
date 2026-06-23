@@ -1,30 +1,19 @@
 // ============================================================
-//  model-picker.js — モデル管理タブの「モデル取得・選択」UI
-//  プロバイダー選択、モデル一覧取得、絞り込みを担当。
+//  model-picker.js — モデル管理タブの「プロバイダー・モデル」UI
+//  プロバイダー選択とモデル一覧（datalist ソース）を担当。
 //  状態 (currentModelPool, currentModelProviderKey) は
 //  options-models.js で共有管理。
 // ============================================================
-import { get, K } from "../../infrastructure/storage.js";
+import { get, K } from "../infrastructure/storage.js";
 import { buildModelDisplayLabel } from "./model-label.js";
-import { listModelProviders, filterModels } from "./model-filter.js";
 import { PROVIDERS, cssEscape } from "./options-logic.js";
-import { getVal } from "./options-shared.js";
-
-// 親モジュールから状態を受け取るための getter/setter
-// model-picker は読み取りのみ(set は model-form 側で担当)
-let getModelPool = null;
-let getModelProviderKey = null;
-
-export function bindModelState({ getPool, getProviderKey }) {
-  getModelPool = getPool;
-  getModelProviderKey = getProviderKey;
-}
+import { getPool, getProviderKey } from "./model-state.js";
 
 // ===== プロバイダー選択 UI の動的構築 =====
 function populateProviderSelect() {
   const sel = document.getElementById("providerSelect");
   if (!sel) return;
-  sel.innerHTML = "";
+  sel.replaceChildren();
   Object.keys(PROVIDERS).forEach(function (key) {
     const opt = document.createElement("option");
     opt.value = key;
@@ -34,26 +23,58 @@ function populateProviderSelect() {
   sel.value = "custom";
 }
 
-function populateModelSelect(providerKey, models) {
-  const sel = document.getElementById("modelSelect");
-  if (!sel) return;
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">（モデルを選択または手動入力）</option>';
-  const list = models || (PROVIDERS[providerKey] && PROVIDERS[providerKey].models) || [];
-  list.forEach(function (m) {
+// ===== datalist の option を再構築 =====
+function updateDatalist(providerKey, models) {
+  const list = document.getElementById("modelSuggestions");
+  if (!list) return;
+  const pool = models || (PROVIDERS[providerKey] && PROVIDERS[providerKey].models) || [];
+  // 既存をクリア
+  while (list.firstChild) list.removeChild(list.firstChild);
+  pool.forEach(function (m) {
+    if (!m || !m.id) return;
     const opt = document.createElement("option");
     opt.value = m.id;
     const displayLabel = buildModelDisplayLabel(providerKey, m);
-    opt.textContent =
+    opt.label =
       displayLabel && displayLabel !== m.id
         ? displayLabel + " (" + m.id + ")"
         : displayLabel || m.id;
     opt.setAttribute("data-extra-params", m.extraParams || "");
-    sel.appendChild(opt);
+    list.appendChild(opt);
   });
-  if (prev && sel.querySelector('option[value="' + cssEscape(prev) + '"]')) {
-    sel.value = prev;
+  // プールが空でも「手動入力」ヒントのために空の datalist を作る
+  const note = document.getElementById("modelPoolNote");
+  if (note) {
+    if (pool.length === 0) {
+      note.textContent = "（モデルを手動入力してください）";
+      note.style.color = "#888";
+    } else {
+      note.textContent = pool.length + " 件のモデルが候補にあります";
+      note.style.color = "#888";
+    }
   }
+}
+
+// モデルフィールドに値を設定し、datalist から該当があれば extraParams を自動入力
+function setModelFieldValue(modelId) {
+  const input = document.getElementById("apiModel");
+  const extraParamsEl = document.getElementById("extraParams");
+  if (!input) return;
+  input.value = modelId || "";
+  if (!modelId) return;
+  const list = document.getElementById("modelSuggestions");
+  if (!list) return;
+  const opt = list.querySelector('option[value="' + cssEscape(modelId) + '"]');
+  if (opt && extraParamsEl && opt.getAttribute("data-extra-params")) {
+    extraParamsEl.value = opt.getAttribute("data-extra-params");
+  }
+}
+
+// モデル候補プールを datalist に流す
+function refreshDatalist() {
+  const providerKey = getProviderKey();
+  const pool = getPool();
+  updateDatalist(providerKey, pool);
 }
 
 // ===== 同一ホストの既存APIキーを検索 =====
@@ -78,82 +99,34 @@ function updateApiKeyHint(apiUrl, foundExisting) {
   }
 }
 
-// ===== モデルフィルターUI =====
-function setModelFilterVisible(visible) {
-  const container = document.getElementById("modelFilterContainer");
-  if (container) container.style.display = visible ? "block" : "none";
-}
-
-function resetModelFilter() {
-  const providerSel = document.getElementById("modelProviderFilter");
-  const keywordInput = document.getElementById("modelKeywordFilter");
-  const note = document.getElementById("modelCountNote");
-  if (providerSel) providerSel.innerHTML = '<option value="">すべて</option>';
-  if (keywordInput) keywordInput.value = "";
-  if (note) {
-    note.textContent = "モデルを取得すると絞り込みできます";
-    note.style.color = "#888";
-  }
-}
-
-function refreshModelProviderFilter() {
-  const sel = document.getElementById("modelProviderFilter");
-  if (!sel) return;
-  const pool = getModelPool ? getModelPool() : [];
-  const providers = listModelProviders(pool);
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">すべて</option>';
-  providers.forEach(function (p) {
-    const opt = document.createElement("option");
-    opt.value = p;
-    opt.textContent = p;
-    sel.appendChild(opt);
-  });
-  if (prev && sel.querySelector('option[value="' + cssEscape(prev) + '"]')) {
-    sel.value = prev;
-  }
-}
-
-function applyModelFilter() {
-  const providerFilter = getVal("modelProviderFilter");
-  const keyword = getVal("modelKeywordFilter");
-  const pool = getModelPool ? getModelPool() : [];
-  const providerKey = getModelProviderKey ? getModelProviderKey() : "";
-  const filtered = filterModels(providerKey, pool, providerFilter, keyword);
-  populateModelSelect(providerKey, filtered);
-  const note = document.getElementById("modelCountNote");
-  if (note) {
-    const total = pool.length;
-    const shown = filtered.length;
-    if (total === 0) {
-      note.textContent = "モデルを取得すると絞り込みできます";
-      note.style.color = "#888";
-    } else if (shown === total) {
-      note.textContent = shown + " 件（絞り込みなし）";
-      note.style.color = "#888";
-    } else {
-      note.textContent = shown + " 件 / " + total + " 件";
-      note.style.color = "#2d8c3c";
+function initModelInputEvents() {
+  const input = document.getElementById("apiModel");
+  if (!input) return;
+  // change イベント: datalist から選ばれた時に extraParams を自動入力
+  input.addEventListener("change", function () {
+    const list = document.getElementById("modelSuggestions");
+    const extraParamsEl = document.getElementById("extraParams");
+    if (!list || !extraParamsEl) return;
+    const opt = list.querySelector('option[value="' + cssEscape(input.value) + '"]');
+    if (opt && opt.getAttribute("data-extra-params")) {
+      extraParamsEl.value = opt.getAttribute("data-extra-params");
     }
-  }
+    // ラベル自動補完（ラベル欄が空のときのみ）
+    const labelEl = document.getElementById("configLabel");
+    if (opt && labelEl && !labelEl.value.trim()) {
+      const optLabel = opt.getAttribute("label") || opt.value;
+      const displayLabel = optLabel.split(" (")[0];
+      labelEl.value = displayLabel;
+    }
+  });
 }
 
-function initModelFilterEvents() {
-  const providerSel = document.getElementById("modelProviderFilter");
-  const keywordInput = document.getElementById("modelKeywordFilter");
-  if (providerSel) providerSel.addEventListener("change", applyModelFilter);
-  if (keywordInput) keywordInput.addEventListener("input", applyModelFilter);
-}
-
-// 外部公開（他モジュールから状態リセット用）
 export {
   populateProviderSelect,
-  populateModelSelect,
-  resetModelFilter,
-  setModelFilterVisible,
-  refreshModelProviderFilter,
-  applyModelFilter,
-  initModelFilterEvents,
+  updateDatalist,
+  refreshDatalist,
+  setModelFieldValue,
   findExistingApiKey,
-  updateApiKeyHint
+  updateApiKeyHint,
+  initModelInputEvents
 };

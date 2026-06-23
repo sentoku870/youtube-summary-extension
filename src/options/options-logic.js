@@ -70,6 +70,26 @@ export function btnApiConfigKey(type) {
   return K.BTN_API_PREFIX + type;
 }
 
+// ===== プロバイダーキー → CSS チップクラス =====
+export function getProviderChipClass(providerKey) {
+  const k = String(providerKey || "custom");
+  if (k === "deepseek" || k === "openrouter" || k === "openai") {
+    return "provider-chip-" + k;
+  }
+  return "provider-chip-custom";
+}
+
+// ===== プロバイダーキー → 表示ラベル（カード/チップ用） =====
+export function getProviderLabel(providerKey) {
+  if (!providerKey) return "カスタム";
+  const p = PROVIDERS[providerKey];
+  if (p && p.label) {
+    // "カスタム（手動入力）" は「カスタム」に縮約してカード表示
+    return providerKey === "custom" ? "カスタム" : p.label;
+  }
+  return "カスタム";
+}
+
 // ===== apiUrl からプロバイダーキーを推定 =====
 export function detectProviderKey(apiUrl) {
   if (!apiUrl) return "custom";
@@ -137,62 +157,6 @@ export function buildConfig(values) {
     maxTokens: values.maxTokens || "4096",
     extraParams: (values.extraParams || "").trim()
   };
-}
-
-// ===== 旧形式（apiConfig_<provider>）から新形式（apiConfigs配列）へ変換 =====
-// 純粋関数: ストレージの全読み出し結果とID生成関数を受け取り、変換後のconfigs配列を返す。
-// - 既に apiConfigs が存在する場合は空配列を返す（移行不要）
-// - legacy oldConfig も各プロバイダー個別設定も無い場合は空配列
-// - oldConfig とプロバイダー個別が重複する場合は oldConfig をマージしない
-//
-// allStorage: getAll() の結果オブジェクト
-// generateIdFn: 一意ID生成関数（テストで固定値を注入可能）
-export function convertLegacyToConfigs(allStorage, generateIdFn) {
-  const existing = allStorage[K.API_CONFIGS];
-  if (existing && existing.length > 0) return [];
-
-  const oldConfig = allStorage[K.API_CONFIG_LEGACY];
-  if (!oldConfig) return [];
-
-  const newConfigs = [];
-  const providers = ["deepseek", "openrouter", "custom"];
-  for (let i = 0; i < providers.length; i++) {
-    const provider = providers[i];
-    const key = "apiConfig_" + provider;
-    const pc = allStorage[key];
-    if (pc && pc.apiKey) {
-      newConfigs.push({
-        id: generateIdFn(),
-        label: provider.charAt(0).toUpperCase() + provider.slice(1),
-        apiKey: pc.apiKey,
-        apiUrl: pc.apiUrl || "",
-        apiModel: pc.apiModel || "",
-        temperature: pc.temperature || "0.3",
-        maxTokens: pc.maxTokens || "4096",
-        extraParams: pc.extraParams || ""
-      });
-    }
-  }
-
-  if (oldConfig.apiKey) {
-    const exists = newConfigs.some(function (c) {
-      return c.apiUrl === oldConfig.apiUrl && c.apiKey === oldConfig.apiKey;
-    });
-    if (!exists) {
-      newConfigs.push({
-        id: generateIdFn(),
-        label: oldConfig.apiProvider || "Default",
-        apiKey: oldConfig.apiKey,
-        apiUrl: oldConfig.apiUrl || "",
-        apiModel: oldConfig.apiModel || "",
-        temperature: oldConfig.temperature || "0.3",
-        maxTokens: oldConfig.maxTokens || "4096",
-        extraParams: oldConfig.extraParams || ""
-      });
-    }
-  }
-
-  return newConfigs;
 }
 
 // ===== 同一ホストの既存APIキーを検索（再入力不要化） =====

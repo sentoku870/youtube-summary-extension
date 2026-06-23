@@ -1,200 +1,136 @@
 // ============================================================
 //  options-models.js — モデル管理タブのエントリポイント
-//  共有状態 (currentModelPool, currentModelProviderKey) を保持し、
-//  model-picker / model-form / model-list を束ねる。
+//  カード描画 / フォーム表示 / 検索 / 削除確認 を束ねる。
+//  フォームの DOM と値管理は model-form.js、
+//  カードの描画と位置管理は model-card.js、
+//  共通状態は model-state.js に委譲。
 // ============================================================
-import { get, K } from "../infrastructure/storage.js";
-import { fetchModelList } from "../domain/api.js";
-import { PROVIDERS, generateId } from "./options-logic.js";
-import { getVal, setVal, showStatus } from "./options-shared.js";
-import * as picker from "./model-picker.js";
-import * as form from "./model-form.js";
-import * as list from "./model-list.js";
+import { get, set, K } from "../infrastructure/storage.js";
+import { confirmDialog } from "./ui/confirm.js";
+import { saveToast } from "./ui/toast.js";
+import {
+  renderModelList,
+  initCardEvents,
+  setSearchKeyword,
+  attachFormAsNew,
+  attachFormToCard,
+  detachForm,
+  setFormContainer,
+  bindCardHandlers
+} from "./model-card.js";
+import { initForm, openFormForNew, openFormForEdit, setOnAfterSave } from "./model-form.js";
+import { updateButtonModelSelects } from "./options-buttons.js";
 
-// ===== 共有状態 =====
-let currentModelPool = [];
-let currentModelProviderKey = "";
+let isInitialized = false;
 
-// 状態バインディング（sub-modules に getter/setter を公開）
-picker.bindModelState({
-  getPool: function () {
-    return currentModelPool;
-  },
-  getProviderKey: function () {
-    return currentModelProviderKey;
-  }
-});
-form.bindFormState({
-  setPool: function (v) {
-    currentModelPool = v;
-  },
-  setProviderKey: function (v) {
-    currentModelProviderKey = v;
-  }
-});
-list.bindListHandlers({
-  onEdit: form.editConfig,
-  onDelete: list.deleteConfig
-});
-
-// ===== エントリポイント =====
 export function initModelsTab() {
-  picker.populateProviderSelect();
-  picker.populateModelSelect("custom");
-  picker.initModelFilterEvents();
-  list.initListEvents();
+  if (isInitialized) return;
+  isInitialized = true;
 
-  // プロバイダー変更ハンドラ
-  document.getElementById("providerSelect").addEventListener("change", async function () {
-    const key = this.value;
-    const p = PROVIDERS[key];
-    if (!p) return;
-    setVal("apiUrl", p.apiUrl);
-    setVal("temperature", p.temperature);
-    currentModelPool = [];
-    currentModelProviderKey = key;
-    picker.resetModelFilter();
-    picker.populateModelSelect(key);
-    picker.setModelFilterVisible(key === "openrouter");
-    setVal("apiModel", "");
-    setVal("configLabel", "");
-    setVal("extraParams", "");
-    if (p.apiUrl) {
-      const existingKey = await picker.findExistingApiKey(p.apiUrl);
-      setVal("apiKey", existingKey);
-      picker.updateApiKeyHint(p.apiUrl, !!existingKey);
-    } else {
-      setVal("apiKey", "");
-      picker.updateApiKeyHint("", false);
-    }
+  // 1) フォーム DOM を作る
+  initForm();
+  // 2) カードモジュールにフォーム参照を渡す
+  const formDom = document.getElementById("modelFormContainer");
+  if (formDom) setFormContainer(formDom);
+
+  // 3) カード描画 + イベント登録
+  bindCardHandlers({
+    onEdit: handleEdit,
+    onDuplicate: handleDuplicate,
+    onDelete: handleDelete,
+    onFormClosed: handleFormClosed
   });
+  initCardEvents();
 
-  // モデル選択ハンドラ
-  document.getElementById("modelSelect").addEventListener("change", function () {
-    const modelId = this.value;
-    if (!modelId) return;
-    setVal("apiModel", modelId);
-    const currentLabel = getVal("configLabel").trim();
-    if (!currentLabel) {
-      const opt = this.options[this.selectedIndex];
-      const displayLabel = opt ? opt.textContent.split(" (")[0] : modelId;
-      setVal("configLabel", displayLabel);
-    }
-    const opt = this.options[this.selectedIndex];
-    if (opt) {
-      const extra = opt.getAttribute("data-extra-params");
-      if (extra) setVal("extraParams", extra);
-    }
-  });
-
-  // モデル一覧取得ボタン
-  document.getElementById("fetchModelsBtn").addEventListener("click", async function () {
-    const apiUrl = getVal("apiUrl").trim();
-    const apiKey = getVal("apiKey").trim();
-    if (!apiUrl) {
-      showStatus("apiStatus", "プロバイダーを選択するかURLを入力してください", true);
-      return;
-    }
-    if (!apiKey) {
-      showStatus("apiStatus", "モデル一覧取得にはAPIキーが必要です", true);
-      return;
-    }
-
-    const btn = this;
-    const originalText = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = "取得中...";
-    const statusEl = document.getElementById("apiStatus");
-    if (statusEl) statusEl.textContent = "";
-
-    try {
-      const models = await fetchModelList(apiUrl, apiKey);
-      if (models.length === 0) {
-        showStatus("apiStatus", "モデルが見つかりませんでした。手動で入力してください。", true);
-        return;
-      }
-      const providerKey = getVal("providerSelect");
-      const presetModels = (PROVIDERS[providerKey] && PROVIDERS[providerKey].models) || [];
-      const seen = {};
-      const merged = [];
-      presetModels.forEach(function (m) {
-        seen[m.id] = true;
-        merged.push(m);
-      });
-      models.forEach(function (m) {
-        if (seen[m.id]) return;
-        seen[m.id] = true;
-        merged.push(m);
-      });
-      currentModelPool = merged;
-      currentModelProviderKey = providerKey;
-      picker.refreshModelProviderFilter();
-      picker.applyModelFilter();
-      if (merged.length > 20) picker.setModelFilterVisible(true);
-      showStatus("apiStatus", "✓ " + models.length + " 件のモデルを取得しました");
-    } catch (e) {
-      showStatus("apiStatus", "✗ " + (e.message || e), true);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = originalText;
-    }
-  });
-
-  // ===== フォームボタン =====
-  // 新規登録
-  document.getElementById("saveConfigBtn").addEventListener("click", async function () {
-    const config = form.buildConfigFromForm();
-    if (!form.validateForm(config)) return;
-    const configs = (await get(K.API_CONFIGS)) || [];
-    config.id = generateId();
-    configs.push(config);
-    await form.saveConfigsAndRefresh(configs);
-    form.clearApiForm();
-    showStatus("apiStatus", "✓ 新規登録しました");
-  });
-
-  // 変更（上書き）
-  document.getElementById("updateConfigBtn").addEventListener("click", async function () {
-    const editingId = getVal("editingConfigId");
-    if (!editingId) {
-      showStatus("apiStatus", "編集中の設定がありません", true);
-      return;
-    }
-    const config = form.buildConfigFromForm();
-    if (!form.validateForm(config)) return;
-    const configs = (await get(K.API_CONFIGS)) || [];
-    const idx = configs.findIndex(function (c) {
-      return c.id === editingId;
+  // 4) 保存成功時のコールバック
+  setOnAfterSave(function () {
+    detachForm();
+    renderModelList().then(function () {
+      return updateButtonModelSelects();
     });
-    if (idx === -1) {
-      showStatus("apiStatus", "対象の設定が見つかりません", true);
-      return;
-    }
-    Object.assign(configs[idx], config);
-    await form.saveConfigsAndRefresh(configs);
-    form.clearApiForm();
-    showStatus("apiStatus", "✓ 変更（上書き）しました");
   });
 
-  // 新規として追加（複製）
-  document.getElementById("duplicateConfigBtn").addEventListener("click", async function () {
-    const config = form.buildConfigFromForm();
-    if (!form.validateForm(config)) return;
-    const configs = (await get(K.API_CONFIGS)) || [];
-    config.id = generateId();
-    configs.push(config);
-    await form.saveConfigsAndRefresh(configs);
-    showStatus("apiStatus", "✓ 新規として追加しました");
-  });
+  // 5) ツールバー
+  const addBtn = document.getElementById("addModelBtn");
+  if (addBtn) addBtn.addEventListener("click", handleAddNew);
 
-  // キャンセル
-  document.getElementById("cancelEditBtn").addEventListener("click", function () {
-    form.clearApiForm();
-  });
+  const searchInput = document.getElementById("modelSearchInput");
+  if (searchInput) {
+    let timer = null;
+    searchInput.addEventListener("input", function () {
+      clearTimeout(timer);
+      const kw = searchInput.value;
+      timer = setTimeout(function () {
+        setSearchKeyword(kw);
+      }, 150);
+    });
+  }
 
-  // 初回描画
-  list.renderModelList();
+  // 6) 初期描画
+  renderModelList().then(function () {
+    return updateButtonModelSelects();
+  });
 }
 
-// switchTab から呼ばれる用（外部公開）
-export { renderModelList } from "./model-list.js";
+// ===== ハンドラ =====
+function handleAddNew() {
+  openFormForNew();
+  attachFormAsNew();
+}
+
+async function handleEdit(id) {
+  await openFormForEdit(id);
+  attachFormToCard(id);
+}
+
+async function handleDuplicate(id) {
+  // 複製 = 編集中データを「複製として保存」ボタンで保存
+  // UX簡略化: 複製ボタンが押された場合、その場でフォームを開いて複製モードにする
+  // （実装簡略化のため、編集と同じフォームを使い、保存ボタンが「複製として保存」に切替わる）
+  const configs = (await get(K.API_CONFIGS)) || [];
+  const src = configs.find(function (c) {
+    return c.id === id;
+  });
+  if (!src) return;
+  const copy = Object.assign({}, src, { id: undefined });
+  delete copy.id;
+  copy.label = (src.label || "無名") + " (コピー)";
+  const newId = "cfg_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+  copy.id = newId;
+  configs.push(copy);
+  await set({ apiConfigs: configs });
+  saveToast("✓ 複製しました");
+  await renderModelList();
+  await updateButtonModelSelects();
+}
+
+async function handleDelete(id) {
+  const configs = (await get(K.API_CONFIGS)) || [];
+  const target = configs.find(function (c) {
+    return c.id === id;
+  });
+  if (!target) return;
+  const ok = await confirmDialog({
+    title: "モデルを削除",
+    message:
+      "「" +
+      (target.label || "無名") +
+      "」を削除します。よろしいですか？\n※ この操作は取り消せません。",
+    okLabel: "削除する",
+    cancelLabel: "キャンセル"
+  });
+  if (!ok) return;
+  const next = configs.filter(function (c) {
+    return c.id !== id;
+  });
+  await set({ apiConfigs: next });
+  saveToast("✓ 削除しました");
+  await renderModelList();
+  await updateButtonModelSelects();
+}
+
+function handleFormClosed() {
+  // 必要に応じて後処理（現状は何もしない）
+}
+
+export { renderModelList };
