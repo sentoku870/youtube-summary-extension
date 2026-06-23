@@ -15,6 +15,7 @@ import {
   resetTranscript,
   getPanelEl
 } from "./ui/sidebar.js";
+import { fetchInitialTabState } from "./ui/message-handler.js";
 import {
   showError,
   hideProgress,
@@ -163,6 +164,10 @@ waitForYtdApp(function () {
   if (isYouTubeWatchPage(location.href)) {
     safeInit();
   }
+  // Phase H #6: Service Worker から直近のタブ状態を取得
+  // (起動が早い Service Worker → content script の順序で
+  // 初期ナビを取りこぼすケースをカバー)
+  fetchInitialTabState();
 });
 
 // ============================================================

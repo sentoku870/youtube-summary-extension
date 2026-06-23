@@ -10,6 +10,7 @@ import { applyFontSize, applyTheme } from "./appearance.js";
 import { preloadTranscript, fetchTranscript } from "../../domain/transcript.js";
 import { createLogger } from "../../shared/logger.js";
 import { emit, EVENTS } from "../../shared/event-bus.js";
+import { isYouTubeWatchPage } from "../../shared/utils.js";
 
 const log = createLogger("message-handler");
 
@@ -24,6 +25,24 @@ function ensurePanel() {
   }
   if (S.panelEl) {
     S.panelEl.style.display = "";
+  }
+}
+
+// ===== Service Worker から最新状態を取得（Phase H #6） =====
+// Manifest V3 では Service Worker 起動が content script より早いため、
+// 起動直後の SPA ナビを取りこぼすケースがある。
+// 起動時に Service Worker に問い合わせて直近の URL を取得する。
+export async function fetchInitialTabState() {
+  if (!chrome.runtime || !chrome.runtime.sendMessage) return;
+  try {
+    const resp = await chrome.runtime.sendMessage({ action: "ysGetTabState" });
+    if (resp && resp.url && isYouTubeWatchPage(resp.url)) {
+      log.log("fetchInitialTabState recovered url=" + resp.url);
+      emit(EVENTS.NAV_FINISH, { url: resp.url });
+    }
+  } catch (e) {
+    // Service Worker 未起動 / エラーは警告のみ
+    log.warn("fetchInitialTabState failed:", e && e.message ? e.message : e);
   }
 }
 

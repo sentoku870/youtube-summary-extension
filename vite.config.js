@@ -12,6 +12,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
+    // logger.js の本番ビルド判定:
+    // globalThis.__LOG_LEVEL__ を "production" に置換することで
+    // log() 呼び出しを本番ビルドで完全に出力停止する。
+    define: {
+      "globalThis.__LOG_LEVEL__": JSON.stringify(
+        process.env.NODE_ENV === "production" ? "production" : "development"
+      )
+    }
   },
   server: {
     port: 5173,

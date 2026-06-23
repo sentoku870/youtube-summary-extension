@@ -1,13 +1,15 @@
 // ============================================================
 //  logger.js — console ログのカテゴリ別ラッパー
 //  [YouTube 要約][<category>] プレフィックスを統一付与。
-//  開発時のデバッグを支援。本番ビルド時は isDev = false で
-//  log() の出力を抑止可能（将来 vite 置換予定）。
+//  開発時のデバッグを支援。本番ビルド時は log() の出力を抑止。
 // ============================================================
 
-// ビルドモードで切替可能なフラグ。
-// 開発時は true、本番ビルド時は false にすれば log() 呼び出しが完全に出力されない。
-const isDev = true;
+// 本番ビルド判定: vite.config.js の `define` で
+// "globalThis.__LOG_LEVEL__" を "production" に置換する。
+// - 開発時: globalThis.__LOG_LEVEL__ は undefined → isDev = true
+// - 本番:   globalThis.__LOG_LEVEL__ = "production"   → isDev = false
+// Jest 環境: import.meta を使わず globalThis 経由なのでパースエラーなし
+const isDev = (typeof globalThis !== "undefined" && globalThis.__LOG_LEVEL__) !== "production";
 
 function toArgs(prefix, args) {
   const out = [prefix];

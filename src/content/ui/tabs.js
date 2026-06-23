@@ -27,25 +27,24 @@ const log = createLogger("tabs");
 // tabs-ui.js からの再エクスポート（呼び出し側の互換用）
 export { updateTabUI, updateTabActive, renderTabContent };
 
-// チャット送信用のAbortController（連続送信やタブ切り替えで前の応答を中断）
-let chatAbortController = null;
-// 親（要約セッション）との連動を保持（disconnect 用）
-let chatAbortChain = null;
-// 送信中フラグ（送信ボタン廃止に伴い、textarea.readOnly + フラグで二重送信を防止）
-let chatBusy = false;
+// チャット送信用の AbortController / 連動 / busy フラグは sessionState に集約
+// （Phase H F-5: モジュールスコープ変数を state.js に移動）
+// - sessionState.chatAbortController: 進行中のチャット AbortController
+// - sessionState.chatAbortChain:      親 (要約セッション) との連動を保持 (disconnect 用)
+// - sessionState.chatBusy:           送信中フラグ (textarea.readOnly + 二重送信防止)
 
 /**
  * 進行中のチャット応答を中断する。
  * 動画切り替え時などに呼び出すことを想定。
  */
 export function abortChatStream() {
-  if (chatAbortController) {
-    chatAbortController.abort();
-    chatAbortController = null;
+  if (sessionState.chatAbortController) {
+    sessionState.chatAbortController.abort();
+    sessionState.chatAbortController = null;
   }
-  if (chatAbortChain) {
-    chatAbortChain.disconnect();
-    chatAbortChain = null;
+  if (sessionState.chatAbortChain) {
+    sessionState.chatAbortChain.disconnect();
+    sessionState.chatAbortChain = null;
   }
 }
 
@@ -147,7 +146,7 @@ function resetChatInputHeight(el) {
 
 // ===== チャット送信 =====
 async function onChatSend() {
-  if (chatBusy) return;
+  if (sessionState.chatBusy) return;
   const input = getEl("#ys-chatInput");
   const text = input ? input.value.trim() : "";
   if (!text) return;
@@ -174,9 +173,9 @@ async function onChatSend() {
     sessionState.abortController && sessionState.abortController.signal
   );
   const controller = chain.controller;
-  chatAbortController = controller;
-  chatAbortChain = chain;
-  chatBusy = true;
+  sessionState.chatAbortController = controller;
+  sessionState.chatAbortChain = chain;
+  sessionState.chatBusy = true;
   if (input) input.readOnly = true;
 
   // AI回答の空枠を作成。
@@ -228,18 +227,18 @@ async function onChatSend() {
     if (placeholder) updateChatMessageBody(placeholder.body, "[エラー] " + e.message);
   } finally {
     // コントローラがまだ自分を指している場合のみクリア
-    if (chatAbortController === controller) {
-      chatAbortController = null;
+    if (sessionState.chatAbortController === controller) {
+      sessionState.chatAbortController = null;
     }
-    chatBusy = false;
+    sessionState.chatBusy = false;
     if (input) {
       input.readOnly = false;
       input.focus();
     }
     // 親 abort との連動を解除（次の送信に備えてリセット）
-    if (chatAbortChain) {
-      chatAbortChain.disconnect();
-      chatAbortChain = null;
+    if (sessionState.chatAbortChain) {
+      sessionState.chatAbortChain.disconnect();
+      sessionState.chatAbortChain = null;
     }
   }
 }
@@ -248,7 +247,7 @@ async function onChatSend() {
 // 該当インデックス以降の chatHistory（その質問＋以降のAI回答）を削除し、
 // 元テキストを入力欄へセット。ユーザーが書き換えて Enter → 通常フローで再生成。
 function handleEditUserMessage(idx) {
-  if (chatBusy) return;
+  if (sessionState.chatBusy) return;
   const tab = S.tabs[S.activeTab];
   if (!tab) return;
   abortChatStream();
@@ -328,7 +327,7 @@ export function bindEvents() {
   const chatClearBtn = getEl("#ys-chatClearBtn");
   if (chatClearBtn)
     chatClearBtn.addEventListener("click", function () {
-      if (chatBusy) return;
+      if (sessionState.chatBusy) return;
       // chatHistory の先頭3件 (system/要約/初期プロンプト) は保持
       const tab = S.tabs[S.activeTab];
       if (tab) tab.chatHistory = tab.chatHistory.slice(0, 3);

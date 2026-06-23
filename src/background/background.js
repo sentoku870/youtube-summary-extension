@@ -59,3 +59,23 @@ chrome.tabs.onRemoved.addListener(function (tabId) {
 chrome.runtime.onInstalled.addListener(function (details) {
   console.log("[YouTube 要約][background] installed:", details.reason);
 });
+
+// ===== コンテンツスクリプトへのバッファ提供 =====
+// Service Worker 起動が content script より早いため、
+// content script 起動時の初回ナビを取りこぼさないように、
+// 直近のタブ状態を問い合わせたら返す。
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  if (msg && msg.action === "ysGetTabState") {
+    const tabId = sender.tab && sender.tab.id;
+    if (tabId && tabStates[tabId]) {
+      sendResponse({
+        url: tabStates[tabId].url,
+        title: tabStates[tabId].title
+      });
+    } else {
+      sendResponse({ url: null, title: null });
+    }
+    return true;
+  }
+  return false;
+});

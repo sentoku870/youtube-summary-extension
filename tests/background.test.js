@@ -6,6 +6,7 @@
 const tabListeners = [];
 const tabRemovedListeners = [];
 const installedListeners = [];
+const messageListeners = [];
 
 global.chrome = {
   tabs: {
@@ -29,6 +30,11 @@ global.chrome = {
       addListener: jest.fn(function (fn) {
         installedListeners.push(fn);
       })
+    },
+    onMessage: {
+      addListener: jest.fn(function (fn) {
+        messageListeners.push(fn);
+      })
     }
   }
 };
@@ -40,6 +46,7 @@ function loadBackgroundFresh() {
   tabListeners.length = 0;
   tabRemovedListeners.length = 0;
   installedListeners.length = 0;
+  messageListeners.length = 0;
   // sendMessage のモックを再注入
   global.chrome.tabs.sendMessage = jest.fn().mockResolvedValue();
   // モジュールキャッシュをクリア
@@ -131,5 +138,45 @@ describe("background.js", () => {
     // 同じ URL で再度開く → 通知される（state がクリアされたため）
     handler(8, {}, { url: "https://www.youtube.com/watch?v=video1" });
     expect(global.chrome.tabs.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  // ===== Phase H #6: ysGetTabState ハンドラ (content script 起動時バッファ提供) =====
+  test("起動時に onMessage リスナーが登録される", () => {
+    expect(messageListeners.length).toBe(1);
+  });
+
+  test("ysGetTabState: 該当タブの状態を返す", () => {
+    const updater = tabListeners[0];
+    updater(10, {}, { url: "https://www.youtube.com/watch?v=stored" });
+    const msgHandler = messageListeners[0];
+    const sendResponse = jest.fn();
+    const result = msgHandler({ action: "ysGetTabState" }, { tab: { id: 10 } }, sendResponse);
+    expect(result).toBe(true);
+    expect(sendResponse).toHaveBeenCalledWith({
+      url: "https://www.youtube.com/watch?v=stored",
+      title: ""
+    });
+  });
+
+  test("ysGetTabState: 状態がないタブは url: null を返す", () => {
+    const msgHandler = messageListeners[0];
+    const sendResponse = jest.fn();
+    msgHandler({ action: "ysGetTabState" }, { tab: { id: 999 } }, sendResponse);
+    expect(sendResponse).toHaveBeenCalledWith({ url: null, title: null });
+  });
+
+  test("ysGetTabState: sender.tab がない場合は url: null", () => {
+    const msgHandler = messageListeners[0];
+    const sendResponse = jest.fn();
+    msgHandler({ action: "ysGetTabState" }, {}, sendResponse);
+    expect(sendResponse).toHaveBeenCalledWith({ url: null, title: null });
+  });
+
+  test("ysGetTabState 以外のメッセージは false を返す (handle しない)", () => {
+    const msgHandler = messageListeners[0];
+    const sendResponse = jest.fn();
+    const result = msgHandler({ action: "otherAction" }, {}, sendResponse);
+    expect(result).toBe(false);
+    expect(sendResponse).not.toHaveBeenCalled();
   });
 });

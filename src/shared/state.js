@@ -32,7 +32,11 @@ export function createInitialSessionState() {
     videoMeta: null,
     abortController: null,
     pendingRetry: false,
-    _transcriptPromise: null
+    _transcriptPromise: null,
+    // チャット送信用の状態 (Phase H F-5 でモジュールスコープから移動)
+    chatAbortController: null,
+    chatAbortChain: null,
+    chatBusy: false
   };
 }
 
