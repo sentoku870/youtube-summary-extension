@@ -3,10 +3,12 @@
 //  テーマ: 大きなカード3つ（Auto/Light/Dark）を選択
 //  フォントサイズ / パネル高さ: 数値入力 + プリセットチップ
 //  字幕言語: 既存 select を維持
+//  バージョン情報: 字幕設定直下に「バージョン」「ビルド日」「コミット」を表示
 //  全項目 change/input 時にデバウンス（300ms）で chrome.storage に保存。
 // ============================================================
 import { set, K } from "../infrastructure/storage.js";
 import { saveToast } from "./ui/toast.js";
+import { getAppVersion, getAppBuildDate, getAppGitCommit } from "../shared/version.js";
 
 const DEBOUNCE_MS = 300;
 
@@ -167,6 +169,25 @@ async function commitSave() {
   }
 }
 
+// ===== バージョン情報の表示 =====
+async function renderVersionInfo() {
+  const verEl = document.getElementById("versionInfoVersion");
+  const dateEl = document.getElementById("versionInfoBuildDate");
+  const commitEl = document.getElementById("versionInfoCommit");
+  const commitRowEl = document.getElementById("versionInfoCommitRow");
+  if (verEl) verEl.textContent = "v" + getAppVersion();
+  if (dateEl) dateEl.textContent = await getAppBuildDate();
+  if (commitEl && commitRowEl) {
+    const commit = await getAppGitCommit();
+    if (commit) {
+      commitEl.textContent = commit;
+      commitRowEl.hidden = false;
+    } else {
+      commitRowEl.hidden = true;
+    }
+  }
+}
+
 // ===== 公開 =====
 export function initDisplayTab() {
   if (isInitialized) return;
@@ -178,6 +199,8 @@ export function initDisplayTab() {
   buildPresetChips("panelHeightPresets", PANEL_HEIGHT_PRESETS, "panelHeight", function (v, l) {
     return v + "px (" + l + ")";
   });
+  // バージョン情報を非同期で取得・表示
+  renderVersionInfo();
 
   // change/input で自動保存
   const themeSel = document.getElementById("theme");

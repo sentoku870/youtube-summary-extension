@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "YouTube字幕をAIで要約するChrome拡張機能",
   "scripts": {
+    "prebuild": "node scripts/sync-version.cjs",
+    "predev": "node scripts/sync-version.cjs",
+    "pretest": "node scripts/sync-version.cjs",
+    "sync-version": "node scripts/sync-version.cjs",
     "test": "jest --coverage",
     "build": "vite build",
     "dev": "vite",
@@ -14,6 +18,9 @@
   "author": "",
   "license": "ISC",
   "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "jest": {
     "testEnvironment": "jsdom",
     "transformIgnorePatterns": [

@@ -196,8 +196,30 @@
         <div class="note">指定した言語の字幕が利用可能な場合、優先的に使用されます。</div>
       </div>
 
+      <hr />
+
+      <h2>ℹ️ バージョン情報</h2>
+      <div class="version-info" id="versionInfo">
+        <div class="version-info-row">
+          <span class="version-info-label">バージョン</span>
+          <span class="version-info-value" id="versionInfoVersion">…</span>
+        </div>
+        <div class="version-info-row">
+          <span class="version-info-label">ビルド日</span>
+          <span class="version-info-value" id="versionInfoBuildDate">…</span>
+        </div>
+        <div class="version-info-row" id="versionInfoCommitRow" hidden>
+          <span class="version-info-label">コミット</span>
+          <span class="version-info-value" id="versionInfoCommit">…</span>
+        </div>
+      </div>
+
       <div class="auto-save-indicator" id="displayAutoSaveStatus" aria-live="polite"></div>
     </div>
+
+    <footer class="app-footer" aria-label="バージョン情報">
+      v<span id="appVersion">…</span> · <span id="appBuildDate">…</span>
+    </footer>
 
     <script type="module" src="options.js"></script>
   </body>

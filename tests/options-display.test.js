@@ -278,4 +278,77 @@ describe("options-display", () => {
       jest.useRealTimers();
     });
   });
+
+  describe("バージョン情報", () => {
+    function buildVersionInfoDom() {
+      const verEl = document.createElement("span");
+      verEl.id = "versionInfoVersion";
+      document.body.appendChild(verEl);
+      const dateEl = document.createElement("span");
+      dateEl.id = "versionInfoBuildDate";
+      document.body.appendChild(dateEl);
+      const commitEl = document.createElement("span");
+      commitEl.id = "versionInfoCommit";
+      document.body.appendChild(commitEl);
+      const commitRowEl = document.createElement("div");
+      commitRowEl.id = "versionInfoCommitRow";
+      document.body.appendChild(commitRowEl);
+    }
+
+    function setupVersion(version, buildDate, gitCommit) {
+      global.chrome = { runtime: { id: "x", getManifest: () => ({ version: version }) } };
+      buildVersionInfoDom();
+      jest.resetModules();
+      const versionMod = require("../src/shared/version.js");
+      versionMod.__setBuildInfoForTest({ version, buildDate, gitCommit });
+      const od = require("../src/options/options-display.js");
+      return od;
+    }
+
+    test("initDisplayTab で version と buildDate が DOM に反映される", async () => {
+      const od = setupVersion("2.5.0", "2026-06-23", "abc1234");
+      od.initDisplayTab();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      expect(document.getElementById("versionInfoVersion").textContent).toBe("v2.5.0");
+      expect(document.getElementById("versionInfoBuildDate").textContent).toBe("2026-06-23");
+    });
+
+    test("gitCommit がある場合 commit 行が表示される", async () => {
+      const od = setupVersion("1.0.0", "2026-06-23", "deadbeef");
+      od.initDisplayTab();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      const commitRow = document.getElementById("versionInfoCommitRow");
+      expect(commitRow.hidden).toBe(false);
+      expect(document.getElementById("versionInfoCommit").textContent).toBe("deadbeef");
+    });
+
+    test("gitCommit が null の場合 commit 行が非表示", async () => {
+      const od = setupVersion("1.0.0", "2026-06-23", null);
+      od.initDisplayTab();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      const commitRow = document.getElementById("versionInfoCommitRow");
+      expect(commitRow.hidden).toBe(true);
+    });
+
+    test("chrome.runtime 不在時は 'unknown' を表示", async () => {
+      delete global.chrome;
+      buildVersionInfoDom();
+      jest.resetModules();
+      const versionMod = require("../src/shared/version.js");
+      versionMod.__setBuildInfoForTest({ buildDate: "2026-06-23", gitCommit: null });
+      const od = require("../src/options/options-display.js");
+      od.initDisplayTab();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      expect(document.getElementById("versionInfoVersion").textContent).toBe("vunknown");
+    });
+
+    test("v プレフィックス付きで version を表示", async () => {
+      const od = setupVersion("3.1.4", "2026-12-31", null);
+      od.initDisplayTab();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      const verEl = document.getElementById("versionInfoVersion");
+      expect(verEl.textContent.startsWith("v")).toBe(true);
+      expect(verEl.textContent).toBe("v3.1.4");
+    });
+  });
 });

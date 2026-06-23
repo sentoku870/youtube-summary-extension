@@ -8,6 +8,7 @@ import { initModelsTab, renderModelList } from "./options-models.js";
 import { initButtonsTab, updateButtonModelSelects } from "./options-buttons.js";
 import { initDisplayTab, setThemeActiveFromValue, syncPresets } from "./options-display.js";
 import { initForm } from "./model-form.js";
+import { getAppVersion, getAppBuildDate } from "../shared/version.js";
 
 // ===== タブ切替 =====
 function switchTab(tabId) {
@@ -96,6 +97,12 @@ async function loadInitialSettings() {
     const subtitleLang = document.getElementById("subtitleLang");
     if (subtitleLang) subtitleLang.value = result[K.SUBTITLE_LANG];
   }
+
+  // バージョン情報（フッター）
+  const verEl = document.getElementById("appVersion");
+  if (verEl) verEl.textContent = getAppVersion();
+  const dateEl = document.getElementById("appBuildDate");
+  if (dateEl) dateEl.textContent = await getAppBuildDate();
 }
 
 // ===== タブボタン click ハンドラ =====

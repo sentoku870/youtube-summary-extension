@@ -474,6 +474,58 @@ button:focus-visible {
   color: var(--ys-success);
 }
 
+/* ===== バージョンフッター ===== */
+.app-footer {
+  margin-top: 24px;
+  padding: 12px 0;
+  border-top: 1px solid var(--ys-border);
+  text-align: center;
+  font-size: 12px;
+  color: var(--ys-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  user-select: text;
+}
+
+/* ===== バージョン情報カード（表示設定タブ内） ===== */
+.version-info {
+  background: var(--ys-bg-elevated, #f8f9fa);
+  border: 1px solid var(--ys-border);
+  border-radius: var(--ys-radius, 6px);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  max-width: 480px;
+}
+.version-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--ys-border);
+}
+.version-info-row:last-child {
+  border-bottom: none;
+}
+.version-info-label {
+  color: var(--ys-text-muted);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.version-info-value {
+  color: var(--ys-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 600;
+  text-align: right;
+  word-break: break-all;
+}
+[data-theme="dark"] .version-info,
+:root[data-theme="dark"] .version-info {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 /* ===== 表示設定タブ ===== */
 .theme-cards {
   display: grid;

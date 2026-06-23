@@ -9,6 +9,35 @@ Compact guidance for OpenCode sessions working in this repo. Verify against the 
 - `npm run build` — Vite + `@crxjs/vite-plugin` bundles into `dist/`. `npm run dev` starts the Vite dev server (port 5173).
 - `npm run lint` — ESLint v9 flat config (`eslint.config.js`) over `src/ tests/`.
 - `npm run format` — Prettier auto-format `src/ tests/`. `npm run format:check` for CI-style check.
+- `npm run sync-version` — package.json の version を manifest.json に同期し、ビルド日時を `src/shared/build-info.json` に書き出す（prebuild/predev/pretest で自動実行）。
+
+## Node version
+
+- **必須**: Node.js **>= 20.19.0**（Vite 8 の要件。`package.json` の `engines` で指定）
+- **`.nvmrc`** で プロジェクトルートのバージョンを `20.20.2` に固定。
+- 開発環境のセットアップ:
+  ```bash
+  nvm use            # .nvmrc を読んで自動で v20.20.2 に切替
+  node --version     # v20.20.2 を確認
+  ```
+- 「`npm` が古い Node を掴んでしまう」問題（PATH の順序で `/usr/bin/node` が先）の対策:
+  - nvm を使う場合、シェルの `~/.bashrc` / `~/.zshrc` で `nvm.sh` を source する行が `/usr/bin` より**前**にあることを確認
+  - ワンライナー: `export PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH"`
+  - 確認: `which node` → `~/.nvm/versions/node/v20.20.2/bin/node` を指していれば OK
+- 別バージョン管理ツールを使う場合は `.nvmrc` と同等の固定ファイル（`.tool-versions` for asdf, `volta` フィールド in package.json など）を各自追加。
+
+## Versioning
+
+- バージョンの単一情報源は `package.json` の `version` フィールド。
+- `scripts/sync-version.cjs` が prebuild/predev/pretest フックで自動実行され、`manifest.json` の version を package.json に同期 + `src/shared/build-info.json`（gitignored）を生成。
+- `src/shared/version.js` の静的 `import("./build-info.json")` でビルドデータを読み込み（Vite がバンドル時にインライン化）。
+- `vite.config.js` の `copyBuildInfoPlugin` が `build-info.json` を `dist/src/shared/build-info.json` にもコピー（検証・拡張機能レビュー用）。
+- オプション画面に表示設定タブ内、字幕設定直下に「ℹ️ バージョン情報」カードを表示（version / buildDate / gitCommit）。
+- バージョン番号を更新する手順:
+  1. `package.json` の `"version"` を SemVer で更新（例: `"1.1.0"`）
+  2. 次の `npm test` / `npm run build` / `npm run dev` 実行時に `pre*` フックで自動同期される
+  3. 手動実行: `npm run sync-version`
+- ビルド日時は UTC で YYYY-MM-DD 形式。git が利用可能なら commit hash も記録。
 
 ## Manifest / loading the extension
 
@@ -35,7 +64,7 @@ Layered Chrome extension (content script does the real work):
 - `src/options/`, `src/popup/` — settings UI (multi-provider config) and toolbar popup.
   - `src/options/options.html` (slim structure) + `src/options/options.css` (extracted styles, NOT inline).
   - `src/options/options.js` (entry: tab switch + initial load), `src/options/options-models.js` (tab 1 orchestrator), `src/options/options-buttons.js` (tab 2 orchestrator), `src/options/options-display.js` (tab 3 orchestrator).
-  - `src/options/model-card.js` (card rendering + inline form attachment), `src/options/model-form.js` (form DOM + save/cancel), `src/options/model-picker.js` (provider/datalist UI), `src/options/model-state.js` (shared pool/provider state), `src/options/model-filter.js` (pure filter), `src/options/model-label.js` (pure label), `src/options/button-card.js` (3 cards + autosave).
+  - `src/options/model-card.js` (card rendering + inline form attachment), `src/options/model-form.js` (form DOM + save/cancel), `src/options/model-filter.js` (pure filter), `src/options/button-card.js` (3 cards + autosave).
   - `src/options/options-logic.js` (pure helpers: `PROVIDERS`, `validateFormValues`, `buildConfig`, `findExistingApiKeyByHost`, `getProviderChipClass`, `getProviderLabel`, etc.).
   - `src/options/options-shared.js` (DOM utils: `getVal`, `setVal`).
   - `src/options/ui/toast.js` (toast notifications: `saveToast`/`errorToast`/`infoToast`).
