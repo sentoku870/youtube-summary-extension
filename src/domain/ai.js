@@ -1,41 +1,34 @@
 // ============================================================
-//  ai.js — AI呼び出し・Map-Reduce要約・エラー表示（ESM版）
-//  callAI はオーケストレーションのみ、サブ関数に分割
-//  Port/Adapter パターンでUI層への結合を抽象化
+//  ai.js — AI呼び出しオーケストレーター（ESM版）
+//  Phase C-2: 役割を分割。
+//    ai-finalize.js … 結果確定と永続化
+//    ai-errors.js   … 例外分類とUI通知
+//  本モジュールは callAI（オーケストレーション）と
+//  API 設定解決 / ストリーム中断 / 単一チャンク処理を担当する。
+//  Port/Adapter パターンでUI層への結合を抽象化。
 // ============================================================
-import { YsAPIError, YsAbortError, YsTimeoutError } from "../infrastructure/errors.js";
 import { getAvailableTokens, estimateTokens, splitIntoChunks } from "../shared/utils.js";
 import { callChatAPIStream } from "./api.js";
 import { uiState, sessionState } from "../shared/state.js";
 import { setMarkdown } from "./markdown.js";
-import { createLogger } from "../shared/logger.js";
 import { processMapReduce } from "./ai-map-reduce.js";
-
-const log = createLogger("ai");
 import {
   loadBtnApiConfigId,
   loadApiConfigById,
   loadApiConfigs,
   loadCustomPrompt,
-  getDefaultPrompt,
-  saveToStorage,
-  saveSummaryCache
+  getDefaultPrompt
 } from "../infrastructure/storage.js";
 import { fetchTranscript } from "./transcript.js";
-
-// ai-utils.js から純粋関数をインポート
-// A-1: linkTimestamps は ui.js から直接 ai-utils.js を参照するようになったため
-//      domain/ai.js からの re-export を廃止し import も削除。
-import { formatTranscriptWithTimestamps, buildMetaContext, createTimeoutPromise } from "./ai-utils.js";
-import { CHAT_HISTORY_SEED_LENGTH } from "../shared/constants.js";
-import { getCurrentVideoId } from "../shared/utils.js";
-
-// ===== Port/Adapter パターン: UI表示IF =====
-// ドメイン層は ports.js（抽象）にのみ依存し、
-// content/ui 層が setUiAdapter() で実装を注入する。
+import {
+  formatTranscriptWithTimestamps,
+  buildMetaContext,
+  createTimeoutPromise
+} from "./ai-utils.js";
 import { getUiAdapter } from "./ports.js";
+import { finalizeResult } from "./ai-finalize.js";
+import { handleAiErrors } from "./ai-errors.js";
 
-// 全関数は getUiAdapter() 経由でUI操作を行う
 function UI() {
   return getUiAdapter();
 }
@@ -67,65 +60,7 @@ export function showError(msg) {
   UI().showError(msg);
 }
 
-// ===== 要約結果のファイナライズ =====
-export function finalizeResult(mode, tab, content, config, prompt, userMessage, transcript) {
-  const ui = UI();
-  tab.generated = true;
-  tab.content = content;
-  tab.config = config;
-  tab.modelLabel = config.apiModel;
-  tab.transcriptCount = transcript.all.length;
-  tab.chatHistory = [
-    { role: "system", content: prompt },
-    { role: "user", content: userMessage },
-    { role: "assistant", content: content }
-  ];
-  // 整合性チェック: 上記の初期履歴は CHAT_HISTORY_SEED_LENGTH と同数でなければならない
-  if (tab.chatHistory.length !== CHAT_HISTORY_SEED_LENGTH) {
-    log.warn("chatHistory seed length mismatch: expected " + CHAT_HISTORY_SEED_LENGTH);
-  }
-
-  if (uiState.activeTab === mode) {
-    ui.hideProgress();
-    ui.setSummaryContent(content);
-    ui.updateInfoLabel(
-      "使用モデル: " + config.apiModel + " | 字幕 " + transcript.all.length + " 件"
-    );
-    ui.showChatArea();
-    ui.focusChatInput();
-    ui.showCopyButton();
-    ui.showRegenButton();
-  }
-  ui.updateTabUI();
-  sessionState.abortController = null;
-
-  saveToStorage(content, transcript.all);
-  try {
-    const videoId = getCurrentVideoId();
-    if (videoId) {
-      saveSummaryCache(videoId, mode, {
-        content: content,
-        modelLabel: config.apiModel,
-        transcriptCount: transcript.all.length
-      });
-    }
-  } catch (e) {
-    log.error("Failed to save summary cache:", e);
-  }
-}
-
-// ===== 字幕取得（プリロード優先、タイムアウト付き） =====
-async function fetchTranscriptWithTimeout(timeoutPromise) {
-  let transcript = sessionState.preloadedTranscript;
-  if (!transcript) {
-    const fetcher = fetchTranscript();
-    transcript = await Promise.race([fetcher, timeoutPromise]);
-  }
-  return transcript;
-}
-
 // ===== 字幕テキストのフォーマット解決（純粋関数） =====
-// 副作用なしで、字幕オブジェクトから LLM 投入用のテキストを返す。
 export function resolveTranscriptText(transcript) {
   if (!transcript) return "";
   if (transcript.allTimestamps && transcript.allTimestamps.length > 0) {
@@ -173,7 +108,8 @@ async function processSingleStream(messages, config, signal, summaryTextEl, time
 //   callAI(mode, useAbort)
 //     ├─ prepareContext(mode)  // 字幕取得・config/prompt 解決
 //     ├─ runSummary(ctx, signal)  // 単一 / Map-Reduce 振り分け
-//     └─ handleErrors(e, ctx)  // エラー分類（既存 catch ブロック）
+//     ├─ finalizeResult(...)  // 結果確定と永続化（ai-finalize.js）
+//     └─ handleAiErrors(e)    // 例外分類（ai-errors.js）
 export async function callAI(mode, useAbort) {
   const tab = uiState.tabs[mode];
   if (!tab) return false;
@@ -203,18 +139,22 @@ export async function callAI(mode, useAbort) {
     finalizeResult(mode, tab, accumulated, ctx.config, ctx.prompt, userMessage, ctx.transcript);
     return true;
   } catch (e) {
-    return handleErrors(e);
+    return handleAiErrors(e);
   }
 }
 
-// ===== コンテキスト準備（純粋: session 状態への書き込みあり） =====
+// ===== コンテキスト準備 =====
 // 戻り値: { transcript, transcriptText, config, prompt, metaContext } または null
 async function prepareContext(mode) {
   const ui = UI();
   const timeoutPromise = createTimeoutPromise();
 
-  // 字幕取得
-  const transcript = await fetchTranscriptWithTimeout(timeoutPromise);
+  // 字幕取得（プリロード優先、なければ取得）
+  let transcript = sessionState.preloadedTranscript;
+  if (!transcript) {
+    const fetcher = fetchTranscript();
+    transcript = await Promise.race([fetcher, timeoutPromise]);
+  }
   if (!transcript || !transcript.all || transcript.all.length === 0) {
     showError("字幕が見つかりませんでした。");
     ui.hideProgress();
@@ -309,30 +249,5 @@ async function runSummary(ctx, signal, summaryTextEl) {
   return { accumulated: accumulated === undefined ? null : accumulated, userMessage: baseUser };
 }
 
-// ===== エラーハンドリング（純粋: 副作用は UI 表示のみ） =====
-function handleErrors(e) {
-  const ui = UI();
-  if (e instanceof DOMException && e.name === "AbortError") {
-    ui.hideProgress();
-    return false;
-  }
-  if (e instanceof YsAbortError || e instanceof YsTimeoutError) {
-    ui.hideProgress();
-    return false;
-  }
-  if (e instanceof YsAPIError) {
-    ui.clearSummaryContent();
-    showError("エラー: " + e.message);
-    ui.hideProgress();
-    return false;
-  }
-  // 中断系は signal.aborted でも検知（メッセージ文字列依存の安全網を廃止）
-  if (sessionState.abortController && sessionState.abortController.signal.aborted) {
-    ui.hideProgress();
-    return false;
-  }
-  ui.clearSummaryContent();
-  showError("エラー: " + e.message);
-  ui.hideProgress();
-  return false;
-}
+// ai-finalize.js からの再エクスポート（テスト互換用）
+export { finalizeResult };
