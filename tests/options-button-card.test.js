@@ -255,5 +255,71 @@ describe("button-card", () => {
       await refreshButtonModelSelects();
       expect(cb).toHaveBeenCalled();
     });
+
+    test("bindButtonCardHandlers: handlers が null の場合は noop", () => {
+      const bc = require("../src/options/button-card.js");
+      expect(() => bc.bindButtonCardHandlers(null)).not.toThrow();
+    });
+
+    test("bindButtonCardHandlers: onModelSelectsChange が関数でない場合は無視", () => {
+      const bc = require("../src/options/button-card.js");
+      expect(() => bc.bindButtonCardHandlers({ onModelSelectsChange: "not-a-function" })).not.toThrow();
+    });
+  });
+
+  describe("refreshButtonModelSelects エッジケース", () => {
+    test("sel が存在しない場合はスキップ", async () => {
+      initButtonCards();
+      // #btnApiConfig_summary などを意図的に削除
+      document.getElementById("btnApiConfig_summary")?.remove();
+      document.getElementById("btnApiConfig_customA")?.remove();
+      document.getElementById("btnApiConfig_customB")?.remove();
+      // エラーなく実行される
+      await expect(refreshButtonModelSelects()).resolves.toBeUndefined();
+    });
+
+    test("現在の選択値が存在しない option の場合は変更しない", async () => {
+      // K.API_CONFIGS が空でも、空 option があるため動作する
+      initButtonCards();
+      // currentVal がない場合（= ""）は変更しない分岐
+      const sel = document.getElementById("btnApiConfig_summary");
+      sel.value = "";
+      await refreshButtonModelSelects();
+      expect(sel.value).toBe("");
+    });
+  });
+
+  describe("flushAllSaves", () => {
+    test("保留中のタイマーを即時コミット", async () => {
+      initButtonCards();
+      const promptEl = document.getElementById("prompt_summary");
+      promptEl.value = "new value";
+      // タイマーを設定
+      promptEl.dispatchEvent(new Event("input"));
+      // 即時コミット
+      const bc = require("../src/options/button-card.js");
+      await expect(bc.flushAllSaves()).resolves.toBeUndefined();
+    });
+
+    test("タイマー未設定時の flushAllSaves は noop", async () => {
+      initButtonCards();
+      const bc = require("../src/options/button-card.js");
+      // タイマーを設定しないで flush
+      await expect(bc.flushAllSaves()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("refreshButtonModelSelects: 現在の選択値の保持", () => {
+    test("currentVal が空文字（未選択）の場合は select 値を保持", async () => {
+      mockStorage.configs = [
+        { id: "cfg1", label: "A", apiKey: "k", apiUrl: "https://a.com", apiModel: "m" }
+      ];
+      initButtonCards();
+      const sel = document.getElementById("btnApiConfig_summary");
+      sel.value = "";
+      await refreshButtonModelSelects();
+      // 空文字のまま
+      expect(sel.value).toBe("");
+    });
   });
 });

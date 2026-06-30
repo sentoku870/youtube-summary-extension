@@ -1,5 +1,6 @@
 // tests/storage.test.js — ストレージ層の単体テスト
 const storage = require("../src/infrastructure/storage");
+const storageCore = require("../src/infrastructure/storage-core");
 
 // chrome.storage.local のモック（runtime.idも含めないと isExtensionContextValid() がfalseになる）
 global.chrome = {
@@ -12,6 +13,81 @@ global.chrome = {
     }
   }
 };
+
+describe("storage-core: コンテキスト無効時の挙動", () => {
+  beforeEach(() => {
+    chrome.runtime.id = "test-extension-id";
+    chrome.storage.local.get.mockReset();
+    chrome.storage.local.set.mockReset();
+    chrome.storage.local.remove.mockReset();
+  });
+
+  test("chrome.runtime が undefined の場合 isExtensionContextValid は false", () => {
+    const original = chrome.runtime;
+    delete chrome.runtime;
+    expect(storageCore.isExtensionContextValid()).toBe(false);
+    chrome.runtime = original;
+  });
+
+  test("chrome.runtime.id が undefined の場合 isExtensionContextValid は false", () => {
+    chrome.runtime.id = undefined;
+    expect(storageCore.isExtensionContextValid()).toBe(false);
+    chrome.runtime.id = "test-extension-id";
+  });
+
+  test("context invalidated エラーは warn ログだけで吸収される", async () => {
+    chrome.storage.local.get.mockRejectedValue(
+      Object.assign(new Error("context invalidated"), { message: "Extension context invalidated" })
+    );
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(function () {});
+    const result = await storageCore.get("test");
+    expect(result).toBeNull();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  test("その他のエラーはそのまま throw", async () => {
+    chrome.storage.local.get.mockRejectedValue(new Error("other error"));
+    await expect(storageCore.get("test")).rejects.toThrow("other error");
+  });
+});
+
+describe("storage-core: K 定数", () => {
+  test("全てのキー定数が定義されている", () => {
+    expect(storageCore.K.API_CONFIGS).toBe("apiConfigs");
+    expect(storageCore.K.PROMPT_PREFIX).toBe("prompt_");
+    expect(storageCore.K.BTN_TITLE_PREFIX).toBe("btnTitle_");
+    expect(storageCore.K.BTN_API_PREFIX).toBe("btnApiConfig_");
+    expect(storageCore.K.SUBTITLE_LANG).toBe("subtitleLang");
+    expect(storageCore.K.FONT_SIZE).toBe("fontSize");
+    expect(storageCore.K.PANEL_HEIGHT).toBe("panelHeight");
+    expect(storageCore.K.THEME).toBe("theme");
+    expect(storageCore.K.LATEST_SUMMARY).toBe("latestSummary");
+    expect(storageCore.K.LATEST_CAPTIONS).toBe("latestCaptions");
+  });
+});
+
+describe("storage-core: getAll", () => {
+  test("コンテキスト無効時は空オブジェクトを返す", async () => {
+    const original = chrome.runtime;
+    delete chrome.runtime;
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(function () {});
+    const result = await storageCore.getAll();
+    expect(result).toEqual({});
+    chrome.runtime = original;
+    warnSpy.mockRestore();
+  });
+
+  test("context invalidated エラーで空オブジェクトを返す", async () => {
+    chrome.storage.local.get.mockRejectedValue(
+      Object.assign(new Error("context invalidated"), { message: "context invalidated" })
+    );
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(function () {});
+    const result = await storageCore.getAll();
+    expect(result).toEqual({});
+    warnSpy.mockRestore();
+  });
+});
 
 describe("loadApiConfigs", () => {
   beforeEach(() => {
@@ -361,10 +437,10 @@ describe("saveSummaryCache", () => {
     storage.__resetSummaryCacheMemory();
   });
 
-  test("videoId単位でタイムスタンプ付きでキャッシュ保存する", async () => {
+  test("(videoId, mode) 単位でタイムスタンプ付きでキャッシュ保存する", async () => {
     chrome.storage.local.set.mockResolvedValue(undefined);
     const before = Date.now();
-    await storage.saveSummaryCache("video123", {
+    await storage.saveSummaryCache("video123", "summary", {
       content: "要約テキスト",
       modelLabel: "gpt-4o",
       transcriptCount: 10
@@ -372,13 +448,33 @@ describe("saveSummaryCache", () => {
     const after = Date.now();
 
     const saved = chrome.storage.local.set.mock.calls[0][0];
-    const cache = saved["summary_cache_video123"];
+    const cache = saved["summary_cache_video123_summary"];
     expect(cache).toBeDefined();
     expect(cache.content).toBe("要約テキスト");
     expect(cache.modelLabel).toBe("gpt-4o");
     expect(cache.transcriptCount).toBe(10);
     expect(cache.timestamp).toBeGreaterThanOrEqual(before);
     expect(cache.timestamp).toBeLessThanOrEqual(after);
+  });
+
+  // ★ T3-C1 回帰防止: 同一 videoId でも mode 毎にキーが独立している。
+  test("同一 videoId の異なる mode は独立したキャッシュキーを使う", async () => {
+    chrome.storage.local.set.mockResolvedValue(undefined);
+    await storage.saveSummaryCache("video1", "summary", {
+      content: "A要約",
+      modelLabel: "m1",
+      transcriptCount: 1
+    });
+    await storage.saveSummaryCache("video1", "customA", {
+      content: "B要約",
+      modelLabel: "m2",
+      transcriptCount: 2
+    });
+
+    const first = chrome.storage.local.set.mock.calls[0][0];
+    const second = chrome.storage.local.set.mock.calls[1][0];
+    expect(first["summary_cache_video1_summary"].content).toBe("A要約");
+    expect(second["summary_cache_video1_customA"].content).toBe("B要約");
   });
 });
 
@@ -393,7 +489,7 @@ describe("loadSummaryCache", () => {
 
   test("キャッシュがない場合はnullを返す", async () => {
     chrome.storage.local.get.mockResolvedValue({});
-    const result = await storage.loadSummaryCache("video123");
+    const result = await storage.loadSummaryCache("video123", "summary");
     expect(result).toBeNull();
   });
 
@@ -405,16 +501,16 @@ describe("loadSummaryCache", () => {
       timestamp: Date.now()
     };
     chrome.storage.local.get.mockResolvedValue({
-      summary_cache_video123: cacheData
+      summary_cache_video123_summary: cacheData
     });
-    const result = await storage.loadSummaryCache("video123");
+    const result = await storage.loadSummaryCache("video123", "summary");
     expect(result).toEqual(cacheData);
   });
 
   test("7日以上経過したキャッシュは削除してnullを返す", async () => {
     const eightDaysAgo = Date.now() - 8 * 24 * 60 * 60 * 1000;
     chrome.storage.local.get.mockResolvedValue({
-      summary_cache_video123: {
+      summary_cache_video123_summary: {
         content: "古い要約",
         modelLabel: "gpt-4",
         transcriptCount: 50,
@@ -423,20 +519,20 @@ describe("loadSummaryCache", () => {
     });
     chrome.storage.local.remove.mockResolvedValue(undefined);
 
-    const result = await storage.loadSummaryCache("video123");
+    const result = await storage.loadSummaryCache("video123", "summary");
     expect(result).toBeNull();
-    expect(chrome.storage.local.remove).toHaveBeenCalledWith("summary_cache_video123");
+    expect(chrome.storage.local.remove).toHaveBeenCalledWith("summary_cache_video123_summary");
   });
 
   test("7日ギリギリ（6日と23時間）のキャッシュは返す", async () => {
     const almostSevenDays = Date.now() - (7 * 24 * 60 * 60 * 1000 - 1);
     chrome.storage.local.get.mockResolvedValue({
-      summary_cache_video123: {
+      summary_cache_video123_summary: {
         content: "期限ギリギリ",
         timestamp: almostSevenDays
       }
     });
-    const result = await storage.loadSummaryCache("video123");
+    const result = await storage.loadSummaryCache("video123", "summary");
     expect(result).not.toBeNull();
     expect(result.content).toBe("期限ギリギリ");
   });
@@ -450,14 +546,14 @@ describe("loadSummaryCache", () => {
       timestamp: Date.now()
     };
     chrome.storage.local.get.mockResolvedValue({
-      summary_cache_video123: cacheData
+      summary_cache_video123_summary: cacheData
     });
     // 1回目: storage.get が呼ばれる
-    const r1 = await storage.loadSummaryCache("video123");
+    const r1 = await storage.loadSummaryCache("video123", "summary");
     expect(r1).toEqual(cacheData);
     expect(chrome.storage.local.get).toHaveBeenCalledTimes(1);
     // 2回目: メモリキャッシュヒットで storage.get は呼ばれない
-    const r2 = await storage.loadSummaryCache("video123");
+    const r2 = await storage.loadSummaryCache("video123", "summary");
     expect(r2).toEqual(cacheData);
     expect(chrome.storage.local.get).toHaveBeenCalledTimes(1);
   });
@@ -465,14 +561,37 @@ describe("loadSummaryCache", () => {
   test("saveSummaryCache でメモリキャッシュも更新される", async () => {
     chrome.storage.local.set.mockResolvedValue(undefined);
     chrome.storage.local.get.mockResolvedValue({});
-    await storage.saveSummaryCache("videoX", {
+    await storage.saveSummaryCache("videoX", "summary", {
       content: "new",
       modelLabel: "gpt-4o",
       transcriptCount: 1
     });
     // 直後の loadSummaryCache は storage.get を呼ばない
-    const r = await storage.loadSummaryCache("videoX");
+    const r = await storage.loadSummaryCache("videoX", "summary");
     expect(r.content).toBe("new");
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+  });
+
+  // ★ T3-C1 回帰防止: 異なる mode は独立したメモリキャッシュを持つ
+  test("同じ videoId でも mode が異なれば独立してキャッシュされる", async () => {
+    chrome.storage.local.set.mockResolvedValue(undefined);
+    chrome.storage.local.get.mockResolvedValue({});
+    await storage.saveSummaryCache("videoX", "summary", {
+      content: "A要約",
+      modelLabel: "m1",
+      transcriptCount: 1
+    });
+    await storage.saveSummaryCache("videoX", "customA", {
+      content: "B要約",
+      modelLabel: "m2",
+      transcriptCount: 2
+    });
+
+    const rA = await storage.loadSummaryCache("videoX", "summary");
+    const rB = await storage.loadSummaryCache("videoX", "customA");
+    expect(rA.content).toBe("A要約");
+    expect(rB.content).toBe("B要約");
+    // save 直後なので storage.get は一度も呼ばれない
     expect(chrome.storage.local.get).not.toHaveBeenCalled();
   });
 
@@ -480,16 +599,20 @@ describe("loadSummaryCache", () => {
     chrome.storage.local.set.mockResolvedValue(undefined);
     chrome.storage.local.get.mockResolvedValue({});
     chrome.storage.local.remove.mockResolvedValue(undefined);
-    await storage.saveSummaryCache("videoX", { content: "x", modelLabel: "m", transcriptCount: 1 });
+    await storage.saveSummaryCache("videoX", "summary", {
+      content: "x",
+      modelLabel: "m",
+      transcriptCount: 1
+    });
     await storage.clearSummaryCache("videoX");
     // クリア後の loadSummaryCache は storage.get を呼ぶ（メモリが空）
-    await storage.loadSummaryCache("videoX");
+    await storage.loadSummaryCache("videoX", "summary");
     expect(chrome.storage.local.get).toHaveBeenCalled();
   });
 
   test("videoId が空文字 / null の場合は null を返す", async () => {
-    expect(await storage.loadSummaryCache("")).toBeNull();
-    expect(await storage.loadSummaryCache(null)).toBeNull();
+    expect(await storage.loadSummaryCache("", "summary")).toBeNull();
+    expect(await storage.loadSummaryCache(null, "summary")).toBeNull();
   });
 });
 
@@ -499,10 +622,25 @@ describe("clearSummaryCache", () => {
     chrome.storage.local.remove.mockReset();
   });
 
-  test("指定videoIdのキャッシュを削除する", async () => {
+  test("videoId + 既定3モード + 旧キーのキャッシュをすべて削除する", async () => {
     chrome.storage.local.remove.mockResolvedValue(undefined);
     await storage.clearSummaryCache("video123");
-    expect(chrome.storage.local.remove).toHaveBeenCalledWith("summary_cache_video123");
+    const removed = new Set(
+      chrome.storage.local.remove.mock.calls.map(function (c) {
+        return c[0];
+      })
+    );
+    // 既定3モード分 + 旧キー (後方互換) の 4 件
+    expect(removed.has("summary_cache_video123_summary")).toBe(true);
+    expect(removed.has("summary_cache_video123_customA")).toBe(true);
+    expect(removed.has("summary_cache_video123_customB")).toBe(true);
+    expect(removed.has("summary_cache_video123")).toBe(true);
+  });
+
+  test("mode を指定すると該当 mode のみ削除する", async () => {
+    chrome.storage.local.remove.mockResolvedValue(undefined);
+    await storage.clearSummaryCache("video123", "customA");
+    expect(chrome.storage.local.remove).toHaveBeenCalledWith("summary_cache_video123_customA");
   });
 });
 

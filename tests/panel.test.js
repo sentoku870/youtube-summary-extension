@@ -176,16 +176,21 @@ describe("panel", () => {
       expect(btnSummary.textContent).toContain("字幕取得中");
     });
 
-    test("生成直後は全タブボタンがdisabled", () => {
+    test("生成直後は全タブボタンが押せる（字幕取得中も block しない）", () => {
       createPanel();
 
       const btnSummary = getEl("#ys-btn-summary");
       const btnCustomA = getEl("#ys-btn-customA");
       const btnCustomB = getEl("#ys-btn-customB");
 
-      expect(btnSummary.disabled).toBe(true);
-      expect(btnCustomA.disabled).toBe(true);
-      expect(btnCustomB.disabled).toBe(true);
+      // ★ 旧実装: 生成直後に disableAllButtons() で全ボタンを disabled に
+      //   していたため、TRANSCRIPT_READY/FAILED が遅延・失敗すると
+      //   永久に押せず A→B 切替もできない症状があった。
+      //   新実装: 字幕プリロード中でもボタンは押せる。AI 実行時に
+      //   callAI() 内部で transcript を改めて取得する。
+      expect(btnSummary.disabled).toBe(false);
+      expect(btnCustomA.disabled).toBe(false);
+      expect(btnCustomB.disabled).toBe(false);
     });
   });
 });

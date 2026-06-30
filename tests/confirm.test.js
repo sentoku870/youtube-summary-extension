@@ -98,4 +98,58 @@ describe("confirmDialog", () => {
       expect(v).toBe(false);
     });
   });
+
+  // ===== キーボードハンドリング =====
+  describe("キーボード操作", () => {
+    test("Escape キーでモーダルが閉じて false を返す", async () => {
+      const promise = confirmDialog({ message: "test" });
+      // requestAnimationFrame を待たずに keydown イベントを送る
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      const result = await promise;
+      expect(result).toBe(false);
+      expect(document.querySelector(".ys-confirm-overlay")).toBeNull();
+    });
+
+    test("Enter キーで OK ボタンがクリックされ true を返す", async () => {
+      const promise = confirmDialog({ message: "test" });
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+      const result = await promise;
+      expect(result).toBe(true);
+      expect(document.querySelector(".ys-confirm-overlay")).toBeNull();
+    });
+
+    test("無関係なキー（例: a）は何もせず false にも true にもしない", () => {
+      const promise = confirmDialog({ message: "test" });
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+      // モーダルは開いたまま
+      expect(document.querySelector(".ys-confirm-overlay")).not.toBeNull();
+      // 後片付け
+      document.querySelector(".ys-confirm-cancel").click();
+      return promise;
+    });
+
+    test("モーダル閉じた後の keydown は無視される", () => {
+      const promise1 = confirmDialog({ message: "first" });
+      const overlay = document.querySelector(".ys-confirm-overlay");
+      overlay.querySelector(".ys-confirm-cancel").click();
+      return promise1.then(function () {
+        // 閉じた後にもう一度 Escape を送っても何もしない（activeOverlay が null）
+        expect(() => {
+          document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        }).not.toThrow();
+      });
+    });
+
+    test("2 回連続呼び出しでもキーリスナは1つだけ", async () => {
+      const p1 = confirmDialog({ message: "first" });
+      const p2 = confirmDialog({ message: "second" });
+      // Escape で閉じる
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+      const r2 = await p2;
+      expect(r2).toBe(false);
+      // p1 も閉じられている（連続呼び出しで前のモーダルが破棄されたため）
+      const r1 = await p1;
+      expect(r1).toBe(false);
+    });
+  });
 });

@@ -21,7 +21,11 @@ function onKeydown(e) {
   if (!activeOverlay) return;
   if (e.key === "Escape") {
     e.preventDefault();
-    closeModal(activeOverlay);
+    const overlay = activeOverlay;
+    closeModal(overlay);
+    // ESC 押下時はキャンセル扱い（resolve(false) を呼ぶ）
+    // Promise 解決のため、activeOverlay._resolver() を呼ぶ
+    if (typeof overlay._resolver === "function") overlay._resolver(false);
   } else if (e.key === "Enter") {
     e.preventDefault();
     const okBtn = activeOverlay.querySelector(".ys-confirm-ok");
@@ -39,7 +43,12 @@ function el(tag, className, text) {
 export function confirmDialog(options) {
   const opts = options || {};
   return new Promise(function (resolve) {
-    if (activeOverlay) closeModal(activeOverlay);
+    // 既にモーダルが開いていれば閉じる（前の Promise を false で解決）
+    if (activeOverlay) {
+      const prevOverlay = activeOverlay;
+      if (typeof prevOverlay._resolver === "function") prevOverlay._resolver(false);
+      closeModal(prevOverlay);
+    }
 
     const overlay = document.createElement("div");
     overlay.className = "ys-confirm-overlay";
@@ -82,6 +91,9 @@ export function confirmDialog(options) {
         resolve(false);
       }
     });
+
+    // ESC キー押下時に resolve(false) を呼べるよう resolver を保持
+    overlay._resolver = resolve;
 
     document.body.appendChild(overlay);
     activeOverlay = overlay;

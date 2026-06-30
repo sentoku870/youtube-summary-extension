@@ -46,7 +46,7 @@ export default [
     languageOptions: { globals: { ...globals.browser, chrome: "readonly" } }
   },
   {
-    files: ["tests/**/*.js"],
+    files: ["tests/**/*.js", "tests/**/*.cjs"],
     languageOptions: {
       globals: {
         ...globals.browser,

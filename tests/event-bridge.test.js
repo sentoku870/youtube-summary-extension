@@ -6,17 +6,19 @@ const { EVENTS } = require("../src/shared/event-bus");
 
 // panel.js / tabs.js / transcript.js をモック（重いチェーン回避）
 jest.mock("../src/content/ui/panel.js", () => ({
-  getEl: jest.fn()
+  getEl: jest.fn(),
+  enableAllButtons: jest.fn()
 }));
 jest.mock("../src/content/ui/tabs.js", () => ({
-  applyButtonTitles: jest.fn()
+  applyButtonTitles: jest.fn(),
+  switchTab: jest.fn()
 }));
 jest.mock("../src/domain/transcript.js", () => ({
   retryTranscript: jest.fn()
 }));
 
-const { getEl } = require("../src/content/ui/panel");
-const { applyButtonTitles } = require("../src/content/ui/tabs");
+const { getEl, enableAllButtons } = require("../src/content/ui/panel");
+const { applyButtonTitles, switchTab } = require("../src/content/ui/tabs");
 const { retryTranscript } = require("../src/domain/transcript");
 
 // event-bridge.js の import で on() が呼ばれる
@@ -59,6 +61,10 @@ describe("event-bridge", () => {
     btn.onclick();
     expect(retryTranscript).toHaveBeenCalled();
 
+    // ★ 他ボタン（B/C）は字幕取得失敗中でも押せるようにする。
+    //   別タブを押せば AI 実行側で transcript を再取得しにいく。
+    expect(enableAllButtons).toHaveBeenCalled();
+
     document.body.removeChild(btn);
   });
 
@@ -91,5 +97,32 @@ describe("event-bridge", () => {
   test("TRANSCRIPT_RETRY: ボタンが無い場合はスキップ", () => {
     getEl.mockReturnValue(null);
     expect(() => emit(EVENTS.TRANSCRIPT_RETRY, {})).not.toThrow();
+  });
+
+  // ===== A-3: SUMMARY_RETRY_CLICKED =====
+  describe("SUMMARY_RETRY_CLICKED", () => {
+    test("activeTab があれば switchTab が呼ばれる", () => {
+      S.activeTab = "summary";
+      emit(EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: "summary" });
+      expect(switchTab).toHaveBeenCalledWith("summary");
+    });
+
+    test("activeTab が null や未定義なら switchTab は呼ばれない", () => {
+      S.activeTab = null;
+      emit(EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: null });
+      expect(switchTab).not.toHaveBeenCalled();
+    });
+
+    test("payload がない場合は switchTab は呼ばれない", () => {
+      S.activeTab = "summary";
+      emit(EVENTS.SUMMARY_RETRY_CLICKED);
+      expect(switchTab).not.toHaveBeenCalled();
+    });
+
+    test("payload.activeTab が falsy な値でも安全", () => {
+      S.activeTab = "summary";
+      emit(EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: "" });
+      expect(switchTab).not.toHaveBeenCalled();
+    });
   });
 });

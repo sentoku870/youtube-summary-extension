@@ -51,4 +51,24 @@ describe("createLogger", () => {
     log.log("a", "b", "c", 1, 2, 3);
     expect(logSpy).toHaveBeenCalledWith("[YouTube 要約][multi]", "a", "b", "c", 1, 2, 3);
   });
+
+  test("isDev = false (production) の場合 log() は console.log を呼ばない", () => {
+    // production モードをシミュレート
+    const originalLogLevel = globalThis.__LOG_LEVEL__;
+    globalThis.__LOG_LEVEL__ = "production";
+    // モジュール再評価が必要（isDev は起動時に評価される）
+    jest.resetModules();
+    const { createLogger: createLoggerProd } = require("../src/shared/logger");
+    const log = createLoggerProd("prod");
+    log.log("production message");
+    expect(logSpy).not.toHaveBeenCalled();
+    // warn / error は product でも呼ばれる
+    log.warn("warn in prod");
+    log.error("err in prod");
+    expect(warnSpy).toHaveBeenCalled();
+    expect(errSpy).toHaveBeenCalled();
+    // 元に戻す
+    globalThis.__LOG_LEVEL__ = originalLogLevel;
+    jest.resetModules();
+  });
 });

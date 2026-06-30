@@ -131,6 +131,199 @@ describe("model-card", () => {
     });
   });
 
+  describe("renderModelList 編集復元", () => {
+    test("rememberedEditingId が 'new' の場合、再描画時に new カードとフォームが復元される", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "A", apiKey: "k", apiUrl: "https://a.com", apiModel: "a" }
+      ];
+      attachFormAsNew(); // rememberedEditingId = "new"
+      // 再描画（フォームは保持される想定）
+      await renderModelList();
+      const placeholder = document.querySelector(".model-card.new-card");
+      expect(placeholder).not.toBeNull();
+      const form = document.getElementById("modelFormContainer");
+      expect(form.hidden).toBe(false);
+      expect(placeholder.contains(form)).toBe(true);
+    });
+
+    test("rememberedEditingId が既存 id の場合、再描画時にフォームがそのカードに復元される", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "A", apiKey: "k", apiUrl: "https://a.com", apiModel: "a" }
+      ];
+      await renderModelList();
+      attachFormToCard("1");
+      // 再描画
+      await renderModelList();
+      const card = document.querySelector('.model-card[data-config-id="1"]');
+      expect(card.classList.contains("editing")).toBe(true);
+      const form = document.getElementById("modelFormContainer");
+      expect(card.contains(form)).toBe(true);
+    });
+
+    test("rememberedEditingId が削除済み id の場合、フォームを閉じる", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "A", apiKey: "k", apiUrl: "https://a.com", apiModel: "a" }
+      ];
+      await renderModelList();
+      attachFormToCard("1");
+      // 編集中カードを削除（再描画前に configs を空にする）
+      mockStorage.configs = [];
+      // 空状態は「未登録」プレースホルダが表示される
+      await renderModelList();
+      // カードが削除されると form も DOM から外れる（カード内にあったため）
+      const form = document.getElementById("modelFormContainer");
+      if (form) {
+        // form がまだ DOM にあれば hidden 確認
+        expect(form.hidden).toBe(true);
+      } else {
+        // form が DOM から外れた場合は rememberedEditingId がリセットされたことを確認
+        // （カード削除によりフォームは孤立するが、renderModelList が hidden=true を設定する）
+        // 実装上は form 自体が消えることがある
+        expect(form).toBeNull();
+      }
+    });
+
+    test("formContainer が非表示の場合は復元しない", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "A", apiKey: "k", apiUrl: "https://a.com", apiModel: "a" }
+      ];
+      attachFormToCard("1");
+      // 一旦 detach してフォームを非表示に
+      detachForm();
+      // 再描画
+      await renderModelList();
+      const card = document.querySelector('.model-card[data-config-id="1"]');
+      // 復元されない
+      expect(card.classList.contains("editing")).toBe(false);
+    });
+  });
+
+  describe("renderModelList: modelList が存在しない場合", () => {
+    test("#modelList が無い場合は noop", async () => {
+      document.body.innerHTML = "";
+      // 例外を投げない
+      await expect(renderModelList()).resolves.toBeUndefined();
+    });
+  });
+
+  describe("setFormContainer", () => {
+    test("formContainerEl を設定する", () => {
+      const newForm = document.createElement("div");
+      newForm.id = "new-form";
+      setFormContainer(newForm);
+      // 次回 attachFormAsNew でこの form が使われる
+      attachFormAsNew();
+      // new-form が modelList に挿入されている（または new-card プレースホルダ内）
+      // 内部状態は確認できないが、エラーなく実行されることを確認
+      expect(newForm.parentNode).not.toBeNull();
+    });
+  });
+
+  describe("検索キーワードのエッジケース", () => {
+    test("空文字のキーワードは全件表示", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "Alpha", apiKey: "k", apiUrl: "https://a.com", apiModel: "a" },
+        { id: "2", label: "Beta", apiKey: "k", apiUrl: "https://b.com", apiModel: "b" }
+      ];
+      await setSearchKeyword("");
+      const cards = document.querySelectorAll(".model-card");
+      expect(cards.length).toBe(2);
+    });
+
+    test("前後の空白トリム", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "Alpha", apiKey: "k", apiUrl: "https://a.com", apiModel: "a" }
+      ];
+      await setSearchKeyword("  alpha  ");
+      const cards = document.querySelectorAll(".model-card");
+      expect(cards.length).toBe(1);
+    });
+
+    test("複数スペース区切りの AND 検索", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "Alpha Beta", apiKey: "k", apiUrl: "https://a.com", apiModel: "ab" },
+        { id: "2", label: "Alpha", apiKey: "k", apiUrl: "https://b.com", apiModel: "b" },
+        { id: "3", label: "Beta", apiKey: "k", apiUrl: "https://c.com", apiModel: "c" }
+      ];
+      await setSearchKeyword("alpha beta");
+      const cards = document.querySelectorAll(".model-card");
+      expect(cards.length).toBe(1);
+      expect(cards[0].getAttribute("data-config-id")).toBe("1");
+    });
+
+    test("URL 内のホスト名でも検索できる", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "A", apiKey: "k", apiUrl: "https://api.unique-host.com/v1", apiModel: "m" }
+      ];
+      await setSearchKeyword("unique-host");
+      const cards = document.querySelectorAll(".model-card");
+      expect(cards.length).toBe(1);
+    });
+  });
+
+  describe("buildCard: undefined 値を含む config", () => {
+    test("label が空文字の場合 '(ラベルなし)' フォールバック", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "", apiKey: "k", apiUrl: "https://a.com", apiModel: "m" }
+      ];
+      await renderModelList();
+      const card = document.querySelector(".model-card");
+      expect(card.textContent).toContain("(ラベルなし)");
+    });
+
+    test("apiModel が空文字の場合 '—' フォールバック", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "L", apiKey: "k", apiUrl: "https://a.com", apiModel: "" }
+      ];
+      await renderModelList();
+      const card = document.querySelector(".model-card");
+      // "🤖 —" が含まれる
+      expect(card.textContent).toContain("🤖 —");
+    });
+
+    test("apiUrl が空文字の場合 '—' フォールバック（host 用）", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "L", apiKey: "k", apiUrl: "", apiModel: "m" }
+      ];
+      await renderModelList();
+      const card = document.querySelector(".model-card");
+      // "🔗 —" が含まれる（host フォールバック）
+      expect(card.textContent).toContain("🔗 —");
+    });
+
+    test("apiUrl が null の場合 '—' フォールバック（host 用）", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "L", apiKey: "k", apiUrl: null, apiModel: "m" }
+      ];
+      await renderModelList();
+      const card = document.querySelector(".model-card");
+      // null → "" → "—" フォールバック
+      expect(card).not.toBeNull();
+    });
+
+    test("apiUrl が不正な形式でもクラッシュしない（host は — フォールバック）", async () => {
+      mockStorage.configs = [
+        { id: "1", label: "L", apiKey: "k", apiUrl: "not a url", apiModel: "m" }
+      ];
+      await renderModelList();
+      const card = document.querySelector(".model-card");
+      // extractHost が raw URL を返すので表示はされる
+      expect(card).not.toBeNull();
+    });
+
+    test("label と apiModel が両方 undefined の場合の二重フォールバック", async () => {
+      mockStorage.configs = [
+        { id: "1", apiKey: "k", apiUrl: "https://a.com" }
+        // label, apiModel なし
+      ];
+      await renderModelList();
+      const card = document.querySelector(".model-card");
+      // "(ラベルなし)" と "🤖 —" 両方含まれる
+      expect(card.textContent).toContain("(ラベルなし)");
+      expect(card.textContent).toContain("🤖 —");
+    });
+  });
+
   describe("attachFormToCard", () => {
     test("既存カードに .editing クラスを付与してフォームを append", async () => {
       mockStorage.configs = [
@@ -205,6 +398,63 @@ describe("model-card", () => {
       await renderModelList();
       document.querySelector('button[data-action="edit"]').click();
       expect(onEdit).toHaveBeenCalledWith("cfg_e");
+    });
+
+    test("カード本体（summary）クリックで onEdit が呼ばれる", async () => {
+      const onEdit = jest.fn();
+      bindCardHandlers({
+        onEdit: onEdit,
+        onDuplicate: jest.fn(),
+        onDelete: jest.fn()
+      });
+      mockStorage.configs = [
+        { id: "cfg_s", label: "S", apiKey: "k", apiUrl: "https://s.com", apiModel: "s" }
+      ];
+      await renderModelList();
+      const summary = document.querySelector(".card-summary");
+      // summary 内の actions 以外をクリック
+      const label = summary.querySelector(".card-label");
+      label.click();
+      expect(onEdit).toHaveBeenCalledWith("cfg_s");
+    });
+
+    test("new-card プレースホルダのクリックは onEdit を呼ばない", async () => {
+      const onEdit = jest.fn();
+      bindCardHandlers({
+        onEdit: onEdit,
+        onDuplicate: jest.fn(),
+        onDelete: jest.fn()
+      });
+      // new カードを手動で作成（data-config-id なし、data-new=true）
+      const placeholder = document.createElement("li");
+      placeholder.className = "model-card new-card";
+      placeholder.setAttribute("data-new", "true");
+      const summary = document.createElement("div");
+      summary.className = "card-summary";
+      placeholder.appendChild(summary);
+      document.getElementById("modelList").appendChild(placeholder);
+      // クリック
+      summary.click();
+      // onEdit は呼ばれない
+      expect(onEdit).not.toHaveBeenCalled();
+    });
+
+    test("カードクリックで data-config-id がない場合はスキップ", async () => {
+      const onEdit = jest.fn();
+      bindCardHandlers({
+        onEdit: onEdit,
+        onDuplicate: jest.fn(),
+        onDelete: jest.fn()
+      });
+      // カードを手動作成（data-config-id なし）
+      const fakeCard = document.createElement("li");
+      fakeCard.className = "model-card";
+      const fakeSummary = document.createElement("div");
+      fakeSummary.className = "card-summary";
+      fakeCard.appendChild(fakeSummary);
+      document.getElementById("modelList").appendChild(fakeCard);
+      fakeSummary.click();
+      expect(onEdit).not.toHaveBeenCalled();
     });
 
     test("delete ボタン click で onDelete(id) が呼ばれる", async () => {

@@ -250,4 +250,87 @@ describe("panel.js パネル配置 (placement)", () => {
       expect(panel.hasAttribute("hidden")).toBe(false);
     });
   });
+
+  describe("edge cases", () => {
+    test("getWatchSecondary の優先順位: watch-flexy #secondary-inner が最優先", async () => {
+      // 既に buildYouTubeWatchPage で watch-flexy #secondary-inner がある
+      // createPanel() で配置され、source がログに出る
+      jest.useFakeTimers();
+      buildYouTubeWatchPage({ secondaryInner: true });
+      const logSpy = jest.spyOn(console, "log").mockImplementation(function () {});
+      createPanel();
+      await jest.runAllTimersAsync();
+      jest.useRealTimers();
+      const calls = logSpy.mock.calls.map(function (c) {
+        return c.join(" ");
+      });
+      const found = calls.some(function (msg) {
+        return msg.indexOf("watch-flexy #secondary-inner") !== -1;
+      });
+      expect(found).toBe(true);
+      logSpy.mockRestore();
+    });
+
+    test("getWatchSecondary: secondary フォールバック（preferRelatedRef=false）", async () => {
+      // secondary-inner を作らず、secondary だけ作る
+      document.body.innerHTML = "";
+      const flexy = document.createElement("ytd-watch-flexy");
+      const primary = document.createElement("div");
+      primary.id = "primary";
+      const secondary = document.createElement("div");
+      secondary.id = "secondary";
+      flexy.appendChild(primary);
+      flexy.appendChild(secondary);
+      document.body.appendChild(flexy);
+      jest.useFakeTimers();
+      const logSpy = jest.spyOn(console, "log").mockImplementation(function () {});
+      const { placePanel } = require("../src/content/ui/panel-placement");
+      const panel = document.createElement("div");
+      const promise = placePanel(panel, 50);
+      jest.advanceTimersByTime(60);
+      await promise;
+      const calls = logSpy.mock.calls.map(function (c) { return c.join(" "); });
+      // "watch-flexy #secondary" が含まれる
+      const found = calls.some(function (msg) {
+        return msg.indexOf("watch-flexy #secondary") !== -1 && msg.indexOf("inner") === -1;
+      });
+      expect(found).toBe(true);
+      jest.useRealTimers();
+      logSpy.mockRestore();
+    });
+
+    test("ensureVisibleAndWatch: hidden 属性も除去する", async () => {
+      jest.useFakeTimers();
+      buildYouTubeWatchPage({ secondaryInner: true });
+      createPanel();
+      await jest.runAllTimersAsync();
+      jest.useRealTimers();
+      const panel = S.panelEl;
+      // hidden 属性を付与
+      panel.setAttribute("hidden", "");
+      // MutationObserver が発火して hidden 属性が除去される
+      await new Promise(function (r) { setTimeout(r, 10); });
+      expect(panel.hasAttribute("hidden")).toBe(false);
+    });
+
+    test("relocateWhenReady: secondary 出現後に再配置される", async () => {
+      document.body.innerHTML = "";
+      // secondary なしで開始
+      jest.useFakeTimers();
+      const { placePanel } = require("../src/content/ui/panel-placement");
+      const panel = document.createElement("div");
+      const promise = placePanel(panel, 100);
+      // secondary-inner を追加（MutationObserver を発火させる）
+      setTimeout(function () {
+        const secondaryInner = document.createElement("div");
+        secondaryInner.id = "secondary-inner";
+        document.body.appendChild(secondaryInner);
+      }, 50);
+      jest.advanceTimersByTime(160);
+      await promise;
+      // panel が DOM に存在
+      expect(panel.parentNode).not.toBeNull();
+      jest.useRealTimers();
+    });
+  });
 });
