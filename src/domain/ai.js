@@ -24,17 +24,11 @@ import {
 import { fetchTranscript } from "./transcript.js";
 
 // ai-utils.js から純粋関数をインポート
-import {
-  formatTranscriptWithTimestamps,
-  linkTimestamps,
-  buildMetaContext,
-  createTimeoutPromise
-} from "./ai-utils.js";
+// A-1: linkTimestamps は ui.js から直接 ai-utils.js を参照するようになったため
+//      domain/ai.js からの re-export を廃止し import も削除。
+import { formatTranscriptWithTimestamps, buildMetaContext, createTimeoutPromise } from "./ai-utils.js";
 import { CHAT_HISTORY_SEED_LENGTH } from "../shared/constants.js";
 import { getCurrentVideoId } from "../shared/utils.js";
-
-// テスト後方互換用の再エクスポート
-export { formatTranscriptWithTimestamps, linkTimestamps, buildMetaContext, createTimeoutPromise };
 
 // ===== Port/Adapter パターン: UI表示IF =====
 // ドメイン層は ports.js（抽象）にのみ依存し、
@@ -109,7 +103,7 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
   try {
     const videoId = getCurrentVideoId();
     if (videoId) {
-      saveSummaryCache(videoId, {
+      saveSummaryCache(videoId, mode, {
         content: content,
         modelLabel: config.apiModel,
         transcriptCount: transcript.all.length

@@ -1,10 +1,13 @@
 // tests/appearance.test.js — 表示設定（フォント/パネル高さ/テーマ）の DOM 反映
-const storage = require("../src/infrastructure/storage");
+// Phase A-2: storage.js が re-export ハブになったため、spy は元モジュール (storage-config) に対して行う。
+const storageConfig = require("../src/infrastructure/storage-config");
 
-// storage.js の loadFontSize / loadPanelHeight / loadThemeSetting をモック
-jest.spyOn(storage, "loadFontSize").mockResolvedValue("14");
-jest.spyOn(storage, "loadPanelHeight").mockResolvedValue("900");
-jest.spyOn(storage, "loadThemeSetting").mockResolvedValue("auto");
+// storage-config.js の loadFontSize / loadPanelHeight / loadThemeSetting をモック
+jest.spyOn(storageConfig, "loadFontSize").mockResolvedValue("14");
+jest.spyOn(storageConfig, "loadPanelHeight").mockResolvedValue("900");
+jest.spyOn(storageConfig, "loadThemeSetting").mockResolvedValue("auto");
+
+const storage = storageConfig; // 後方互換 (テスト本体では storage.X 形式で参照)
 
 // テスト対象（モック適用後に require）
 const { applyFontSize, applyPanelHeight, applyTheme } = require("../src/content/ui/appearance");

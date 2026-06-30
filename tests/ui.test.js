@@ -1,11 +1,12 @@
 // tests/ui.test.js — UI操作関数のテスト（showError, appendChatMessage, updateChatMessageBody, scrollContentToElement）
 const { uiState: S } = require("../src/shared/state");
+const { on, clearAll, EVENTS } = require("../src/shared/event-bus");
 
 // ui.js の依存をモック（重いチェーンと循環参照を回避）
 jest.mock("../src/content/ui/panel.js", () => ({ getEl: jest.fn() }));
 jest.mock("../src/domain/markdown.js", () => ({ setMarkdown: jest.fn() }));
-jest.mock("../src/domain/ai.js", () => ({ linkTimestamps: jest.fn() }));
-jest.mock("../src/content/ui/tabs.js", () => ({ switchTab: jest.fn() }));
+jest.mock("../src/domain/ai-utils.js", () => ({ linkTimestamps: jest.fn() }));
+// A-3: ui.js → tabs.js の直接依存は event-bus 経由になったため、tabs.js のモックは不要。
 
 const {
   showError,
@@ -21,11 +22,11 @@ const {
 } = require("../src/content/ui/ui");
 const { getEl } = require("../src/content/ui/panel");
 const { setMarkdown } = require("../src/domain/markdown");
-const { switchTab } = require("../src/content/ui/tabs");
 
 describe("ui", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearAll(); // A-3: event-bus のリスナーをクリアしてテスト間の分離を保証
     S.activeTab = null;
     S.panelEl = null;
   });
@@ -86,7 +87,7 @@ describe("ui", () => {
       expect(() => showError("err")).not.toThrow();
     });
 
-    test("再試行ボタンクリックでactiveTabがあればswitchTabを呼ぶ", () => {
+    test("再試行ボタンクリックでSUMMARY_RETRY_CLICKEDイベントがactiveTab付きで発火する", () => {
       Object.defineProperty(navigator, "onLine", {
         value: true,
         configurable: true,
@@ -96,16 +97,19 @@ describe("ui", () => {
       getEl.mockReturnValue(errorEl);
       S.activeTab = "summary";
 
+      const listener = jest.fn();
+      on(EVENTS.SUMMARY_RETRY_CLICKED, listener);
+
       showError("エラー");
 
       const retryBtn = errorEl.querySelector("#ys-errorRetryBtn");
       retryBtn.click();
 
       expect(errorEl.style.display).toBe("none");
-      expect(switchTab).toHaveBeenCalledWith("summary");
+      expect(listener).toHaveBeenCalledWith({ activeTab: "summary" });
     });
 
-    test("再試行ボタンクリックでactiveTabがnullならswitchTabを呼ばない", () => {
+    test("再試行ボタンクリックでactiveTabがnullならSUMMARY_RETRY_CLICKEDは発火するがpayload.activeTabはnull", () => {
       Object.defineProperty(navigator, "onLine", {
         value: true,
         configurable: true,
@@ -115,12 +119,16 @@ describe("ui", () => {
       getEl.mockReturnValue(errorEl);
       S.activeTab = null;
 
+      const listener = jest.fn();
+      on(EVENTS.SUMMARY_RETRY_CLICKED, listener);
+
       showError("エラー");
 
       const retryBtn = errorEl.querySelector("#ys-errorRetryBtn");
       retryBtn.click();
 
-      expect(switchTab).not.toHaveBeenCalled();
+      // activeTab が null でもイベントは発火し、購読者側で判断する
+      expect(listener).toHaveBeenCalledWith({ activeTab: null });
     });
   });
 

@@ -5,8 +5,8 @@
 import { uiState as S } from "../../shared/state.js";
 import { getEl } from "./panel.js";
 import { setMarkdown } from "../../domain/markdown.js";
-import { linkTimestamps } from "../../domain/ai.js";
-import { switchTab } from "./tabs.js";
+import { linkTimestamps } from "../../domain/ai-utils.js";
+import { emit, EVENTS } from "../../shared/event-bus.js";
 import { createLogger } from "../../shared/logger.js";
 
 const log = createLogger("ui");
@@ -54,9 +54,9 @@ export function showError(msg) {
   retryBtn.textContent = "🔄 再試行";
   retryBtn.addEventListener("click", function () {
     el.style.display = "none";
-    if (S.activeTab) {
-      switchTab(S.activeTab);
-    }
+    // A-3: ui.js → tabs.js の直接依存を event-bus 経由で代替し循環依存を解消。
+    // event-bridge.js / tabs.js が SUMMARY_RETRY_CLICKED を購読して switchTab を起動する。
+    emit(EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: S.activeTab });
   });
   el.appendChild(retryBtn);
 }

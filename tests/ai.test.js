@@ -58,15 +58,19 @@ jest.mock("../src/domain/api.js", () => ({
 }));
 
 const {
-  formatTranscriptWithTimestamps,
-  buildMetaContext,
-  createTimeoutPromise,
   finalizeResult,
   resolveApiConfig,
   fetchConfigAndPrompt,
   abortCurrentStream,
   callAI
 } = require("../src/domain/ai");
+
+// ai-utils.js から純粋関数を直接 import (A-1: re-export 削除対応)
+const {
+  formatTranscriptWithTimestamps,
+  buildMetaContext,
+  createTimeoutPromise
+} = require("../src/domain/ai-utils");
 
 // モック化された api.js の関数を取得
 const { callChatAPIStream, callChatAPINonStream } = require("../src/domain/api");
@@ -755,10 +759,11 @@ describe("callAI", () => {
     await callAI("summary", false);
 
     // saveSummaryCache が呼ばれる
-    // storage.local.set のいずれかの呼び出しで summary_cache_dQw4w9WgXcQ が含まれる
+    // T3-C1: キャッシュキーは (videoId, mode) 別になったため、
+    //   summary_cache_dQw4w9WgXcQ_summary のようなサフィックス付きキーになる。
     const setCalls = chrome.storage.local.set.mock.calls;
     const found = setCalls.some(function (call) {
-      return call[0] && call[0]["summary_cache_dQw4w9WgXcQ"];
+      return call[0] && call[0]["summary_cache_dQw4w9WgXcQ_summary"];
     });
     expect(found).toBe(true);
   });
@@ -789,7 +794,7 @@ describe("callAI", () => {
 
     const setCalls = chrome.storage.local.set.mock.calls;
     const found = setCalls.some(function (call) {
-      return call[0] && call[0]["summary_cache_abc123XYZ45"];
+      return call[0] && call[0]["summary_cache_abc123XYZ45_summary"];
     });
     expect(found).toBe(true);
   });

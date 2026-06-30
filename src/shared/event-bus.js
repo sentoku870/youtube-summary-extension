@@ -78,7 +78,10 @@ export const INTERNAL_EVENTS = {
   NAV_FINISH: "nav:finish",
   TRANSCRIPT_READY: "transcript-ready",
   TRANSCRIPT_FAILED: "transcript-failed",
-  TRANSCRIPT_RETRY: "transcript-retry"
+  TRANSCRIPT_RETRY: "transcript-retry",
+  // A-3: ui.js の showError 内 retry ボタンがクリックされたことを通知。
+  // ui.js → tabs.js の直接 import を event-bus 経由で代替し循環依存を解消。
+  SUMMARY_RETRY_CLICKED: "summary:retry-clicked"
 };
 
 // 既存コードが EVENTS.X で参照している場合のシム
