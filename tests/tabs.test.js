@@ -56,8 +56,10 @@ jest.mock("../src/domain/ai.js", () => ({
 jest.mock("../src/domain/api.js", () => ({
   callChatAPIStream: jest.fn()
 }));
-jest.mock("../src/infrastructure/storage.js", () => ({
-  loadButtonTitle: jest.fn(),
+jest.mock("../src/infrastructure/storage-config.js", () => ({
+  loadButtonTitle: jest.fn()
+}));
+jest.mock("../src/infrastructure/storage-cache.js", () => ({
   loadSummaryCache: jest.fn()
 }));
 
@@ -83,11 +85,7 @@ const ai = require("../src/domain/ai");
 const api = require("../src/domain/api");
 const storage = require("../src/infrastructure/storage");
 
-const {
-  abortChatStream,
-  switchTab,
-  applyButtonTitles
-} = require("../src/content/ui/tabs");
+const { abortChatStream, switchTab, applyButtonTitles } = require("../src/content/ui/tabs");
 
 // B-2: bindEvents は tabs-events.js から直接 import
 const { bindEvents } = require("../src/content/ui/tabs-events");
@@ -315,6 +313,118 @@ describe("tabs", () => {
       expect(btn.disabled).toBe(true);
       resolveCall(true);
       await p;
+    });
+
+    // 回帰防止: getEl("#ys-btn-X") が null を返すケース（パネル DOM 不整合など）
+    test("ボタン要素が取得できない場合は callAI を実行（クラッシュしない）", async () => {
+      S.tabs.summary.generated = false;
+      storage.loadSummaryCache.mockResolvedValue(null);
+      // #ys-btn-summary だけ null を返す
+      getEl.mockImplementation(function (sel) {
+        if (sel === "#ys-btn-summary") return null;
+        return S.panelEl && S.panelEl.querySelector(sel);
+      });
+
+      await expect(switchTab("summary")).resolves.not.toThrow();
+      expect(ai.callAI).toHaveBeenCalledWith("summary", true);
+    });
+
+    // T2-A5: キャッシュヒット中に世代が変わると破棄される（回帰防止）
+    test("キャッシュヒット中に _switchGen が変わると cache は適用されず callAI も呼ばない", async () => {
+      S.tabs.summary.generated = false;
+      S.tabs.summary.content = "古いコンテンツ";
+      const cached = {
+        content: "新キャッシュ",
+        modelLabel: "gpt-4o",
+        transcriptCount: 100,
+        timestamp: Date.now()
+      };
+      // キャッシュ取得を遅延させ、その間に _switchGen を進める
+      let resolveCache;
+      storage.loadSummaryCache.mockReturnValue(
+        new Promise(function (r) {
+          resolveCache = r;
+        })
+      );
+      Object.defineProperty(window, "location", {
+        value: { href: "https://www.youtube.com/watch?v=abc", pathname: "/watch" },
+        writable: true,
+        configurable: true
+      });
+
+      // switchTab を await せず開始
+      const p = switchTab("summary");
+      // await 経由で _switchGen を進める（古い呼び出し扱い）
+      sessionState._switchGen++;
+      // キャッシュを解決
+      resolveCache(cached);
+      await p;
+
+      // 古い呼び出しなので cache は適用されない
+      expect(S.tabs.summary.content).toBe("古いコンテンツ");
+      expect(S.tabs.summary.generated).toBe(false);
+      // callAI もスキップ（myGen !== _switchGen で早期 return）
+      expect(ai.callAI).not.toHaveBeenCalled();
+    });
+
+    // 回帰防止: callAI 完了時の finally で _switchGen 不一致なら UI 状態を巻き込まない
+    test("callAI 完了時: 別タブに切替済みなら applyButtonTitles は呼ばない（世代不一致）", async () => {
+      S.tabs.summary.generated = false;
+      S.tabs.customA.generated = false;
+      storage.loadSummaryCache.mockResolvedValue(null);
+
+      // A の callAI は遅延
+      let resolveA;
+      ai.callAI.mockImplementationOnce(
+        () =>
+          new Promise(function (r) {
+            resolveA = r;
+          })
+      );
+      // B は即完了
+      ai.callAI.mockResolvedValueOnce(true);
+
+      // A を開始
+      const pA = switchTab("summary");
+      // 直後に B へ切替（A の _switchGen より新しい世代に）
+      const pB = switchTab("customA");
+      await pB;
+      await flushPromises();
+
+      // B の applyButtonTitles 呼び出し回数を記録
+      const callsAfterB = tabsUi.updateTabUI.mock.calls.length;
+      // A の callAI を完了させ、A の finally を発火
+      resolveA(false);
+      await pA;
+      await flushPromises();
+
+      // A の finally は _switchGen 不一致で no-op のはず
+      // → updateTabUI 呼び出しが増えていないことを確認
+      expect(tabsUi.updateTabUI.mock.calls.length).toBe(callsAfterB);
+    });
+
+    // 回帰防止: tab.generated=true 切替時に scrollContentTop が呼ばれる
+    test("tab.generated=true 切替時に requestAnimationFrame 経由で scrollContentTop が呼ばれる", async () => {
+      S.tabs.summary.generated = true;
+      S.tabs.summary.content = "x";
+      // content-area を取得し、scrollTop セッターをスパイ。
+      // jsdom の scrollTop は prototype 側の getter/setter なので、
+      // Object.defineProperty でインスタンスに再定義してフックする。
+      const area = getEl("#ys-content-area");
+      const setSpy = jest.fn();
+      Object.defineProperty(area, "scrollTop", {
+        set: setSpy,
+        get: function () {
+          return 0;
+        },
+        configurable: true
+      });
+      await switchTab("summary");
+      // RAF ポリフィル (setTimeout(cb, 0)) の発火を待つ
+      await new Promise(function (resolve) {
+        setTimeout(resolve, 50);
+      });
+      expect(setSpy).toHaveBeenCalledWith(0);
     });
 
     // 回帰防止: switchTab() の冒頭で必ず進行中のストリームを中断する
@@ -906,7 +1016,11 @@ describe("tabs", () => {
       const { loadSummaryCache } = require("../src/infrastructure/storage");
       // キャッシュ取得を遅延させ、その間に他タブを踏むシミュレーション
       let resolveCache;
-      loadSummaryCache.mockReturnValue(new Promise(function (r) { resolveCache = r; }));
+      loadSummaryCache.mockReturnValue(
+        new Promise(function (r) {
+          resolveCache = r;
+        })
+      );
       S.tabs.summary.generated = false;
       S.activeTab = null;
       // switchTab を await せず開始
