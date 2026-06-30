@@ -43,7 +43,10 @@ export function createInitialSessionState() {
     // チャット送信用の状態 (Phase H F-5 でモジュールスコープから移動)
     chatAbortController: null,
     chatAbortChain: null,
-    chatBusy: false
+    chatBusy: false,
+    // タブ切替世代カウンタ。switchTab() 入口でインクリメントし、
+    // 古い呼び出しの finally が他タブのボタン状態を巻き込むのを防ぐ。
+    _switchGen: 0
   };
 }
 

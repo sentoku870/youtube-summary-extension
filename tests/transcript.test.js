@@ -101,6 +101,35 @@ describe("fetchTranscript", function () {
     await expect(fetchTranscript()).rejects.toThrow("network");
     expect(mockSessionState._transcriptPromise).toBeNull();
   });
+
+  // ★ 回帰防止: ポップアップの字幕DLボタン経路 (ysGetTranscript ハンドラ) などで
+  //   fetchTranscript() が直接呼ばれた場合も UI 更新イベントを発火させる。
+  //   旧実装では preloadTranscript() 経由でしか TRANSCRIPT_READY が
+  //   発火せず、「字幕取得中」テキストが永続する症状があった。
+  test("直接呼び出し時も取得成功でキャッシュ + TRANSCRIPT_READY を発火", async function () {
+    mockLoadSubtitleLang.mockResolvedValue("auto");
+    mockFetchYtTranscript.mockResolvedValue({ all: ["from-fetch"] });
+
+    const r = await fetchTranscript();
+
+    expect(r).toEqual({ all: ["from-fetch"] });
+    expect(mockSessionState.transcriptReady).toBe(true);
+    expect(mockSessionState.preloadedTranscript).toEqual({ all: ["from-fetch"] });
+    expect(mockEmit).toHaveBeenCalledWith("TRANSCRIPT_READY", {
+      transcript: { all: ["from-fetch"] }
+    });
+  });
+
+  test("字幕が空配列のときは TRANSCRIPT_READY を発火しない", async function () {
+    mockLoadSubtitleLang.mockResolvedValue("auto");
+    mockFetchYtTranscript.mockResolvedValue({ all: [] });
+
+    const r = await fetchTranscript();
+
+    expect(r).toEqual({ all: [] });
+    expect(mockSessionState.transcriptReady).toBe(false);
+    expect(mockEmit).not.toHaveBeenCalled();
+  });
 });
 
 // ===== preloadTranscript =====

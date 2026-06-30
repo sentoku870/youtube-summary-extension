@@ -16,7 +16,7 @@ export async function fetchTranscript() {
   if (S.preloadedTranscript) return S.preloadedTranscript;
   // 既にロード中のPromiseがあればそれに乗る（競合防止）
   if (S._transcriptPromise) return S._transcriptPromise;
-  // T2-E9: 現在の動画世代を capture。完了時に世代が違えば結果を捨てる。
+  // T2-E9: 現在の動画世代を capture。完了時に世代が違えば結果を破棄する。
   const myGen = S._transcriptGen;
   const promise = (async function () {
     const lang = await loadSubtitleLang();
@@ -31,6 +31,16 @@ export async function fetchTranscript() {
     if (myGen !== S._transcriptGen) {
       log.log("古い字幕取得結果を破棄（世代 mismatch）");
       return r;
+    }
+    // ★ 取得成功時はキャッシュ + TRANSCRIPT_READY を発火して UI を更新する。
+    // popup の DL ボタン経路 (ysGetTranscript ハンドラ) など、
+    // preloadTranscript() 以外から呼ばれた経路でも UI が「字幕取得中」の
+    // ままになる問題をこれで防ぐ。preloadTranscript 側で二重発火した場合も
+    // event-bridge の applyButtonTitles は冪等なので問題なし。
+    if (r && r.all && r.all.length > 0 && !S.transcriptReady) {
+      S.preloadedTranscript = r;
+      S.transcriptReady = true;
+      emit(EVENTS.TRANSCRIPT_READY, { transcript: r });
     }
     return r;
   } finally {

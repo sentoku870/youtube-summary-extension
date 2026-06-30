@@ -28,6 +28,7 @@ describe("sessionState（セッション状態）", () => {
     expect(sessionState).toHaveProperty("abortController", null);
     expect(sessionState).toHaveProperty("pendingRetry", false);
     expect(sessionState).toHaveProperty("_transcriptPromise", null);
+    expect(sessionState).toHaveProperty("_switchGen", 0);
   });
 });
 
