@@ -17,7 +17,7 @@ jest.mock("../src/shared/state.js", function () {
 
 // loadSubtitleLang のモック
 const mockLoadSubtitleLang = jest.fn();
-jest.mock("../src/infrastructure/storage.js", function () {
+jest.mock("../src/infrastructure/storage-config.js", function () {
   return { loadSubtitleLang: mockLoadSubtitleLang };
 });
 

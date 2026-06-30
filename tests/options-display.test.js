@@ -8,8 +8,8 @@ const mockStorage = {
   setCalls: []
 };
 
-jest.mock("../src/infrastructure/storage.js", () => {
-  const actual = jest.requireActual("../src/infrastructure/storage.js");
+jest.mock("../src/infrastructure/storage-core.js", () => {
+  const actual = jest.requireActual("../src/infrastructure/storage-core.js");
   return {
     ...actual,
     K: actual.K,
@@ -171,8 +171,12 @@ describe("options-display", () => {
       setThemeActiveFromValue("dark");
       // light を click
       document.querySelector('.theme-card[data-theme="light"]').click();
-      expect(document.querySelector('.theme-card[data-theme="light"]').classList.contains("active")).toBe(true);
-      expect(document.querySelector('.theme-card[data-theme="dark"]').classList.contains("active")).toBe(false);
+      expect(
+        document.querySelector('.theme-card[data-theme="light"]').classList.contains("active")
+      ).toBe(true);
+      expect(
+        document.querySelector('.theme-card[data-theme="dark"]').classList.contains("active")
+      ).toBe(false);
     });
 
     test("カードに Enter キー押下でも選択される", () => {
@@ -372,7 +376,7 @@ describe("options-display", () => {
         setTimeout(r, 350);
       });
       // テーマ属性が反映
-      
+
       // 実際は appearance.applyTheme が storage から値を取得して反映
       // ここでは click がエラーなく実行されたことだけ確認
       expect(darkCard).not.toBeNull();

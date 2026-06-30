@@ -18,7 +18,7 @@ import {
   loadApiConfigs,
   loadCustomPrompt,
   getDefaultPrompt
-} from "../infrastructure/storage.js";
+} from "../infrastructure/storage-config.js";
 import { fetchTranscript } from "./transcript.js";
 import {
   formatTranscriptWithTimestamps,

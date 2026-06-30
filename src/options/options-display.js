@@ -7,7 +7,7 @@
 //  全項目 change/input 時にデバウンス（300ms）で chrome.storage に保存。
 //  B-4: 自動保存ロジックを ui/auto-save.js の createAutoSave ヘルパに委譲。
 // ============================================================
-import { set, K } from "../infrastructure/storage.js";
+import { set, K } from "../infrastructure/storage-core.js";
 import { saveToast } from "./ui/toast.js";
 import { getAppVersion, getAppBuildDate, getAppGitCommit } from "../shared/version.js";
 import { createAutoSave } from "./ui/auto-save.js";

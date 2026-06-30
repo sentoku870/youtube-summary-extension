@@ -4,7 +4,7 @@ const mockStorage = {
   configs: []
 };
 
-jest.mock("../src/infrastructure/storage.js", () => ({
+jest.mock("../src/infrastructure/storage-core.js", () => ({
   K: { API_CONFIGS: "apiConfigs" },
   get: jest.fn((key) => {
     if (key === "apiConfigs") return Promise.resolve(mockStorage.configs);
@@ -253,7 +253,13 @@ describe("model-card", () => {
 
     test("URL 内のホスト名でも検索できる", async () => {
       mockStorage.configs = [
-        { id: "1", label: "A", apiKey: "k", apiUrl: "https://api.unique-host.com/v1", apiModel: "m" }
+        {
+          id: "1",
+          label: "A",
+          apiKey: "k",
+          apiUrl: "https://api.unique-host.com/v1",
+          apiModel: "m"
+        }
       ];
       await setSearchKeyword("unique-host");
       const cards = document.querySelectorAll(".model-card");
@@ -282,9 +288,7 @@ describe("model-card", () => {
     });
 
     test("apiUrl が空文字の場合 '—' フォールバック（host 用）", async () => {
-      mockStorage.configs = [
-        { id: "1", label: "L", apiKey: "k", apiUrl: "", apiModel: "m" }
-      ];
+      mockStorage.configs = [{ id: "1", label: "L", apiKey: "k", apiUrl: "", apiModel: "m" }];
       await renderModelList();
       const card = document.querySelector(".model-card");
       // "🔗 —" が含まれる（host フォールバック）
@@ -292,9 +296,7 @@ describe("model-card", () => {
     });
 
     test("apiUrl が null の場合 '—' フォールバック（host 用）", async () => {
-      mockStorage.configs = [
-        { id: "1", label: "L", apiKey: "k", apiUrl: null, apiModel: "m" }
-      ];
+      mockStorage.configs = [{ id: "1", label: "L", apiKey: "k", apiUrl: null, apiModel: "m" }];
       await renderModelList();
       const card = document.querySelector(".model-card");
       // null → "" → "—" フォールバック

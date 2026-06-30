@@ -10,8 +10,8 @@ const mockStorage = {
   configs: []
 };
 
-jest.mock("../src/infrastructure/storage.js", () => {
-  const actual = jest.requireActual("../src/infrastructure/storage.js");
+jest.mock("../src/infrastructure/storage-core.js", () => {
+  const actual = jest.requireActual("../src/infrastructure/storage-core.js");
   return {
     ...actual,
     get: jest.fn((key) => {
@@ -50,8 +50,7 @@ function setFormValues(values) {
   if (values.apiModel !== undefined) document.getElementById("apiModel").value = values.apiModel;
   if (values.temperature !== undefined)
     document.getElementById("temperature").value = values.temperature;
-  if (values.maxTokens !== undefined)
-    document.getElementById("maxTokens").value = values.maxTokens;
+  if (values.maxTokens !== undefined) document.getElementById("maxTokens").value = values.maxTokens;
   if (values.extraParams !== undefined)
     document.getElementById("extraParams").value = values.extraParams;
 }
@@ -159,7 +158,9 @@ describe("model-form", () => {
       click("saveConfigBtn");
       const errEl = document.getElementById("apiFormError");
       expect(errEl.textContent).toContain("ラベル名");
-      expect(set).not.toHaveBeenCalledWith(expect.objectContaining({ apiConfigs: expect.anything() }));
+      expect(set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ apiConfigs: expect.anything() })
+      );
     });
 
     test("API URL が空でもバリデーションエラー", () => {
@@ -254,7 +255,9 @@ describe("model-form", () => {
       openFormForNew();
       setFormValues({ label: "", apiKey: "k", apiUrl: "https://x.com", apiModel: "m" });
       click("duplicateConfigBtn");
-      expect(set).not.toHaveBeenCalledWith(expect.objectContaining({ apiConfigs: expect.anything() }));
+      expect(set).not.toHaveBeenCalledWith(
+        expect.objectContaining({ apiConfigs: expect.anything() })
+      );
     });
   });
 
@@ -295,7 +298,15 @@ describe("model-form", () => {
     test("openFormForNew 後に全フィールドがデフォルト値にリセット", () => {
       openFormForNew();
       // フィールドに値を設定
-      setFormValues({ label: "test", apiKey: "test-key", apiUrl: "https://test.com", apiModel: "test-model", temperature: "0.9", maxTokens: "9999", extraParams: '{"x":1}' });
+      setFormValues({
+        label: "test",
+        apiKey: "test-key",
+        apiUrl: "https://test.com",
+        apiModel: "test-model",
+        temperature: "0.9",
+        maxTokens: "9999",
+        extraParams: '{"x":1}'
+      });
       // openFormForNew を呼ぶ（内部で clearForm が呼ばれる）
       openFormForNew();
       expect(document.getElementById("configLabel").value).toBe("");
@@ -310,13 +321,15 @@ describe("model-form", () => {
 
   describe("fillFormFromConfig: undefined 値を含む config", () => {
     test("undefined 値でも空文字で埋められる", async () => {
-      mockStorage.configs = [{
-        id: "test",
-        // label, apiKey, apiUrl, apiModel すべて undefined
-        temperature: undefined,
-        maxTokens: undefined,
-        extraParams: undefined
-      }];
+      mockStorage.configs = [
+        {
+          id: "test",
+          // label, apiKey, apiUrl, apiModel すべて undefined
+          temperature: undefined,
+          maxTokens: undefined,
+          extraParams: undefined
+        }
+      ];
       await openFormForEdit("test");
       expect(document.getElementById("configLabel").value).toBe("");
       expect(document.getElementById("apiKey").value).toBe("");
@@ -351,7 +364,13 @@ describe("model-form", () => {
     });
 
     test("extraParams が不正な JSON の場合 VALIDATION_ERRORS.EXTRA_PARAMS_JSON", () => {
-      setFormValues({ label: "L", apiKey: "k", apiUrl: "https://x.com", apiModel: "m", extraParams: "{invalid json}" });
+      setFormValues({
+        label: "L",
+        apiKey: "k",
+        apiUrl: "https://x.com",
+        apiModel: "m",
+        extraParams: "{invalid json}"
+      });
       click("saveConfigBtn");
       const errEl = document.getElementById("apiFormError");
       expect(errEl.textContent).toBe("追加パラメータが正しいJSON形式ではありません");
@@ -388,14 +407,20 @@ describe("model-form", () => {
 
   describe("handleSave: 編集中の id が configs から消えた場合", () => {
     test("errorToast で通知される", async () => {
-      mockStorage.configs = [{ id: "real-id", label: "Real", apiKey: "k", apiUrl: "https://x.com", apiModel: "m" }];
+      mockStorage.configs = [
+        { id: "real-id", label: "Real", apiKey: "k", apiUrl: "https://x.com", apiModel: "m" }
+      ];
       await openFormForEdit("real-id");
       setFormValues({ label: "New" });
       // 保存時に消えた場合
-      mockStorage.configs = [{ id: "other-id", label: "Other", apiKey: "k", apiUrl: "https://x.com", apiModel: "m" }];
+      mockStorage.configs = [
+        { id: "other-id", label: "Other", apiKey: "k", apiUrl: "https://x.com", apiModel: "m" }
+      ];
       const errorSpy = jest.spyOn(require("../src/options/ui/toast"), "errorToast");
       click("saveConfigBtn");
-      await new Promise(function (r) { setTimeout(r, 0); });
+      await new Promise(function (r) {
+        setTimeout(r, 0);
+      });
       // errorToast が呼ばれる
       expect(errorSpy).toHaveBeenCalledWith("対象の設定が見つかりません");
       errorSpy.mockRestore();

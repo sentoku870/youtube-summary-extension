@@ -11,7 +11,7 @@
 //    - domain/ports.js: UI adapter
 // ============================================================
 import { uiState, sessionState } from "../shared/state.js";
-import { saveToStorage, saveSummaryCache } from "../infrastructure/storage.js";
+import { saveToStorage, saveSummaryCache } from "../infrastructure/storage-cache.js";
 import { getCurrentVideoId } from "../shared/utils.js";
 import { CHAT_HISTORY_SEED_LENGTH } from "../shared/constants.js";
 import { getUiAdapter } from "./ports.js";

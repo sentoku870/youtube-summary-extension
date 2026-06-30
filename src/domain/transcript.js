@@ -4,7 +4,7 @@
 //  これにより domain 層は純粋に content/ui に依存しなくなる。
 // ============================================================
 import { sessionState as S } from "../shared/state.js";
-import { loadSubtitleLang } from "../infrastructure/storage.js";
+import { loadSubtitleLang } from "../infrastructure/storage-config.js";
 import { emit, EVENTS } from "../shared/event-bus.js";
 import { fetchYtTranscript } from "./transcript-fetcher.js";
 import { createLogger } from "../shared/logger.js";

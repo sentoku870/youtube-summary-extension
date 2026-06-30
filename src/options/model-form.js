@@ -4,7 +4,7 @@
 //  DOM 構築は model-form-dom.js、配置は model-card.js に委譲。
 //  Phase C-3: DOM 構築ロジックを model-form-dom.js に分離。
 // ============================================================
-import { get, set, K } from "../infrastructure/storage.js";
+import { get, set, K } from "../infrastructure/storage-core.js";
 import { validateFormValues, VALIDATION_ERRORS, buildConfig, generateId } from "./options-logic.js";
 import { getVal, setVal } from "./options-shared.js";
 import { saveToast, errorToast } from "./ui/toast.js";

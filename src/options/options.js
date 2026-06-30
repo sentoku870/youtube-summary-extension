@@ -4,13 +4,9 @@
 //  旧「すべて保存」ボタンは廃止（自動保存に移行）。
 //  B-3: options-buttons.js を廃止し button-card.js から直接 import。
 // ============================================================
-import { getAll, K } from "../infrastructure/storage.js";
+import { getAll, K } from "../infrastructure/storage-core.js";
 import { initModelsTab, renderModelList } from "./options-models.js";
-import {
-  initButtonCards,
-  refreshButtonModelSelects,
-  flushAllSaves
-} from "./button-card.js";
+import { initButtonCards, refreshButtonModelSelects, flushAllSaves } from "./button-card.js";
 import { initDisplayTab, setThemeActiveFromValue, syncPresets } from "./options-display.js";
 import { initForm } from "./model-form.js";
 import { getAppVersion, getAppBuildDate } from "../shared/version.js";

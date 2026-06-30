@@ -4,7 +4,7 @@
 //  フォームの DOM と値管理は model-form.js、
 //  カードの描画と位置管理は model-card.js に委譲。
 // ============================================================
-import { get, set, K } from "../infrastructure/storage.js";
+import { get, set, K } from "../infrastructure/storage-core.js";
 import { confirmDialog } from "./ui/confirm.js";
 import { saveToast } from "./ui/toast.js";
 import {

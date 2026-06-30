@@ -9,8 +9,8 @@ const mockStorage = {
   setCalls: []
 };
 
-jest.mock("../src/infrastructure/storage.js", () => {
-  const actual = jest.requireActual("../src/infrastructure/storage.js");
+jest.mock("../src/infrastructure/storage-core.js", () => {
+  const actual = jest.requireActual("../src/infrastructure/storage-core.js");
   return {
     ...actual,
     K: actual.K,
@@ -30,12 +30,14 @@ jest.mock("../src/infrastructure/storage.js", () => {
     set: jest.fn((obj) => {
       mockStorage.setCalls.push(obj);
       return Promise.resolve();
-    }),
-    getDefaultPrompt: jest.fn((type) => "default-prompt-" + type),
-    loadButtonTitle: jest.fn().mockResolvedValue(null),
-    loadBtnApiConfigId: jest.fn().mockResolvedValue(null)
+    })
   };
 });
+jest.mock("../src/infrastructure/storage-config.js", () => ({
+  getDefaultPrompt: jest.fn((type) => "default-prompt-" + type),
+  loadButtonTitle: jest.fn().mockResolvedValue(null),
+  loadBtnApiConfigId: jest.fn().mockResolvedValue(null)
+}));
 
 let initButtonCards, refreshButtonModelSelects, flushAllSaves;
 let set;
@@ -78,9 +80,9 @@ describe("button-card", () => {
       initButtonCards();
       const cards = document.querySelectorAll(".button-card");
       expect(cards.length).toBe(3);
-      expect(document.querySelector('.button-card-summary')).not.toBeNull();
-      expect(document.querySelector('.button-card-customA')).not.toBeNull();
-      expect(document.querySelector('.button-card-customB')).not.toBeNull();
+      expect(document.querySelector(".button-card-summary")).not.toBeNull();
+      expect(document.querySelector(".button-card-customA")).not.toBeNull();
+      expect(document.querySelector(".button-card-customB")).not.toBeNull();
     });
 
     test("title / prompt / model の入力要素が各カードに存在", () => {
@@ -263,7 +265,9 @@ describe("button-card", () => {
 
     test("bindButtonCardHandlers: onModelSelectsChange が関数でない場合は無視", () => {
       const bc = require("../src/options/button-card.js");
-      expect(() => bc.bindButtonCardHandlers({ onModelSelectsChange: "not-a-function" })).not.toThrow();
+      expect(() =>
+        bc.bindButtonCardHandlers({ onModelSelectsChange: "not-a-function" })
+      ).not.toThrow();
     });
   });
 

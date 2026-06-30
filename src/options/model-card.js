@@ -4,7 +4,7 @@
 //  編集・複製・削除ボタンのハンドラは model-form.js / model-list の
 //  残存機能（後方互換）に委譲。
 // ============================================================
-import { get, K } from "../infrastructure/storage.js";
+import { get, K } from "../infrastructure/storage-core.js";
 import { cssEscape } from "./options-logic.js";
 import { filterConfigCards, extractHost } from "./model-filter.js";
 

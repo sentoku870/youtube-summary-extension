@@ -3,7 +3,7 @@
 //  options.js から副作用のないロジックを分離。
 //  DOM操作・イベント登録は options.js に残す。
 // ============================================================
-import { K } from "../infrastructure/storage.js";
+import { K } from "../infrastructure/storage-core.js";
 
 // ===== 一意ID生成（モジュール状態でカウンタを保持） =====
 let idCounter = 0;

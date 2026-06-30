@@ -6,14 +6,12 @@
 //  B-4: 自動保存ロジックを ui/auto-save.js の createAutoSave に委譲し、
 //       インジケータ表示とデバウンスを共通化。
 // ============================================================
+import { get, set, K } from "../infrastructure/storage-core.js";
 import {
-  get,
-  set,
-  K,
   getDefaultPrompt,
   loadButtonTitle,
   loadBtnApiConfigId
-} from "../infrastructure/storage.js";
+} from "../infrastructure/storage-config.js";
 import { saveToast } from "./ui/toast.js";
 import { promptKey, btnTitleKey, btnApiConfigKey } from "./options-logic.js";
 import { createAutoSave } from "./ui/auto-save.js";

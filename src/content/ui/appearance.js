@@ -3,7 +3,11 @@
 //  storage.js から抽出：infrastructure層は純粋なストレージI/Oのみとし、
 //  DOM操作は UI層で行う（責務の分離）。
 // ============================================================
-import { loadFontSize, loadPanelHeight, loadThemeSetting } from "../../infrastructure/storage.js";
+import {
+  loadFontSize,
+  loadPanelHeight,
+  loadThemeSetting
+} from "../../infrastructure/storage-config.js";
 
 // T1-P7: prefers-color-scheme 結果を MediaQueryList 単位でキャッシュ
 // 同一セッション内の applyTheme 呼び出しごとに matchMedia を再評価する無駄を削減。
