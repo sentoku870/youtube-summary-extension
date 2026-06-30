@@ -1,7 +1,10 @@
 // tests/storage-listener.test.js — chrome.storage.onChanged リスナー管理のテスト
 const helpers = require("./__helpers__/index.cjs");
 
-const { bindStorageListener, unbindStorageListener } = require("../src/content/ui/storage-listener");
+const {
+  bindStorageListener,
+  unbindStorageListener
+} = require("../src/content/ui/storage-listener");
 const { uiState } = helpers;
 
 describe("storage-listener", () => {

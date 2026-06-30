@@ -22,7 +22,12 @@ jest.mock("../src/domain/ai-utils.js", () => ({
 }));
 
 describe("ui-progress", () => {
-  const { showProgress, hideProgress, showError, hideError } = require("../src/content/ui/ui-progress");
+  const {
+    showProgress,
+    hideProgress,
+    showError,
+    hideError
+  } = require("../src/content/ui/ui-progress");
   const { getEl } = require("../src/content/ui/panel");
 
   beforeEach(() => {
@@ -140,8 +145,14 @@ describe("ui-progress", () => {
 });
 
 describe("ui-summary", () => {
-  const { setSummaryContent, clearSummaryContent, setSummaryRaw, updateInfoLabel, showChatArea, hideChatArea } =
-    require("../src/content/ui/ui-summary");
+  const {
+    setSummaryContent,
+    clearSummaryContent,
+    setSummaryRaw,
+    updateInfoLabel,
+    showChatArea,
+    hideChatArea
+  } = require("../src/content/ui/ui-summary");
   const { getEl } = require("../src/content/ui/panel");
 
   beforeEach(() => {
@@ -236,9 +247,12 @@ describe("ui-summary", () => {
 
 describe("ui-buttons", () => {
   const {
-    disableRegenButton, enableRegenButton,
-    showRegenButton, hideRegenButton,
-    showCopyButton, hideCopyButton,
+    disableRegenButton,
+    enableRegenButton,
+    showRegenButton,
+    hideRegenButton,
+    showCopyButton,
+    hideCopyButton,
     focusChatInput
   } = require("../src/content/ui/ui-buttons");
   const { getEl } = require("../src/content/ui/panel");

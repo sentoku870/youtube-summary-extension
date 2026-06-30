@@ -45,9 +45,7 @@ describe("ai-chunk / processSingleChunk", () => {
   });
 
   test("1回失敗→2回成功 → success: true（リトライでリカバリ）", async () => {
-    callChatAPINonStream
-      .mockRejectedValueOnce(new Error("transient"))
-      .mockResolvedValueOnce("ok");
+    callChatAPINonStream.mockRejectedValueOnce(new Error("transient")).mockResolvedValueOnce("ok");
     const r = await processSingleChunk(chunkMessages, config, undefined, 1, 3, 3);
     expect(r).toEqual({ success: true, result: "ok" });
     expect(callChatAPINonStream).toHaveBeenCalledTimes(2);
@@ -63,9 +61,9 @@ describe("ai-chunk / processSingleChunk", () => {
   test("AbortError は即座に上位に throw（リトライしない）", async () => {
     const abortErr = new DOMException("Aborted", "AbortError");
     callChatAPINonStream.mockRejectedValue(abortErr);
-    await expect(
-      processSingleChunk(chunkMessages, config, undefined, 0, 3, 3)
-    ).rejects.toBe(abortErr);
+    await expect(processSingleChunk(chunkMessages, config, undefined, 0, 3, 3)).rejects.toBe(
+      abortErr
+    );
     expect(callChatAPINonStream).toHaveBeenCalledTimes(1);
   });
 
@@ -77,9 +75,7 @@ describe("ai-chunk / processSingleChunk", () => {
   });
 
   test("リトライ時に 'リトライ中' メッセージが showProgress で表示される", async () => {
-    callChatAPINonStream
-      .mockRejectedValueOnce(new Error("net"))
-      .mockResolvedValueOnce("ok");
+    callChatAPINonStream.mockRejectedValueOnce(new Error("net")).mockResolvedValueOnce("ok");
     await processNonStreamWithFakeTimers();
     expect(mockUi.showProgress).toHaveBeenCalledWith("⚠️ チャンク 1 リトライ中");
   });

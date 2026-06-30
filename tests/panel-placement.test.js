@@ -289,7 +289,9 @@ describe("panel.js パネル配置 (placement)", () => {
       const promise = placePanel(panel, 50);
       jest.advanceTimersByTime(60);
       await promise;
-      const calls = logSpy.mock.calls.map(function (c) { return c.join(" "); });
+      const calls = logSpy.mock.calls.map(function (c) {
+        return c.join(" ");
+      });
       // "watch-flexy #secondary" が含まれる
       const found = calls.some(function (msg) {
         return msg.indexOf("watch-flexy #secondary") !== -1 && msg.indexOf("inner") === -1;
@@ -309,7 +311,9 @@ describe("panel.js パネル配置 (placement)", () => {
       // hidden 属性を付与
       panel.setAttribute("hidden", "");
       // MutationObserver が発火して hidden 属性が除去される
-      await new Promise(function (r) { setTimeout(r, 10); });
+      await new Promise(function (r) {
+        setTimeout(r, 10);
+      });
       expect(panel.hasAttribute("hidden")).toBe(false);
     });
 

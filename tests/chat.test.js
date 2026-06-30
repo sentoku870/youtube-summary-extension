@@ -168,7 +168,9 @@ describe("chat", () => {
       // resolveApiConfig をモジュールキャッシュから差し替え
       const ai = require("../src/domain/ai");
       const original = ai.resolveApiConfig;
-      ai.resolveApiConfig = jest.fn().mockResolvedValue({ apiKey: "new", apiUrl: "u", apiModel: "m" });
+      ai.resolveApiConfig = jest
+        .fn()
+        .mockResolvedValue({ apiKey: "new", apiUrl: "u", apiModel: "m" });
       uiState.tabs.summary.config = null;
       api.callChatAPIStream.mockReset();
       api.callChatAPIStream.mockImplementation(async function (_m, _c, onChunk, onDone) {

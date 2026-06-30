@@ -63,15 +63,17 @@ describe("processMapReduce", () => {
     });
 
     // マージ処理用: callChatAPIStream
-    api.callChatAPIStream.mockImplementation(async function (messages, _cfg, onChunk, onDone, signal) {
-      if (signal && signal.aborted) {
-        const err = new DOMException("Aborted", "AbortError");
-        throw err;
+    api.callChatAPIStream.mockImplementation(
+      async function (messages, _cfg, onChunk, onDone, signal) {
+        if (signal && signal.aborted) {
+          const err = new DOMException("Aborted", "AbortError");
+          throw err;
+        }
+        if (mockStreamShouldThrow) throw mockStreamShouldThrow;
+        onChunk(mockStreamResult || "merged result");
+        if (onDone) onDone(mockStreamResult || "merged result");
       }
-      if (mockStreamShouldThrow) throw mockStreamShouldThrow;
-      onChunk(mockStreamResult || "merged result");
-      if (onDone) onDone(mockStreamResult || "merged result");
-    });
+    );
   });
 
   afterAll(() => {
@@ -81,14 +83,26 @@ describe("processMapReduce", () => {
   describe("正常系", () => {
     test("チャンクを並列要約してマージ結果を返す", async () => {
       const chunks = ["chunk1 content", "chunk2 content", "chunk3 content"];
-      const result = await processMapReduce(chunks, config, new AbortController().signal, "system prompt", new Promise(() => {}));
+      const result = await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "system prompt",
+        new Promise(() => {})
+      );
       expect(typeof result).toBe("string");
       expect(result.length).toBeGreaterThan(0);
     });
 
     test("進捗表示が出る（チャンク処理開始）", async () => {
       const chunks = ["a", "b"];
-      await processMapReduce(chunks, config, new AbortController().signal, "prompt", new Promise(() => {}));
+      await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "prompt",
+        new Promise(() => {})
+      );
       expect(mockAdapter.showProgress).toHaveBeenCalled();
       const calls = mockAdapter.showProgress.mock.calls.map((c) => c[0]);
       // "チャンク処理を開始..." のような進捗メッセージが含まれる
@@ -97,7 +111,13 @@ describe("processMapReduce", () => {
 
     test("showProgress がチャンクワーカーで呼ばれる（実行中メッセージ）", async () => {
       const chunks = ["a", "b"];
-      await processMapReduce(chunks, config, new AbortController().signal, "prompt", new Promise(() => {}));
+      await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "prompt",
+        new Promise(() => {})
+      );
       // チャンク処理開始 + 統合中 の2回
       expect(mockAdapter.showProgress).toHaveBeenCalled();
       const messages = mockAdapter.showProgress.mock.calls.map((c) => c[0]);
@@ -106,7 +126,13 @@ describe("processMapReduce", () => {
     });
 
     test("空チャンクは早期 return null + showError", async () => {
-      const result = await processMapReduce([], config, new AbortController().signal, "prompt", new Promise(() => {}));
+      const result = await processMapReduce(
+        [],
+        config,
+        new AbortController().signal,
+        "prompt",
+        new Promise(() => {})
+      );
       expect(result).toBeNull();
       expect(mockAdapter.showError).toHaveBeenCalled();
     });
@@ -115,7 +141,13 @@ describe("processMapReduce", () => {
       // callChatAPINonStream を全て失敗させる
       mockNonStreamShouldThrow = new Error("API error");
       const chunks = ["a", "b"];
-      const result = await processMapReduce(chunks, config, new AbortController().signal, "prompt", new Promise(() => {}));
+      const result = await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "prompt",
+        new Promise(() => {})
+      );
       // 全チャンク失敗 → showError + null
       expect(result).toBeNull();
       expect(mockAdapter.showError).toHaveBeenCalled();
@@ -130,15 +162,17 @@ describe("processMapReduce", () => {
       const controller = new AbortController();
       const chunks = ["a", "b"];
       // マージリクエストで即座に abort
-      api.callChatAPIStream.mockImplementation(async function (msgs, _cfg, _onChunk, _onDone, _signal) {
-        if (msgs[0].content && msgs[0].content.includes("統合")) {
-          controller.abort();
-          // AbortError を投げる
-          const err = new DOMException("Aborted", "AbortError");
-          throw err;
+      api.callChatAPIStream.mockImplementation(
+        async function (msgs, _cfg, _onChunk, _onDone, _signal) {
+          if (msgs[0].content && msgs[0].content.includes("統合")) {
+            controller.abort();
+            // AbortError を投げる
+            const err = new DOMException("Aborted", "AbortError");
+            throw err;
+          }
+          return "ok";
         }
-        return "ok";
-      });
+      );
       await expect(
         processMapReduce(chunks, config, controller.signal, "prompt", new Promise(() => {}))
       ).rejects.toThrow();
@@ -147,16 +181,24 @@ describe("processMapReduce", () => {
     test("チャンク処理中に abort されたら worker ループを抜ける", async () => {
       const controller = new AbortController();
       let callCount = 0;
-      api.callChatAPIStream.mockImplementation(async function (_msgs, _cfg, _onChunk, _onDone, _signal) {
-        callCount++;
-        if (callCount === 1) {
-          controller.abort();
+      api.callChatAPIStream.mockImplementation(
+        async function (_msgs, _cfg, _onChunk, _onDone, _signal) {
+          callCount++;
+          if (callCount === 1) {
+            controller.abort();
+          }
+          // 2回目以降は実行されない想定だが、実際に呼ばれるかは実装次第
+          return "ok";
         }
-        // 2回目以降は実行されない想定だが、実際に呼ばれるかは実装次第
-        return "ok";
-      });
+      );
       try {
-        await processMapReduce(["a", "b", "c", "c", "c"], config, controller.signal, "prompt", new Promise(() => {}));
+        await processMapReduce(
+          ["a", "b", "c", "c", "c"],
+          config,
+          controller.signal,
+          "prompt",
+          new Promise(() => {})
+        );
       } catch {
         // 中断例外は期待される
       }
@@ -168,7 +210,13 @@ describe("processMapReduce", () => {
   describe("チャンクワーカー", () => {
     test("MAX_CONCURRENCY (5) を超えるチャンクは順次処理", async () => {
       const chunks = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"];
-      const result = await processMapReduce(chunks, config, new AbortController().signal, "prompt", new Promise(() => {}));
+      const result = await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "prompt",
+        new Promise(() => {})
+      );
       // 全チャンクが処理されれば統合リクエストも走る
       expect(typeof result).toBe("string");
     });
@@ -176,13 +224,25 @@ describe("processMapReduce", () => {
     test("チャンク数 1 の場合は即マージ処理に進む", async () => {
       const chunks = ["single"];
       mockStreamResult = "single merged";
-      const result = await processMapReduce(chunks, config, new AbortController().signal, "prompt", new Promise(() => {}));
+      const result = await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "prompt",
+        new Promise(() => {})
+      );
       expect(result).toBe("single merged");
     });
 
     test("チャンク数が MAX_CONCURRENCY と同じ場合は並列実行", async () => {
       const chunks = ["c1", "c2", "c3", "c4", "c5"];
-      const result = await processMapReduce(chunks, config, new AbortController().signal, "prompt", new Promise(() => {}));
+      const result = await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "prompt",
+        new Promise(() => {})
+      );
       expect(typeof result).toBe("string");
     });
   });
@@ -196,7 +256,13 @@ describe("processMapReduce", () => {
         return "chunk result";
       });
       const chunks = ["alpha", "beta", "gamma"];
-      await processMapReduce(chunks, config, new AbortController().signal, "base prompt", new Promise(() => {}));
+      await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "base prompt",
+        new Promise(() => {})
+      );
       // チャンクワーカーの user message に "チャンク N/3" 形式が含まれる
       const userMessages = receivedChunkMessages.flatMap((m) =>
         m.filter((msg) => msg.role === "user").map((msg) => msg.content)
@@ -212,7 +278,13 @@ describe("processMapReduce", () => {
         if (onDone) onDone("merged");
       });
       const chunks = ["a", "b", "c"];
-      await processMapReduce(chunks, config, new AbortController().signal, "prompt", new Promise(() => {}));
+      await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "prompt",
+        new Promise(() => {})
+      );
       // マージリクエストの user message に "チャンク要約結果" が含まれる
       expect(receivedMergeMessages.length).toBeGreaterThan(0);
       const mergeUserContent = receivedMergeMessages.flatMap((m) =>
@@ -231,14 +303,16 @@ describe("processMapReduce", () => {
     test("統合リクエスト時のエラーはそのまま throw", async () => {
       const controller = new AbortController();
       let mergeCalled = false;
-      api.callChatAPIStream.mockImplementation(async function (msgs, _cfg, _onChunk, _onDone, _signal) {
-        // マージリクエストを検出
-        if (msgs[0].content.includes("統合")) {
-          mergeCalled = true;
-          throw new Error("merge failed");
+      api.callChatAPIStream.mockImplementation(
+        async function (msgs, _cfg, _onChunk, _onDone, _signal) {
+          // マージリクエストを検出
+          if (msgs[0].content.includes("統合")) {
+            mergeCalled = true;
+            throw new Error("merge failed");
+          }
+          return "ok";
         }
-        return "ok";
-      });
+      );
       await expect(
         processMapReduce(["a"], config, controller.signal, "prompt", new Promise(() => {}))
       ).rejects.toThrow();

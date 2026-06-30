@@ -29,7 +29,7 @@ describe("readStream", () => {
     const reader = createMockReader([
       'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n',
       'data: {"choices":[{"delta":{"content":" World"}}]}\n\n',
-      'data: [DONE]\n\n'
+      "data: [DONE]\n\n"
     ]);
     const onChunk = jest.fn();
     const onDone = jest.fn();
@@ -66,7 +66,7 @@ describe("readStream", () => {
   test("不正な JSON のチャンクはスキップして次へ", async () => {
     const warnSpy = jest.spyOn(console, "error").mockImplementation(function () {});
     const reader = createMockReader([
-      'data: {invalid json}\n\n',
+      "data: {invalid json}\n\n",
       'data: {"choices":[{"delta":{"content":"OK"}}]}\n\n'
     ]);
     const onChunk = jest.fn();
