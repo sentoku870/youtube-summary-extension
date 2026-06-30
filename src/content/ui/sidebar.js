@@ -7,7 +7,8 @@
 import { uiState, sessionState, resetSession } from "../../shared/state.js";
 import { abortCurrentStream } from "../../domain/ai.js";
 import { clearSummaryContent, hideProgress } from "./ui.js";
-import { updateTabActive, bindEvents, applyButtonTitles, switchTab } from "./tabs.js";
+import { updateTabActive, applyButtonTitles, switchTab } from "./tabs.js";
+import { bindEvents } from "./tabs-events.js";
 import { createPanel } from "./panel.js";
 import { preloadTranscript } from "../../domain/transcript.js";
 import { createLogger } from "../../shared/logger.js";

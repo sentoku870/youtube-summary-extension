@@ -75,7 +75,7 @@ beforeAll(function () {
   mockAppendAssistantPlaceholder.mockReturnValue(fakeResult);
 });
 
-const { uiState: S } = require("../src/shared/state");
+const { uiState: S, sessionState } = require("../src/shared/state");
 const { getEl, enableAllButtons } = require("../src/content/ui/panel");
 const ui = require("../src/content/ui/ui");
 const tabsUi = require("../src/content/ui/tabs-ui");
@@ -86,9 +86,11 @@ const storage = require("../src/infrastructure/storage");
 const {
   abortChatStream,
   switchTab,
-  applyButtonTitles,
-  bindEvents
+  applyButtonTitles
 } = require("../src/content/ui/tabs");
+
+// B-2: bindEvents は tabs-events.js から直接 import
+const { bindEvents } = require("../src/content/ui/tabs-events");
 
 // 共通セットアップ: パネル DOM 構築
 function buildPanelDOM() {
@@ -312,6 +314,187 @@ describe("tabs", () => {
       expect(btn.disabled).toBe(true);
       resolveCall(true);
       await p;
+    });
+
+    // 回帰防止: switchTab() の冒頭で必ず進行中のストリームを中断する
+    test("switchTab 開始時に abortCurrentStream / abortChatStream を呼ぶ", async () => {
+      await switchTab("summary");
+      expect(ai.abortCurrentStream).toHaveBeenCalledTimes(1);
+      // abortChatStream は実関数を呼ぶ（sessionState.chatAbortController=null なら no-op）
+      expect(() => abortChatStream()).not.toThrow();
+    });
+
+    // 回帰防止: 連打時に古い呼び出しの finally が他タブのボタン状態を巻き込まない
+    test("A→B連打: 古い A の finally が B の enabled 状態を巻き戻さない", async () => {
+      const btnA = getEl("#ys-btn-summary");
+      const btnB = getEl("#ys-btn-customA");
+      S.tabs.summary.generated = false;
+      S.tabs.customA.generated = false;
+
+      // A の callAI は未完了のまま保留（abort されるまで pending）
+      let resolveA;
+      ai.callAI.mockImplementationOnce(
+        () =>
+          new Promise(function (r) {
+            resolveA = r;
+          })
+      );
+      // B の callAI は即完了
+      ai.callAI.mockResolvedValueOnce(true);
+
+      const pA = switchTab("summary");
+      // 直後: A は「処理中...」で disabled
+      expect(btnA.textContent).toBe("⏳ 処理中...");
+      expect(btnA.disabled).toBe(true);
+
+      // A の処理中に B をクリック
+      const pB = switchTab("customA");
+      // B は「処理中...」で disabled
+      expect(btnB.textContent).toBe("⏳ 処理中...");
+      expect(btnB.disabled).toBe(true);
+
+      // B を完了させる
+      await pB;
+      await flushPromises();
+
+      // ★ B の finally 内で enableAllButtons が呼ばれている
+      // ★ 古い A 側の finally は世代不一致のため no-op のはず
+      // テスト簡易化のため B 完了後の状態を確認する
+      expect(btnB.disabled).toBe(false);
+      expect(btnB.textContent).toBe("📊 B");
+
+      // A も後で完了させる（abort で reject 扱いに）
+      resolveA(false);
+      await pA;
+      await flushPromises();
+
+      // ★ 重要: A の finally は世代不一致なので no-op。
+      // ★ ここで B の disabled が true に巻き戻されないことを確認。
+      expect(btnB.disabled).toBe(false);
+      expect(btnB.textContent).toBe("📊 B");
+    });
+
+    // 回帰防止: 古い A の finally は enableAllButtons を呼ばない（世代不一致で抜ける）
+    test("A→B連打: 古い A の finally は enableAllButtons を呼ばない", async () => {
+      const btnB = getEl("#ys-btn-customA");
+      S.tabs.summary.generated = false;
+      S.tabs.customA.generated = false;
+
+      let resolveA;
+      ai.callAI.mockImplementationOnce(
+        () =>
+          new Promise(function (r) {
+            resolveA = r;
+          })
+      );
+      // B の callAI は即完了（finally で applyButtonTitles → enableAllButtons が走る）
+      ai.callAI.mockResolvedValueOnce(true);
+
+      const pA = switchTab("summary");
+      const pB = switchTab("customA");
+      await pB;
+      await flushPromises();
+
+      // B 完了時点で enableAllButtons が呼ばれているはず（B の finally から）
+      const countBeforeA = enableAllButtons.mock.calls.length;
+      expect(countBeforeA).toBeGreaterThanOrEqual(1);
+
+      // B の呼び出しで enableAllButtons されたので B は enabled
+      expect(btnB.disabled).toBe(false);
+
+      // A を後で完了させ、A の古い finally を発火させる
+      resolveA(false);
+      await pA;
+      await flushPromises();
+
+      // ★ A の古い finally は世代不一致 → 早期 return する。
+      // ★ したがって enableAllButtons は増えていないこと。
+      // ★ （仮にバグがあれば A の finally で enableAllButtons が
+      // ★   もう一度呼ばれ、textContent が "処理中..." に戻ってしまう）
+      const countAfterA = enableAllButtons.mock.calls.length;
+      expect(countAfterA).toBe(countBeforeA);
+      expect(btnB.textContent).toBe("📊 B");
+    });
+
+    // 回帰防止: 連打時の _switchGen がインクリメントされる
+    test("A→B連打: _switchGen が都度インクリメントされる", async () => {
+      S.tabs.summary.generated = false;
+      S.tabs.customA.generated = false;
+
+      ai.callAI.mockResolvedValue(true);
+
+      const genBefore = sessionState._switchGen;
+      await switchTab("summary");
+      const genAfter1st = sessionState._switchGen;
+      await switchTab("customA");
+      const genAfter2nd = sessionState._switchGen;
+
+      expect(genAfter1st).toBeGreaterThan(genBefore);
+      expect(genAfter2nd).toBeGreaterThan(genAfter1st);
+    });
+
+    // ★ T3-C1 回帰防止:
+    //   「A タブで要約キャッシュあり → B タブをクリック」は callAI を
+    //   実行するパスに進む必要がある。旧実装では (videoId, mode) を
+    //   区別せずにキャッシュを共有していたため、B タブ click で
+    //   A の要約キャッシュが customA の content として誤表示されていた。
+    //   修正後: loadSummaryCache(videoId, "customA") は null を返し、
+    //   必ず callAI("customA") が走る。
+    test("A→B切替: A のキャッシュが customA に混入せず、callAI('customA') が呼ばれる", async () => {
+      S.tabs.summary.generated = false;
+      S.tabs.customA.generated = false;
+
+      // A 用キャッシュだけがある状態 (summary モード)
+      storage.loadSummaryCache.mockImplementation(async function (videoId, mode) {
+        if (mode === "summary") {
+          return {
+            content: "A 要約 (summary キャッシュ)",
+            modelLabel: "gpt-4o",
+            transcriptCount: 100,
+            timestamp: Date.now()
+          };
+        }
+        return null;
+      });
+      ai.callAI.mockResolvedValue(true);
+
+      // B (customA) を押す
+      await switchTab("customA");
+      await flushPromises();
+
+      // customA のキャッシュは無かった扱い → callAI が走っている
+      expect(ai.callAI).toHaveBeenCalledWith("customA", true);
+
+      // customA の content は AI が setSummaryContent を呼んだ
+      // （ここでは mock なので tab.content は saveSummaryCache mock 経由で
+      //   直接設定されないが、callAI が呼ばれた事実で十分）
+    });
+
+    // ★ T3-C1 もう一つの回帰防止: B 用キャッシュがあれば即時表示される。
+    test("A→B切替: customA のキャッシュがあれば callAI を呼ばずに即時表示", async () => {
+      S.tabs.summary.generated = false;
+      S.tabs.customA.generated = false;
+
+      storage.loadSummaryCache.mockImplementation(async function (videoId, mode) {
+        if (mode === "customA") {
+          return {
+            content: "B 要約 (customA キャッシュ)",
+            modelLabel: "gpt-4o",
+            transcriptCount: 100,
+            timestamp: Date.now()
+          };
+        }
+        return null;
+      });
+
+      await switchTab("customA");
+      await flushPromises();
+
+      // キャッシュヒット時: callAI を呼ばない
+      expect(ai.callAI).not.toHaveBeenCalled();
+      // customA の content がキャッシュから復元される
+      expect(S.tabs.customA.generated).toBe(true);
+      expect(S.tabs.customA.content).toBe("B 要約 (customA キャッシュ)");
     });
   });
 

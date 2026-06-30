@@ -6,9 +6,12 @@ jest.mock("../src/content/ui/panel.js", () => ({
   createPanel: jest.fn()
 }));
 jest.mock("../src/content/ui/tabs.js", () => ({
-  bindEvents: jest.fn(),
   applyButtonTitles: jest.fn().mockResolvedValue(undefined),
   switchTab: jest.fn().mockResolvedValue(true)
+}));
+// B-2: bindEvents は tabs-events.js から直接 import される
+jest.mock("../src/content/ui/tabs-events.js", () => ({
+  bindEvents: jest.fn()
 }));
 jest.mock("../src/content/ui/appearance.js", () => ({
   applyFontSize: jest.fn().mockResolvedValue(undefined),
@@ -24,6 +27,7 @@ jest.mock("../src/domain/transcript.js", () => ({
 const { uiState: S } = require("../src/shared/state");
 const panel = require("../src/content/ui/panel");
 const tabs = require("../src/content/ui/tabs");
+const tabsEvents = require("../src/content/ui/tabs-events");
 const appearance = require("../src/content/ui/appearance");
 const transcript = require("../src/domain/transcript");
 
@@ -79,7 +83,7 @@ describe("message-handler", () => {
       });
 
       expect(panel.createPanel).toHaveBeenCalled();
-      expect(tabs.bindEvents).toHaveBeenCalled();
+      expect(tabsEvents.bindEvents).toHaveBeenCalled();
       expect(appearance.applyFontSize).toHaveBeenCalled();
       expect(appearance.applyTheme).toHaveBeenCalled();
       expect(transcript.fetchTranscript).toHaveBeenCalled();
@@ -178,7 +182,7 @@ describe("message-handler", () => {
       });
 
       expect(panel.createPanel).toHaveBeenCalled();
-      expect(tabs.bindEvents).toHaveBeenCalled();
+      expect(tabsEvents.bindEvents).toHaveBeenCalled();
       expect(appearance.applyFontSize).toHaveBeenCalled();
       expect(appearance.applyTheme).toHaveBeenCalled();
       expect(transcript.preloadTranscript).toHaveBeenCalled();

@@ -5,12 +5,12 @@
 //  字幕言語: 既存 select を維持
 //  バージョン情報: 字幕設定直下に「バージョン」「ビルド日」「コミット」を表示
 //  全項目 change/input 時にデバウンス（300ms）で chrome.storage に保存。
+//  B-4: 自動保存ロジックを ui/auto-save.js の createAutoSave ヘルパに委譲。
 // ============================================================
 import { set, K } from "../infrastructure/storage.js";
 import { saveToast } from "./ui/toast.js";
 import { getAppVersion, getAppBuildDate, getAppGitCommit } from "../shared/version.js";
-
-const DEBOUNCE_MS = 300;
+import { createAutoSave } from "./ui/auto-save.js";
 
 const FONT_SIZE_PRESETS = [13, 14, 15, 16, 17, 18, 19, 20];
 const PANEL_HEIGHT_PRESETS = [
@@ -26,7 +26,6 @@ const THEMES = [
 ];
 
 let isInitialized = false;
-let saveTimer = null;
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -122,22 +121,10 @@ function syncPresetActiveState(containerId, currentValue) {
   });
 }
 
-// ===== 自動保存 =====
-function scheduleSave() {
-  if (saveTimer) clearTimeout(saveTimer);
-  const status = document.getElementById("displayAutoSaveStatus");
-  if (status) {
-    status.classList.remove("saved");
-    status.classList.add("saving");
-    status.textContent = "保存中…";
-  }
-  saveTimer = setTimeout(async function () {
-    saveTimer = null;
-    await commitSave();
-  }, DEBOUNCE_MS);
-}
+// ===== 自動保存 (B-4: createAutoSave に委譲) =====
+let saver = null;
 
-async function commitSave() {
+function collectDisplayPayload() {
   const theme = document.getElementById("theme");
   const fontSize = document.getElementById("fontSize");
   const panelHeight = document.getElementById("panelHeight");
@@ -147,26 +134,12 @@ async function commitSave() {
   if (fontSize) payload[K.FONT_SIZE] = fontSize.value;
   if (panelHeight) payload[K.PANEL_HEIGHT] = panelHeight.value;
   if (subtitleLang) payload[K.SUBTITLE_LANG] = subtitleLang.value;
-  try {
-    await set(payload);
-    const status = document.getElementById("displayAutoSaveStatus");
-    if (status) {
-      status.classList.remove("saving");
-      status.classList.add("saved");
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      status.textContent = "✓ 自動保存しました (" + hh + ":" + mm + ")";
-      setTimeout(function () {
-        if (status.classList.contains("saved")) {
-          status.textContent = "";
-          status.classList.remove("saved");
-        }
-      }, 2500);
-    }
-  } catch (e) {
-    saveToast("✗ 保存に失敗: " + (e.message || e));
-  }
+  return payload;
+}
+
+function scheduleSave() {
+  if (!saver) return;
+  saver.schedule();
 }
 
 // ===== バージョン情報の表示 =====
@@ -202,6 +175,17 @@ export function initDisplayTab() {
   // バージョン情報を非同期で取得・表示
   renderVersionInfo();
 
+  // B-4: 自動保存ヘルパを初期化
+  saver = createAutoSave({
+    indicatorId: "displayAutoSaveStatus",
+    save: async function () {
+      await set(collectDisplayPayload());
+    },
+    onError: function (msg) {
+      saveToast("✗ 保存に失敗: " + msg);
+    }
+  });
+
   // change/input で自動保存
   const themeSel = document.getElementById("theme");
   if (themeSel) themeSel.addEventListener("change", scheduleSave);
@@ -232,11 +216,7 @@ export function initDisplayTab() {
 }
 
 export async function flushDisplaySaves() {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-    await commitSave();
-  }
+  return saver ? saver.flush() : Promise.resolve();
 }
 
 export function setThemeActiveFromValue(value) {

@@ -5,7 +5,8 @@
 // ============================================================
 import { uiState as S } from "../../shared/state.js";
 import { createPanel } from "./panel.js";
-import { bindEvents, switchTab } from "./tabs.js";
+import { switchTab } from "./tabs.js";
+import { bindEvents } from "./tabs-events.js";
 import { applyFontSize, applyTheme } from "./appearance.js";
 import { preloadTranscript, fetchTranscript } from "../../domain/transcript.js";
 import { createLogger } from "../../shared/logger.js";

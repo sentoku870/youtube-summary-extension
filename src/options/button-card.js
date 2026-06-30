@@ -3,6 +3,8 @@
 //  カード型 UI で 3 つのボタン（要約/分析/考察）の
 //  タイトル・プロンプト・モデル を 1 カードに集約。
 //  入力変更はデバウンス（300ms）で chrome.storage に自動保存。
+//  B-4: 自動保存ロジックを ui/auto-save.js の createAutoSave に委譲し、
+//       インジケータ表示とデバウンスを共通化。
 // ============================================================
 import {
   get,
@@ -14,6 +16,7 @@ import {
 } from "../infrastructure/storage.js";
 import { saveToast } from "./ui/toast.js";
 import { promptKey, btnTitleKey, btnApiConfigKey } from "./options-logic.js";
+import { createAutoSave } from "./ui/auto-save.js";
 
 const DEBOUNCE_MS = 300;
 const BUTTON_KEYS = ["summary", "customA", "customB"];
@@ -29,9 +32,7 @@ const BUTTON_ICONS = {
 };
 
 const buttonCardsContainer = { current: null };
-const indicatorEl = { current: null };
-const pendingTimers = {};
-const pendingWrites = {};
+let saver = null;
 let isInitialized = false;
 let onModelSelectsChange = null;
 
@@ -110,62 +111,24 @@ function buildCard(key) {
   return { card, inputTitle, taPrompt, selModel, warn };
 }
 
-function flushPending(key) {
-  if (pendingTimers[key]) {
-    clearTimeout(pendingTimers[key]);
-    delete pendingTimers[key];
+// ===== 現在の入力から payload を構築（B-4） =====
+function collectButtonsPayload() {
+  const payload = {};
+  for (const key of BUTTON_KEYS) {
+    const titleEl = document.getElementById("btnTitle_" + key);
+    const promptEl = document.getElementById("prompt_" + key);
+    const modelEl = document.getElementById("btnApiConfig_" + key);
+    if (!promptEl || !modelEl) continue;
+    payload[btnTitleKey(key)] = titleEl ? titleEl.value.trim() : "";
+    payload[promptKey(key)] = promptEl.value.trim();
+    payload[btnApiConfigKey(key)] = modelEl.value || "";
   }
+  return payload;
 }
 
-function scheduleSave(key) {
-  flushPending(key);
-  if (indicatorEl.current) {
-    indicatorEl.current.classList.remove("saved");
-    indicatorEl.current.classList.add("saving");
-    indicatorEl.current.textContent = "保存中…";
-  }
-  pendingTimers[key] = setTimeout(function () {
-    commitSave(key);
-  }, DEBOUNCE_MS);
-}
-
-async function commitSave(key) {
-  delete pendingTimers[key];
-  const titleEl = document.getElementById("btnTitle_" + key);
-  const promptEl = document.getElementById("prompt_" + key);
-  const modelEl = document.getElementById("btnApiConfig_" + key);
-  if (!promptEl || !modelEl) return;
-  const payload = {
-    [btnTitleKey(key)]: titleEl ? titleEl.value.trim() : "",
-    [promptKey(key)]: promptEl.value.trim(),
-    [btnApiConfigKey(key)]: modelEl.value || ""
-  };
-  pendingWrites[key] = true;
-  try {
-    await set(payload);
+function updateAllWarnVisibility() {
+  for (const key of BUTTON_KEYS) {
     updateWarnVisibility(key);
-    // すべての予定保存が完了したか
-    const stillPending = Object.keys(pendingTimers).length > 0;
-    if (!stillPending) {
-      if (indicatorEl.current) {
-        indicatorEl.current.classList.remove("saving");
-        indicatorEl.current.classList.add("saved");
-        const now = new Date();
-        const hh = String(now.getHours()).padStart(2, "0");
-        const mm = String(now.getMinutes()).padStart(2, "0");
-        indicatorEl.current.textContent = "✓ 自動保存しました (" + hh + ":" + mm + ")";
-        setTimeout(function () {
-          if (indicatorEl.current && indicatorEl.current.classList.contains("saved")) {
-            indicatorEl.current.textContent = "";
-            indicatorEl.current.classList.remove("saved");
-          }
-        }, 2500);
-      }
-    }
-  } catch (e) {
-    saveToast("✗ 保存に失敗しました: " + (e.message || e));
-  } finally {
-    delete pendingWrites[key];
   }
 }
 
@@ -179,18 +142,12 @@ function updateWarnVisibility(key) {
 function bindCardEvents(refs) {
   Object.keys(refs).forEach(function (key) {
     const r = refs[key];
-    if (r.inputTitle)
-      r.inputTitle.addEventListener("input", function () {
-        scheduleSave(key);
-      });
-    if (r.taPrompt)
-      r.taPrompt.addEventListener("input", function () {
-        scheduleSave(key);
-      });
-    if (r.selModel)
-      r.selModel.addEventListener("change", function () {
-        scheduleSave(key);
-      });
+    const trigger = function () {
+      if (saver) saver.schedule();
+    };
+    if (r.inputTitle) r.inputTitle.addEventListener("input", trigger);
+    if (r.taPrompt) r.taPrompt.addEventListener("input", trigger);
+    if (r.selModel) r.selModel.addEventListener("change", trigger);
   });
 }
 
@@ -239,7 +196,19 @@ export function initButtonCards() {
   const container = document.getElementById("buttonCards");
   if (!container) return;
   buttonCardsContainer.current = container;
-  indicatorEl.current = document.getElementById("buttonsAutoSaveStatus");
+
+  // B-4: 自動保存ヘルパを初期化（ボタンタブ用は単一インスタンス）
+  saver = createAutoSave({
+    debounceMs: DEBOUNCE_MS,
+    indicatorId: "buttonsAutoSaveStatus",
+    save: async function () {
+      await set(collectButtonsPayload());
+      updateAllWarnVisibility();
+    },
+    onError: function (msg) {
+      saveToast("✗ 保存に失敗しました: " + msg);
+    }
+  });
 
   const refs = {};
   BUTTON_KEYS.forEach(function (key) {
@@ -254,11 +223,5 @@ export function initButtonCards() {
 }
 
 export async function flushAllSaves() {
-  // 全保留中の保存を即時コミット（タブ切替時など）
-  for (const key of BUTTON_KEYS) {
-    if (pendingTimers[key]) {
-      flushPending(key);
-      await commitSave(key);
-    }
-  }
+  return saver ? saver.flush() : Promise.resolve();
 }

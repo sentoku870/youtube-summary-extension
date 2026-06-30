@@ -1,45 +1,25 @@
 // ============================================================
-//  tabs.js — タブ切替・UI更新・ボタンタイトル・bindEvents エントリ
-//  チャット送信 / 編集 → chat.js
-//  chrome.storage.onChanged 監視 → storage-listener.js
-//  描画ヘルパ → tabs-ui.js / ui.js
-//  本モジュールは「タブ状態管理 + bindEvents エントリ」の薄いファサード。
+//  tabs.js — タブ状態管理 + 切替ロジック（ESM版）
+//  Phase B-2: bindEvents を tabs-events.js に分離。
+//  本モジュールは「タブ状態 + switchTab / applyButtonTitles」の薄層に専念し、
+//  DOM イベント登録は tabs-events.js、描画ヘルパは tabs-ui.js / ui.js に委譲する。
 // ============================================================
-import { uiState as S } from "../../shared/state.js";
+import { uiState as S, sessionState } from "../../shared/state.js";
 import { getEl, enableAllButtons } from "./panel.js";
-import { setSummaryRaw, disableRegenButton, enableRegenButton } from "./ui.js";
 import { updateTabUI, updateTabActive, renderTabContent } from "./tabs-ui.js";
 import { callAI, abortCurrentStream } from "../../domain/ai.js";
 import { loadButtonTitle, loadSummaryCache } from "../../infrastructure/storage.js";
-import { CHAT_HISTORY_SEED_LENGTH, TAB_IDS } from "../../shared/constants.js";
+import { CHAT_HISTORY_SEED_LENGTH } from "../../shared/constants.js";
 import { createLogger } from "../../shared/logger.js";
 import { getCurrentVideoId } from "../../shared/utils.js";
-import {
-  onChatSend,
-  abortChatStream,
-  clearChatHistory,
-  handleChatInputResize,
-  shouldSubmitOnKey,
-  handleChatHistoryClick
-} from "./chat.js";
-import { bindStorageListener } from "./storage-listener.js";
+import { abortChatStream } from "./chat.js";
 
 const log = createLogger("tabs");
 
 // tabs-ui.js / chat.js からの再エクスポート（呼び出し側の互換用）
+// B-2: bindEvents は tabs-events.js から直接 import する（循環依存回避）。
 export { updateTabUI, updateTabActive, renderTabContent };
 export { abortChatStream };
-
-// ===== クリップボードコピー =====
-function copyContent() {
-  const tab = S.tabs[S.activeTab];
-  if (!tab || !tab.content) return;
-  try {
-    navigator.clipboard.writeText(tab.content);
-  } catch {
-    log.error("clipboard write failed");
-  }
-}
 
 // ===== タブ切り替え =====
 export async function switchTab(mode) {
@@ -47,6 +27,19 @@ export async function switchTab(mode) {
   if (!tab) return;
   const panel = getEl("#ys-panel");
   if (!panel) return;
+
+  // ★ 重要: 進行中の AI ストリームとチャットを必ず中断する。
+  //   これを怠ると、古い呼び出しの finally が
+  //   enableAllButtons() / applyButtonTitles() を呼んで
+  //   新しいタブで処理中のボタンの見た目（"処理中..." / disabled）を
+  //   巻き戻し、「切り替えが効かない」「残像が出る」症状を引き起こす。
+  abortCurrentStream();
+  abortChatStream();
+
+  // 呼び出しに固有の世代番号。後の finally で
+  //   「自分が最新世代である場合のみ」ボタン状態を復元するために使う。
+  const myGen = ++sessionState._switchGen;
+
   if (S.activeTab === mode) {
     panel.style.display = "none";
     S.activeTab = null;
@@ -70,8 +63,11 @@ export async function switchTab(mode) {
     // T2-A5: 未生成タブでも saveSummaryCache ヒット時は即時表示。
     // 同じ動画を再訪したときに API 0 回で要約を復元できる。
     // ボタンは「処理中...」のまま見えるため、ヒット時は明示的に復元する。
-    const cached = await loadCachedSummary();
+    // ★ T3-C1: mode を渡して (videoId, mode) 別キャッシュを取得。
+    const cached = await loadCachedSummary(mode);
     if (cached) {
+      // await を経ている間に別タブが押された場合、古い呼び出しは破棄
+      if (myGen !== sessionState._switchGen) return;
       applyCachedSummary(tab, cached);
       renderTabContent(mode);
       updateTabUI();
@@ -89,9 +85,15 @@ export async function switchTab(mode) {
       // ここでは戻り値を使わず、finally でボタン状態を復元する。
       await callAI(mode, true);
     } finally {
-      if (btn) {
-        btn.disabled = false;
-        applyButtonTitles();
+      // 別タブへの切替で世代が変わっていれば、
+      // applyButtonTitles → enableAllButtons が他タブの処理中ボタンを
+      // 巻き込まないように何もしない。ボタン状態の復元は
+      // 最新世代の switchTab が最終的に行う。
+      if (myGen === sessionState._switchGen) {
+        if (btn) {
+          btn.disabled = false;
+          applyButtonTitles();
+        }
       }
     }
     requestAnimationFrame(function () {
@@ -100,13 +102,13 @@ export async function switchTab(mode) {
   }
 }
 
-// T2-A5: 現在の videoId に対する saveSummaryCache を取得。
+// T2-A5: 現在の videoId + mode に対する saveSummaryCache を取得。
 // chatHistory は保存していないため、UI 復元は content / modelLabel / transcriptCount のみ。
-async function loadCachedSummary() {
+async function loadCachedSummary(mode) {
   try {
     const videoId = getCurrentVideoId();
     if (!videoId) return null;
-    const cached = await loadSummaryCache(videoId);
+    const cached = await loadSummaryCache(videoId, mode);
     if (!cached) return null;
     return cached;
   } catch (e) {
@@ -135,31 +137,6 @@ function scrollContentTop() {
   if (area) area.scrollTop = 0;
 }
 
-// ===== 再生成 =====
-async function regenerate() {
-  const mode = S.activeTab;
-  if (!mode) return;
-  const tab = S.tabs[mode];
-  if (!tab) return;
-
-  abortCurrentStream();
-  abortChatStream();
-
-  tab.generated = false;
-  tab.content = "";
-  tab.chatHistory = [];
-
-  setSummaryRaw("⏳ 再生成中...");
-  disableRegenButton();
-
-  try {
-    await callAI(mode, false);
-  } finally {
-    enableRegenButton();
-    updateTabUI();
-  }
-}
-
 // ===== ボタンタイトル適用 =====
 // 全 3 ボタンを storage の btnTitle_* から取得し、未設定なら A/B/C にフォールバック。
 export async function applyButtonTitles() {
@@ -176,56 +153,4 @@ export async function applyButtonTitles() {
   if (btnB) btnB.textContent = titleB ? "💡 " + titleB : "💡 C";
   enableAllButtons();
   updateTabUI();
-}
-
-// ===== イベントバインド =====
-export function bindEvents() {
-  if (S.eventsBound) return;
-  S.eventsBound = true;
-
-  (S.tabIds || TAB_IDS).forEach(function (id) {
-    const btn = getEl("#ys-btn-" + id);
-    if (btn)
-      btn.addEventListener("click", function () {
-        switchTab(id);
-      });
-  });
-
-  const chatInput = getEl("#ys-chatInput");
-  if (chatInput) {
-    // Enter=送信 / Shift+Enter=改行。IME 変換中と送信中(readOnly)は無視。
-    chatInput.addEventListener("keydown", function (e) {
-      if (shouldSubmitOnKey(e, chatInput)) {
-        e.preventDefault();
-        onChatSend();
-      }
-    });
-    // 入力に応じて高さ自動調整
-    chatInput.addEventListener("input", function () {
-      handleChatInputResize(chatInput);
-    });
-  }
-
-  const chatClearBtn = getEl("#ys-chatClearBtn");
-  if (chatClearBtn) chatClearBtn.addEventListener("click", clearChatHistory);
-
-  // 編集ボタンのクリックをチャット履歴全体で delegation
-  // （appendChatMessage で動的に生成されるため、都度 bind せず親で一括受領）
-  const chatHistoryEl = getEl("#ys-chatHistory");
-  if (chatHistoryEl) {
-    chatHistoryEl.addEventListener("click", function (e) {
-      handleChatHistoryClick(e);
-    });
-  }
-
-  const regenBtn = getEl("#ys-regenBtn");
-  if (regenBtn) regenBtn.addEventListener("click", regenerate);
-
-  const copyBtn = getEl("#ys-copyBtn");
-  if (copyBtn) copyBtn.addEventListener("click", copyContent);
-
-  // chrome.storage.onChanged 監視（設定変更でボタンタイトル/プロンプト更新）
-  bindStorageListener(function () {
-    applyButtonTitles();
-  });
 }

@@ -2,13 +2,26 @@
 //  options.js — オプション画面のエントリポイント（ESM版）
 //  タブ切替（ARIA対応）+ 各タブの初期化 + 保存値の読み込み。
 //  旧「すべて保存」ボタンは廃止（自動保存に移行）。
+//  B-3: options-buttons.js を廃止し button-card.js から直接 import。
 // ============================================================
 import { getAll, K } from "../infrastructure/storage.js";
 import { initModelsTab, renderModelList } from "./options-models.js";
-import { initButtonsTab, updateButtonModelSelects } from "./options-buttons.js";
+import {
+  initButtonCards,
+  refreshButtonModelSelects,
+  flushAllSaves
+} from "./button-card.js";
 import { initDisplayTab, setThemeActiveFromValue, syncPresets } from "./options-display.js";
 import { initForm } from "./model-form.js";
 import { getAppVersion, getAppBuildDate } from "../shared/version.js";
+
+// ボタンタブ初期化ガード（旧 options-buttons.js の責務を吸収）
+let isButtonsTabInitialized = false;
+function initButtonsTab() {
+  if (isButtonsTabInitialized) return;
+  isButtonsTabInitialized = true;
+  initButtonCards();
+}
 
 // ===== タブ切替 =====
 function switchTab(tabId) {
@@ -31,15 +44,13 @@ function switchTab(tabId) {
   });
   // タブ切替時に他タブの最新データを反映
   if (tabId === "tab-models") renderModelList();
-  if (tabId === "tab-buttons") updateButtonModelSelects();
+  if (tabId === "tab-buttons") refreshButtonModelSelects();
 }
 
 function flushPendingSaves() {
   // ボタンタブと表示設定のデバウンス保存を即時コミット
   Promise.all([
-    import("./options-buttons.js").then(function (m) {
-      return m.flushButtonsSaves();
-    }),
+    Promise.resolve(flushAllSaves()),
     import("./options-display.js").then(function (m) {
       return m.flushDisplaySaves();
     })
@@ -122,5 +133,5 @@ window.addEventListener("DOMContentLoaded", async function () {
   initButtonsTab();
   initDisplayTab();
   await loadInitialSettings();
-  await updateButtonModelSelects();
+  await refreshButtonModelSelects();
 });

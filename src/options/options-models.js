@@ -18,7 +18,8 @@ import {
   bindCardHandlers
 } from "./model-card.js";
 import { initForm, openFormForNew, openFormForEdit, setOnAfterSave } from "./model-form.js";
-import { updateButtonModelSelects } from "./options-buttons.js";
+// B-3: options-buttons.js 廃止。button-card.js から直接 import。
+import { refreshButtonModelSelects } from "./button-card.js";
 import { generateId } from "./options-logic.js";
 
 let isInitialized = false;
@@ -46,7 +47,7 @@ export function initModelsTab() {
   setOnAfterSave(function () {
     detachForm();
     renderModelList().then(function () {
-      return updateButtonModelSelects();
+      return refreshButtonModelSelects();
     });
   });
 
@@ -68,7 +69,7 @@ export function initModelsTab() {
 
   // 6) 初期描画
   renderModelList().then(function () {
-    return updateButtonModelSelects();
+    return refreshButtonModelSelects();
   });
 }
 
@@ -101,7 +102,7 @@ async function handleDuplicate(id) {
   await set({ apiConfigs: configs });
   saveToast("✓ 複製しました");
   await renderModelList();
-  await updateButtonModelSelects();
+  await refreshButtonModelSelects();
 }
 
 async function handleDelete(id) {
@@ -126,7 +127,7 @@ async function handleDelete(id) {
   await set({ apiConfigs: next });
   saveToast("✓ 削除しました");
   await renderModelList();
-  await updateButtonModelSelects();
+  await refreshButtonModelSelects();
 }
 
 function handleFormClosed() {
