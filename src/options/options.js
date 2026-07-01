@@ -7,7 +7,12 @@
 import { getAll, K } from "../infrastructure/storage-core.js";
 import { initModelsTab, renderModelList } from "./options-models.js";
 import { initButtonCards, refreshButtonModelSelects, flushAllSaves } from "./button-card.js";
-import { initDisplayTab, setThemeActiveFromValue, syncPresets } from "./options-display.js";
+import {
+  initDisplayTab,
+  setThemeActiveFromValue,
+  syncPresets,
+  flushDisplaySaves
+} from "./options-display.js";
 import { initForm } from "./model-form.js";
 import { getAppVersion, getAppBuildDate } from "../shared/version.js";
 
@@ -45,14 +50,13 @@ function switchTab(tabId) {
 
 function flushPendingSaves() {
   // ボタンタブと表示設定のデバウンス保存を即時コミット
-  Promise.all([
-    Promise.resolve(flushAllSaves()),
-    import("./options-display.js").then(function (m) {
-      return m.flushDisplaySaves();
-    })
-  ]).catch(function () {
-    /* エラーは各モジュール内で表示済み */
-  });
+  // C-7: 以前は options-display.js を動的 import していたが、静的 import に
+  // 統合したためここでは直接呼ぶ (Vite の INEFFECTIVE_DYNAMIC_IMPORT 警告解消)。
+  Promise.all([Promise.resolve(flushAllSaves()), Promise.resolve(flushDisplaySaves())]).catch(
+    function () {
+      /* エラーは各モジュール内で表示済み */
+    }
+  );
 }
 
 // ===== 矢印キーでタブ間移動 =====
