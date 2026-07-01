@@ -18,6 +18,18 @@ export async function readStream(reader, onChunk, onDone) {
   const decoder = new TextDecoder();
   let buffer = "";
   let accumulated = "";
+  // reader.cancel() の結果 Promise は握り潰す（後始末のための最善努力で、
+  // 失敗しても本体処理には影響させない）
+  const safeCancel = function () {
+    if (reader && typeof reader.cancel === "function") {
+      try {
+        const p = reader.cancel();
+        if (p && typeof p.catch === "function") p.catch(function () {});
+      } catch {
+        /* ignore */
+      }
+    }
+  };
   try {
     while (true) {
       const result = await reader.read();
@@ -28,6 +40,8 @@ export async function readStream(reader, onChunk, onDone) {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line === "data: [DONE]") {
+          // 早期 return 経路でも reader を解放して接続リークを防ぐ
+          safeCancel();
           onDone(accumulated);
           return;
         }
@@ -47,6 +61,8 @@ export async function readStream(reader, onChunk, onDone) {
       }
     }
   } catch (e) {
+    // エラー/中断時は reader を解放してから throw
+    safeCancel();
     if (e instanceof DOMException && e.name === "AbortError")
       throw new YsAbortError("API応答が中断されました。");
     log.error("SSE stream read error:", e);

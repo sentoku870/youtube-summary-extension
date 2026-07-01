@@ -11,8 +11,9 @@ global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
 // ReadableStreamDefaultReader のモック
-function createMockReader(chunks) {
+function createMockReader(chunks, opts) {
   let i = 0;
+  const cancelFn = opts && opts.cancel ? opts.cancel : null;
   return {
     read: async function () {
       if (i >= chunks.length) {
@@ -20,7 +21,8 @@ function createMockReader(chunks) {
       }
       const chunk = chunks[i++];
       return { done: false, value: new TextEncoder().encode(chunk) };
-    }
+    },
+    cancel: cancelFn || jest.fn().mockResolvedValue(undefined)
   };
 }
 
@@ -123,5 +125,58 @@ describe("readStream", () => {
     await readStream(reader, onChunk, onDone);
     expect(onChunk).not.toHaveBeenCalled();
     expect(onDone).toHaveBeenCalledWith("");
+  });
+
+  // ★ A3: 接続リーク防止。data:[DONE] で早期 return する経路でも reader.cancel() を呼ぶ
+  test("data: [DONE] で早期 return する経路で reader.cancel() を呼ぶ", async () => {
+    const cancelSpy = jest.fn().mockResolvedValue(undefined);
+    const reader = createMockReader(
+      ['data: {"choices":[{"delta":{"content":"A"}}]}\n\n', "data: [DONE]\n\n"],
+      { cancel: cancelSpy }
+    );
+    const onChunk = jest.fn();
+    const onDone = jest.fn();
+    await readStream(reader, onChunk, onDone);
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    expect(onDone).toHaveBeenCalledWith("A");
+  });
+
+  // ★ A3: エラー発生時にも reader.cancel() を呼んで接続を解放する
+  test("reader.read() がエラーを throw した時に reader.cancel() を呼ぶ", async () => {
+    const cancelSpy = jest.fn().mockResolvedValue(undefined);
+    const reader = {
+      read: async function () {
+        throw new Error("network error");
+      },
+      cancel: cancelSpy
+    };
+    const onChunk = jest.fn();
+    const onDone = jest.fn();
+    await expect(readStream(reader, onChunk, onDone)).rejects.toThrow("network error");
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // ★ A3: AbortError 経路でも reader.cancel() を呼ぶ
+  test("reader.read() が AbortError を throw した時に reader.cancel() を呼ぶ", async () => {
+    const cancelSpy = jest.fn().mockResolvedValue(undefined);
+    const reader = {
+      read: async function () {
+        throw new DOMException("aborted", "AbortError");
+      },
+      cancel: cancelSpy
+    };
+    await expect(readStream(reader, jest.fn(), jest.fn())).rejects.toBeInstanceOf(YsAbortError);
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // ★ A3: cancel() 自体が throw しても本体処理は影響を受けない（safe cancel）
+  test("reader.cancel() が reject しても本体処理は完了する", async () => {
+    const reader = createMockReader(['data: {"choices":[{"delta":{"content":"X"}}]}\n\n'], {
+      cancel: jest.fn().mockRejectedValue(new Error("cancel failed"))
+    });
+    const onChunk = jest.fn();
+    const onDone = jest.fn();
+    await readStream(reader, onChunk, onDone);
+    expect(onDone).toHaveBeenCalledWith("X");
   });
 });
