@@ -12,6 +12,8 @@ import { createLogger } from "../shared/logger.js";
 const log = createLogger("transcript");
 
 // ===== 字幕取得 =====
+// 戻り値: 字幕オブジェクト { all, player, meta, allTimestamps } または null
+// 世代 mismatch で破棄した場合 / 取得失敗時は null を返す。
 export async function fetchTranscript() {
   if (S.preloadedTranscript) return S.preloadedTranscript;
   // 既にロード中のPromiseがあればそれに乗る（競合防止）
@@ -30,7 +32,7 @@ export async function fetchTranscript() {
     // ナビ完了で世代が更新されていたら結果は古い動画のもの → 破棄
     if (myGen !== S._transcriptGen) {
       log.log("古い字幕取得結果を破棄（世代 mismatch）");
-      return r;
+      return null;
     }
     // ★ 取得成功時はキャッシュ + TRANSCRIPT_READY を発火して UI を更新する。
     // popup の DL ボタン経路 (ysGetTranscript ハンドラ) など、

@@ -130,6 +130,34 @@ describe("fetchTranscript", function () {
     expect(mockSessionState.transcriptReady).toBe(false);
     expect(mockEmit).not.toHaveBeenCalled();
   });
+
+  // ★ A1: 世代mismatch時は古い結果を破棄してnullを返す（旧実装はrを返していた）
+  test("世代mismatch時はnullを返す（古い結果を返さない）", async function () {
+    mockLoadSubtitleLang.mockResolvedValue("auto");
+    let resolveFetch;
+    mockFetchYtTranscript.mockImplementation(function () {
+      return new Promise(function (r) {
+        resolveFetch = r;
+      });
+    });
+
+    const p = fetchTranscript();
+    // microtask を進めて fetchYtTranscript 呼び出しを待つ
+    await new Promise(function (r) {
+      setTimeout(r, 0);
+    });
+    // 動画切替をシミュレート: 世代を進める
+    mockSessionState._transcriptGen = 1;
+    // 古い transcript を返す
+    resolveFetch({ all: ["stale"] });
+    const r = await p;
+
+    expect(r).toBeNull();
+    expect(mockSessionState.transcriptReady).toBe(false);
+    expect(mockSessionState.preloadedTranscript).toBeNull();
+    // TRANSCRIPT_READY は emit されない
+    expect(mockEmit).not.toHaveBeenCalledWith("TRANSCRIPT_READY", expect.anything());
+  });
 });
 
 // ===== preloadTranscript =====
