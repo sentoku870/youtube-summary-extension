@@ -32,6 +32,11 @@ jest.mock("../src/content/ui/storage-listener.js", () => ({
   bindStorageListener: mockBindStorageListener
 }));
 
+const mockAbortChatStream = jest.fn();
+jest.mock("../src/content/ui/chat.js", () => ({
+  abortChatStream: mockAbortChatStream
+}));
+
 // location をスタブ化
 delete window.location;
 window.location = {
@@ -50,6 +55,7 @@ describe("navigation", () => {
     window.location.hash = "";
     jest.clearAllMocks();
     mockBindStorageListener.mockClear();
+    mockAbortChatStream.mockClear();
   });
 
   afterEach(() => {
@@ -169,6 +175,15 @@ describe("navigation", () => {
       emit("nav:finish", { url: "https://www.youtube.com/watch?v=abc" });
       // handleNavigation → resetState → resetTranscript → onReinit
       expect(onReinit).toHaveBeenCalled();
+    });
+
+    // ★ B-3: 動画切替時に進行中のチャット応答も中断する
+    test("動画切替時に abortChatStream が呼ばれる", () => {
+      const onReinit = jest.fn();
+      const { emit } = require("../src/shared/event-bus");
+      nav.startNavigationDetection(onReinit);
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=new" });
+      expect(mockAbortChatStream).toHaveBeenCalled();
     });
 
     test("video URL 以外で emit されたら onReinit は呼ばれない", () => {

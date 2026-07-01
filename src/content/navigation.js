@@ -16,6 +16,7 @@ import { abortCurrentStream } from "../domain/ai.js";
 import { applyButtonTitles, updateTabActive } from "./ui/tabs.js";
 import { clearSummaryContent, hideProgress } from "./ui/ui.js";
 import { bindStorageListener } from "./ui/storage-listener.js";
+import { abortChatStream } from "./ui/chat.js";
 import { TAB_IDS } from "../shared/constants.js";
 
 const log = createLogger("navigation");
@@ -39,6 +40,10 @@ export function resetTranscript() {
 // ===== 動画切替時のフルリセット =====
 function resetState() {
   abortCurrentStream();
+  // B-3: 進行中のチャット応答も中断してから session を破棄する。
+  // resetSession() で chatAbortController が null になると、
+  // その後の参照喪失で裏のチャットが完了するまで動き続ける。
+  abortChatStream();
   resetSession();
   if (uiState.panelEl) {
     const panel = uiState.panelEl.querySelector("#ys-panel");
