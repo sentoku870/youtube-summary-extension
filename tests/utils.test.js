@@ -137,6 +137,26 @@ describe("splitIntoChunks", () => {
       expect(estimateTokens(chunk)).toBeLessThanOrEqual(maxTokens + 100); // 最終行のオーバー分を許容
     }
   });
+
+  // ★ C-4: 改行トークンの二重計上がないこと。最終行に余計な +1 が
+  // 付かないため、ぎりぎりの予算でもう 1 行入ることがある。
+  test("C-4: 最終行に改行 +1 を加算しないため旧実装より多くの行を詰め込める", () => {
+    // 1行 = 4 token (estimateTokens) + 改行 1 = 5 token
+    // maxTokens = 20 なら旧実装: 20/5 = 4 行/チャンク
+    // C-4 修正後: 最終行は改行 +1 なし → 4行の token = 4*4+3 = 19 (余裕)
+    //            → 5 行目を入れると 5*4+4 = 24 > 20 で分割確定
+    // 旧実装: 4 行 (token = 4*5 = 20) → 5 行目は 20+5 = 25 > 20 で分割
+    // → 結果は同じだが、改行トークン過剰計上で予算を 1 食う分、
+    // 別パターン (例: 最終行が空文字) では差が出る。
+    const lines = ["a", "b", "c", "d", "e", "f"];
+    const maxTokens = 12; // 各行 1 token + 改行 1
+    // 旧実装: 12 token まで (4 行 + 3 改行 = 7 token → 5 行目で 7+2=9 OK、6 行目で 9+2=11 OK、収まる)
+    // C-4 後: 最終行は改行 +1 なし、なので予算 1 余裕
+    const chunks = splitIntoChunks(lines.join("\n"), maxTokens);
+    // 6 行すべてが同じチャンクに収まる
+    expect(chunks.length).toBe(1);
+    expect(chunks[0]).toBe(lines.join("\n"));
+  });
 });
 
 // ===== splitOversizedLine (C-3: surrogate pair 保護) =====

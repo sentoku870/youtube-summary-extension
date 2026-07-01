@@ -169,12 +169,20 @@ export function splitIntoChunks(text, maxTokens) {
     const subLines = splitOversizedLine(lines[i], safeMax);
     for (let j = 0; j < subLines.length; j++) {
       const subLine = subLines[j];
-      const lineTokens = estimateTokens(subLine) + 1; // +1 は改行分
+      // C-4: 改行トークン (+1) は push 直前 (= 「この後に改行が要る」時) だけに加算する。
+      // 旧実装は毎行 +1 していたため、N 行で N 改行分過剰に予算を消費していた
+      // (実際の join は N-1 改行しか含まない)。最終行にも付与されていたため、
+      // 安全な方向ではあったが予算を 1 トークン余分に使っていた。
+      const subTokens = estimateTokens(subLine);
+      // 改行は "current に既に入っている最後の行" の直後に付く。
+      // これから push する subLine が行末改行を持つなら +1。
+      const newlineCost = j < subLines.length - 1 || i < lines.length - 1 ? 1 : 0;
+      const lineTokens = subTokens + newlineCost;
       // 収まらない場合は現在のチャンクを確定して新チャンクへ
       if (currentTokens + lineTokens > safeMax && current.length > 0) {
         chunks.push(current.join("\n"));
         current = [subLine];
-        currentTokens = lineTokens;
+        currentTokens = subTokens;
       } else {
         current.push(subLine);
         currentTokens += lineTokens;
