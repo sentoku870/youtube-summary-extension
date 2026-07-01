@@ -25,9 +25,15 @@ jest.mock("../src/infrastructure/storage-core.js", () => {
   };
 });
 
-let initForm, openFormForNew, openFormForEdit, isFormOpen, setOnAfterSave;
+let initForm, openFormForNew, openFormForEdit, setOnAfterSave;
 let saveToast;
 let set;
+
+// 旧 isFormOpen() の中身: modelFormContainer の表示状態で判定する
+function isFormOpen() {
+  const formDom = document.getElementById("modelFormContainer");
+  return !!(formDom && !formDom.hidden);
+}
 
 function buildTabHost() {
   document.body.innerHTML = "";
@@ -66,7 +72,6 @@ beforeEach(() => {
   initForm = mf.initForm;
   openFormForNew = mf.openFormForNew;
   openFormForEdit = mf.openFormForEdit;
-  isFormOpen = mf.isFormOpen;
   setOnAfterSave = mf.setOnAfterSave;
   saveToast = require("../src/options/ui/toast.js").saveToast;
   const storage = require("../src/infrastructure/storage.js");

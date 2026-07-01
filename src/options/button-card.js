@@ -15,6 +15,7 @@ import {
 import { saveToast } from "./ui/toast.js";
 import { promptKey, btnTitleKey, btnApiConfigKey } from "./options-logic.js";
 import { createAutoSave } from "./ui/auto-save.js";
+import { el } from "./options-shared.js";
 
 const DEBOUNCE_MS = 300;
 const BUTTON_KEYS = ["summary", "customA", "customB"];
@@ -34,18 +35,13 @@ let saver = null;
 let isInitialized = false;
 let onModelSelectsChange = null;
 
-export function bindButtonCardHandlers(handlers) {
-  if (handlers && typeof handlers.onModelSelectsChange === "function") {
-    onModelSelectsChange = handlers.onModelSelectsChange;
-  }
-}
-
-// ===== DOM ヘルパ =====
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text != null) e.textContent = text;
-  return e;
+/**
+ * モデル選択変更時のコールバックを登録する。
+ * options-display.js のビルド済みプリセット変更などで呼ばれる。
+ * @param {Function} cb
+ */
+export function setOnModelSelectsChange(cb) {
+  onModelSelectsChange = typeof cb === "function" ? cb : null;
 }
 
 // ===== 1カードの DOM 構築 =====

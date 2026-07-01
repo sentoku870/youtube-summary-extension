@@ -58,12 +58,12 @@ jest.mock("../src/domain/api.js", () => ({
 }));
 
 const {
-  finalizeResult,
   resolveApiConfig,
   fetchConfigAndPrompt,
   abortCurrentStream,
   callAI
 } = require("../src/domain/ai");
+const { finalizeResult } = require("../src/domain/ai-finalize");
 
 // ai-utils.js から純粋関数を直接 import (A-1: re-export 削除対応)
 const {

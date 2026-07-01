@@ -63,11 +63,11 @@ Layered Chrome extension (content script does the real work):
 - `src/shared/` — `constants.js`, `state.js`, `event-bus.js`, pure utils (`estimateTokens`, `splitIntoChunks`).
 - `src/options/`, `src/popup/` — settings UI (multi-provider config) and toolbar popup.
   - `src/options/options.html` (slim structure) + `src/options/options.css` (extracted styles, NOT inline).
-  - `src/options/options.js` (entry: tab switch + initial load), `src/options/options-models.js` (tab 1 orchestrator), `src/options/options-buttons.js` (tab 2 orchestrator), `src/options/options-display.js` (tab 3 orchestrator).
+  - `src/options/options.js` (entry: tab switch + initial load), `src/options/options-models.js` (tab 1 orchestrator), `src/options/options-display.js` (tab 3 orchestrator). Button cards (tab 2) are initialized inline from `options.js` via `button-card.js`.
   - `src/options/model-card.js` (card rendering + inline form attachment), `src/options/model-form.js` (form DOM + save/cancel), `src/options/model-filter.js` (pure filter), `src/options/button-card.js` (3 cards + autosave).
   - `src/options/options-logic.js` (pure helpers: `PROVIDERS`, `validateFormValues`, `buildConfig`, `findExistingApiKeyByHost`, `getProviderChipClass`, `getProviderLabel`, etc.).
   - `src/options/options-shared.js` (DOM utils: `getVal`, `setVal`).
-  - `src/options/ui/toast.js` (toast notifications: `saveToast`/`errorToast`/`infoToast`).
+  - `src/options/ui/toast.js` (toast notifications: `saveToast`/`errorToast`).
   - `src/options/ui/confirm.js` (delete confirmation modal: `confirmDialog` returns Promise).
 - The extension has **no Service Worker** — message handling lives entirely in the content script. Don't add background message routing without a strong reason.
 - `src/content/index.js` uses a 10-second URL polling fallback (with auto-stop after 5 min idle) on top of `yt-navigate-finish` / `yt-page-data-updated` / `popstate` / `hashchange` events. Don't remove the polling layer without verifying all four event sources fire reliably in YouTube's current SPA. The extension has no Service Worker — SPA navigation is detected entirely in the content script.

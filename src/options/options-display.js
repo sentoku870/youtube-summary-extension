@@ -11,6 +11,7 @@ import { set, K } from "../infrastructure/storage-core.js";
 import { saveToast } from "./ui/toast.js";
 import { getAppVersion, getAppBuildDate, getAppGitCommit } from "../shared/version.js";
 import { createAutoSave } from "./ui/auto-save.js";
+import { el } from "./options-shared.js";
 
 const FONT_SIZE_PRESETS = [13, 14, 15, 16, 17, 18, 19, 20];
 const PANEL_HEIGHT_PRESETS = [
@@ -26,13 +27,6 @@ const THEMES = [
 ];
 
 let isInitialized = false;
-
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text != null) e.textContent = text;
-  return e;
-}
 
 // ===== テーマカード生成 =====
 function buildThemeCards() {

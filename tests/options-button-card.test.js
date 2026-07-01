@@ -248,26 +248,25 @@ describe("button-card", () => {
     });
   });
 
-  describe("bindButtonCardHandlers / onModelSelectsChange", () => {
+  describe("setOnModelSelectsChange", () => {
     test("refreshButtonModelSelects 後にコールバックが呼ばれる", async () => {
       const cb = jest.fn();
       const bc = require("../src/options/button-card.js");
-      bc.bindButtonCardHandlers({ onModelSelectsChange: cb });
+      bc.setOnModelSelectsChange(cb);
       initButtonCards();
       await refreshButtonModelSelects();
       expect(cb).toHaveBeenCalled();
     });
 
-    test("bindButtonCardHandlers: handlers が null の場合は noop", () => {
+    test("setOnModelSelectsChange: null を渡すとクリアされる", () => {
       const bc = require("../src/options/button-card.js");
-      expect(() => bc.bindButtonCardHandlers(null)).not.toThrow();
+      bc.setOnModelSelectsChange(jest.fn());
+      expect(() => bc.setOnModelSelectsChange(null)).not.toThrow();
     });
 
-    test("bindButtonCardHandlers: onModelSelectsChange が関数でない場合は無視", () => {
+    test("setOnModelSelectsChange: 関数以外を渡すと無視される", () => {
       const bc = require("../src/options/button-card.js");
-      expect(() =>
-        bc.bindButtonCardHandlers({ onModelSelectsChange: "not-a-function" })
-      ).not.toThrow();
+      expect(() => bc.setOnModelSelectsChange("not-a-function")).not.toThrow();
     });
   });
 

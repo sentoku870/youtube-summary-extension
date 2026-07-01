@@ -14,3 +14,12 @@ export function setVal(id, val) {
   const el = document.getElementById(id);
   if (el) el.value = val || "";
 }
+
+// DOM 要素生成ヘルパ。3 引数 (tag, className, text) 形式。
+// text は textContent として設定 (XSS 安全)。
+export function el(tag, className, text) {
+  const e = document.createElement(tag);
+  if (className) e.className = className;
+  if (text != null) e.textContent = text;
+  return e;
+}

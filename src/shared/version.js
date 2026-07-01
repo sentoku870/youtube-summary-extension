@@ -80,8 +80,3 @@ export async function getAppGitCommit() {
   }
   return null;
 }
-
-// テスト用: build-info キャッシュをリセット
-export function __resetBuildInfoCache() {
-  buildInfoCache = null;
-}

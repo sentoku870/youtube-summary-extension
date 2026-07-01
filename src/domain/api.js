@@ -1,71 +1,18 @@
 // ============================================================
 //  api.js — LLM API 呼び出しの公開ファサード（ESM版）
 //  認証 (api-auth) / リトライ (api-retry) / SSE (api-stream) /
-//  リクエスト構築 (api-request) を束ねて公開する。
+//  リクエスト構築 (api-internals) を束ねて公開する。
 // ============================================================
 import {
   API_MAX_RETRIES_STREAM,
-  API_MAX_RETRIES_NONSTREAM,
-  DEFAULT_MAX_TOKENS,
-  DEFAULT_TEMPERATURE
+  API_MAX_RETRIES_NONSTREAM
 } from "../shared/constants.js";
 import {
   fetchWithRetry,
-  handleErrorResponse,
-  isRetryableHttpStatus,
-  isRetryableNetworkError
+  handleErrorResponse
 } from "./api-retry.js";
 import { readStream } from "./api-stream.js";
-import { isOpenRouterUrl, buildAuthHeaders } from "./api-auth.js";
-import { createLogger } from "../shared/logger.js";
-
-const log = createLogger("api");
-
-// ===== リクエスト構築 =====
-function buildRequestConfig(config, messages, stream) {
-  const headers = buildAuthHeaders(config.apiUrl, config.apiKey);
-  const body = {
-    model: config.apiModel,
-    messages: messages,
-    max_tokens: parseInt(config.maxTokens || String(DEFAULT_MAX_TOKENS), 10),
-    temperature: parseFloat(config.temperature || String(DEFAULT_TEMPERATURE)),
-    stream: stream
-  };
-  if (config.extraParams) {
-    try {
-      const extra = JSON.parse(config.extraParams);
-      deepMergeBody(body, extra);
-    } catch (e) {
-      log.error("extraParams JSON parse error:", e);
-    }
-  }
-  return { headers: headers, body: JSON.stringify(body) };
-}
-
-// 深いマージ（extraParams 用）
-function deepMergeBody(target, src) {
-  if (!target || typeof target !== "object" || Array.isArray(target)) return target;
-  if (!src || typeof src !== "object" || Array.isArray(src)) return target;
-  for (const key in src) {
-    if (!Object.prototype.hasOwnProperty.call(src, key)) continue;
-    const val = src[key];
-    if (val === undefined) continue;
-    const cur = target[key];
-    if (
-      cur &&
-      typeof cur === "object" &&
-      !Array.isArray(cur) &&
-      val &&
-      typeof val === "object" &&
-      !Array.isArray(val)
-    ) {
-      deepMergeBody(cur, val);
-    } else {
-      target[key] = val;
-    }
-  }
-  return target;
-}
+import { buildRequestConfig } from "./api-internals.js";
 
 // ===== 公開 API =====
 
@@ -94,15 +41,3 @@ export async function callChatAPIStream(messages, config, onChunk, onDone, abort
   const reader = response.body.getReader();
   await readStream(reader, onChunk, onDone);
 }
-
-// 公開 API (auth utilities)
-export { isOpenRouterUrl, buildAuthHeaders };
-
-// 公開 API (retry utilities)
-export { fetchWithRetry, handleErrorResponse, isRetryableHttpStatus, isRetryableNetworkError };
-
-// 公開 API (stream utility)
-export { readStream };
-
-// buildRequestConfig は api.js 内部関数だが、テスト互換のため再エクスポート
-export { buildRequestConfig };

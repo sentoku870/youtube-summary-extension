@@ -10,7 +10,6 @@ jest.mock("../src/content/ui/appearance.js", () => ({
 
 const {
   getEl,
-  disableAllButtons,
   enableAllButtons,
   createPanel
 } = require("../src/content/ui/panel");
@@ -54,46 +53,7 @@ describe("panel", () => {
     });
   });
 
-  // ===== disableAllButtons / enableAllButtons =====
-  describe("disableAllButtons", () => {
-    test("ys-tab-row内のボタンをすべてdisabledにする", () => {
-      const panel = document.createElement("div");
-      const tabRow = document.createElement("div");
-      tabRow.className = "ys-tab-row";
-      const btn1 = document.createElement("button");
-      const btn2 = document.createElement("button");
-      const btn3 = document.createElement("button");
-      tabRow.appendChild(btn1);
-      tabRow.appendChild(btn2);
-      tabRow.appendChild(btn3);
-      panel.appendChild(tabRow);
-      S.panelEl = panel;
-
-      disableAllButtons();
-
-      expect(btn1.disabled).toBe(true);
-      expect(btn2.disabled).toBe(true);
-      expect(btn3.disabled).toBe(true);
-    });
-
-    test("ys-tab-row外のボタンは対象外", () => {
-      const panel = document.createElement("div");
-      const copyBtn = document.createElement("button");
-      copyBtn.id = "ys-copyBtn";
-      panel.appendChild(copyBtn);
-      S.panelEl = panel;
-
-      disableAllButtons();
-
-      expect(copyBtn.disabled).toBe(false);
-    });
-
-    test("panelEl未設定時はエラーなく処理をスキップ", () => {
-      S.panelEl = null;
-      expect(() => disableAllButtons()).not.toThrow();
-    });
-  });
-
+  // ===== enableAllButtons =====
   describe("enableAllButtons", () => {
     test("ys-tab-row内のボタンをすべて有効化", () => {
       const panel = document.createElement("div");
@@ -170,7 +130,6 @@ describe("panel", () => {
     test("タブボタンの初期ラベルが正しい", () => {
       createPanel();
 
-      // disableAllButtons の後、btn-summary のテキストは上書きされる
       // placePanel のコールバックで applyTheme 等が呼ばれるが fakeTimers で抑制
       const btnSummary = getEl("#ys-btn-summary");
       expect(btnSummary.textContent).toContain("字幕取得中");
@@ -183,9 +142,9 @@ describe("panel", () => {
       const btnCustomA = getEl("#ys-btn-customA");
       const btnCustomB = getEl("#ys-btn-customB");
 
-      // ★ 旧実装: 生成直後に disableAllButtons() で全ボタンを disabled に
-      //   していたため、TRANSCRIPT_READY/FAILED が遅延・失敗すると
-      //   永久に押せず A→B 切替もできない症状があった。
+      // ★ 旧実装: 生成直後に全ボタンを disabled にしていたため、
+      //   TRANSCRIPT_READY/FAILED が遅延・失敗すると永久に押せず
+      //   A→B 切替もできない症状があった。
       //   新実装: 字幕プリロード中でもボタンは押せる。AI 実行時に
       //   callAI() 内部で transcript を改めて取得する。
       expect(btnSummary.disabled).toBe(false);

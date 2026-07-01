@@ -3,7 +3,7 @@
 //  Phase C-1: 配置戦略を panel-placement.js に分離。
 //  本モジュールは
 //    - DOM 検索キャッシュ付き getEl
-//    - 全ボタン制御 (disable/enableAllButtons)
+//    - 全ボタン制御 (enableAllButtons)
 //    - パネルの生成 (createPanel: スケルトン HTML + 状態初期化)
 //  を担当。配置は panel-placement.js に委譲する。
 // ============================================================
@@ -40,13 +40,6 @@ export function getEl(id) {
 }
 
 // ===== ボタン制御 =====
-export function disableAllButtons() {
-  const btns = S.panelEl ? S.panelEl.querySelectorAll(".ys-tab-row button") : [];
-  btns.forEach(function (b) {
-    b.disabled = true;
-  });
-}
-
 export function enableAllButtons() {
   const btns = S.panelEl ? S.panelEl.querySelectorAll(".ys-tab-row button") : [];
   btns.forEach(function (b) {
@@ -101,9 +94,9 @@ export function createPanel() {
     "</div>";
 
   // ★ 字幕プリロード完了を待たず、ボタンは押せる状態にする。
-  // 旧実装では disableAllButtons() で全ボタンを disabled にしていたが、
-  // preloadTranscript() の TRANSCRIPT_READY/FAILED が何らかの理由で
-  // 発火しないとボタンが永久に押せず、A→B の切替も効かない状態になっていた。
+  // 旧実装では全ボタンを disabled にしていたが、preloadTranscript() の
+  // TRANSCRIPT_READY/FAILED が何らかの理由で発火しないとボタンが永久に
+  // 押せず、A→B の切替も効かない状態になっていた。
   // AI 実行 (callAI) 内で transcript を改めて取得するため、ボタン無効化は不要。
   const btnSummary = getEl("#ys-btn-summary");
   if (btnSummary) btnSummary.textContent = "⏳ 字幕取得中...";

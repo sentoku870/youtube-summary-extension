@@ -124,11 +124,6 @@ export async function openFormForEdit(id) {
   showFormError("");
 }
 
-export function isFormOpen() {
-  const formDom = document.getElementById("modelFormContainer");
-  return !!(formDom && !formDom.hidden);
-}
-
 // ===== ハンドラ =====
 async function handleSave() {
   const values = readFormValues();

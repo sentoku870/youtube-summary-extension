@@ -3,6 +3,7 @@
 //  window.confirm() は ESC で閉じない・スタイル不可・非推奨気味。
 //  カスタムモーダルで「OK / キャンセル」を Promise で返す。
 // ============================================================
+import { el } from "../options-shared.js";
 
 const DEFAULT_TITLE = "確認";
 const DEFAULT_OK_LABEL = "削除";
@@ -36,13 +37,6 @@ function onKeydown(e) {
     const okBtn = activeOverlay.querySelector(".ys-confirm-ok");
     if (okBtn) okBtn.click();
   }
-}
-
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text != null) e.textContent = text;
-  return e;
 }
 
 export function confirmDialog(options) {

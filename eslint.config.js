@@ -42,6 +42,8 @@ export default [
     }
   },
   {
+    // src/ 内は browser + chrome グローバルが必要。既定の globals に含まれるが、
+    // 明示しておくと追加の globals を増やしたときにレビューしやすいため記載。
     files: ["src/content/**/*.js", "src/options/**/*.js", "src/popup/**/*.js"],
     languageOptions: { globals: { ...globals.browser, chrome: "readonly" } }
   },

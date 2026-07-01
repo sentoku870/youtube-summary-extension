@@ -1,17 +1,10 @@
 // ============================================================
 //  model-form-dom.js — モデル管理タブ フォームの DOM 構築（ESM版）
 //  Phase C-3: model-form.js から分割。
-//  buildFormDom 関数と内部 DOM ヘルパ（el）のみを提供し、
-//  値管理・保存ロジックは含まない（純粋な DOM 生成）。
+//  buildFormDom 関数のみを提供し、値管理・保存ロジックは含まない
+//  （純粋な DOM 生成）。DOM ヘルパ el は options-shared.js 由来。
 // ============================================================
-
-// ===== DOM ヘルパ =====
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text != null) e.textContent = text;
-  return e;
-}
+import { el } from "./options-shared.js";
 
 // ===== フォーム DOM を構築 =====
 export function buildFormDom() {

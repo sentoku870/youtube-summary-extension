@@ -1,15 +1,13 @@
 #!/usr/bin/env node
-// scripts/sync-version.js
+// scripts/sync-version.cjs
 // package.json の version を manifest.json に同期し、
 // ビルド日時を src/shared/build-info.json に書き出す。
 //
 // フック: prebuild / predev / pretest で npm から自動実行される。
-// 手動実行: node scripts/sync-version.js
+// 手動実行: node scripts/sync-version.cjs
 //
-// package.json は "type": "module" だが、このスクリプト自体は Node から
-// 直接 require で読むため CommonJS（.cjs 相当。.js のまま）として動作する。
-// （package.json に "type": "module" があっても、.js ファイルは ESM として
-// 　扱われるため、ここでは素直に require を使う）
+// package.json は "type": "module" だが、このスクリプトは .cjs 拡張子で
+// CommonJS として実行する (Node の require / module.exports 構文を使う)。
 
 const fs = require("fs");
 const path = require("path");
