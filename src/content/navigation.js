@@ -24,9 +24,17 @@ const log = createLogger("navigation");
 const FALLBACK_POLL_INTERVAL_MS = 10000;
 const FALLBACK_POLL_MAX_IDLE_MS = 5 * 60 * 1000;
 
+// B-4: YouTube は同じ動画切替で yt-navigate-finish と yt-page-data-updated を
+// 両方発火するため、両方が NAV_FINISH にブリッジされて handleNavigation が
+// リセット → 再 init を 2 回実行してしまう。短時間 (200ms) 内の同一 URL 通知は
+// 2 回目以降をスキップして二重処理を防ぐ。
+const NAV_DEDUPE_WINDOW_MS = 200;
+
 let fallbackTimerId = null;
 let lastObservedUrl = null;
 let lastNavAt = 0;
+let lastHandledUrl = null;
+let lastHandledAt = 0;
 let navigationInitialized = false;
 let safeInitFn = null;
 
@@ -147,9 +155,20 @@ function bindDomBridges() {
     emit(EVENTS.NAV_FINISH, { url: location.href });
   });
   on(EVENTS.NAV_FINISH, function (payload) {
-    if (payload && payload.url && isYouTubeWatchPage(payload.url)) {
-      handleNavigation();
+    if (!payload || !payload.url || !isYouTubeWatchPage(payload.url)) return;
+    // B-4: 同一 URL の短時間連発を 1 回の handleNavigation にまとめる。
+    // 異なる URL の場合はガードを無視（通常の動画切替）。
+    const now = Date.now();
+    if (
+      lastHandledUrl === payload.url &&
+      now - lastHandledAt < NAV_DEDUPE_WINDOW_MS
+    ) {
+      log.log("NAV_FINISH dedupe: skip (same url within " + NAV_DEDUPE_WINDOW_MS + "ms)");
+      return;
     }
+    lastHandledUrl = payload.url;
+    lastHandledAt = now;
+    handleNavigation();
   });
 }
 
@@ -179,5 +198,7 @@ export function __resetNavigationForTest() {
   safeInitFn = null;
   lastObservedUrl = null;
   lastNavAt = 0;
+  lastHandledUrl = null;
+  lastHandledAt = 0;
   navigationInitialized = false;
 }

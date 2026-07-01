@@ -204,6 +204,29 @@ describe("navigation", () => {
       emit("nav:finish", {});
       expect(onReinit).not.toHaveBeenCalled();
     });
+
+    // ★ B-4: 同じ URL の NAV_FINISH 短時間連発は 2 回目以降スキップされる
+    test("同一URLの短時間連発 (200ms以内) は2回目以降スキップ", () => {
+      const onReinit = jest.fn();
+      const { emit } = require("../src/shared/event-bus");
+      nav.startNavigationDetection(onReinit);
+      // 1回目: 呼ばれる
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=abc" });
+      // 2回目: 200ms以内なのでスキップ
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=abc" });
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=abc" });
+      expect(onReinit).toHaveBeenCalledTimes(1);
+    });
+
+    // ★ B-4: 異なる URL ならガードを無視
+    test("異なるURLなら重複ガードを無視して両方呼ばれる", () => {
+      const onReinit = jest.fn();
+      const { emit } = require("../src/shared/event-bus");
+      nav.startNavigationDetection(onReinit);
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=abc" });
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=xyz" });
+      expect(onReinit).toHaveBeenCalledTimes(2);
+    });
   });
 
   // ===== pageshow (BFCache) =====
