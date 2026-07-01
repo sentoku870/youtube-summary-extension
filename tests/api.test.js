@@ -560,4 +560,19 @@ describe("fetchWithRetry", () => {
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
+
+  // ★ A4: 既に abort 済みの signal を渡された場合は即座に YsAbortError
+  // (旧実装では addEventListener が過去イベントを再送しないため、
+  //  リクエストが完走するまで API コールが続いてしまっていた)
+  test("外部 signal が既に abort 済みなら fetch を呼ばず YsAbortError を投げる", async () => {
+    const external = new AbortController();
+    external.abort(); // 呼び出し時点で既に abort
+    const options = { headers: {}, body: "{}", signal: external.signal };
+
+    await expect(
+      fetchWithRetry("https://api.test.com", options, 3)
+    ).rejects.toBeInstanceOf(YsAbortError);
+
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
 });

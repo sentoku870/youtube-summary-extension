@@ -5,6 +5,7 @@
 // ============================================================
 import { callChatAPINonStream } from "./api.js";
 import { createLogger } from "../shared/logger.js";
+import { YsAbortError, YsTimeoutError } from "../infrastructure/errors.js";
 import { getUiAdapter } from "./ports.js";
 
 const log = createLogger("ai-chunk");
@@ -28,7 +29,9 @@ export async function processSingleChunk(chunkMessages, config, signal, idx, tot
       ui.showProgress("📄 完了");
       return { success: true, result: r };
     } catch (e) {
+      // 外部 abort / fetch タイムアウト / 全体タイムアウトはリトライせず上位に伝播
       if (e instanceof DOMException && e.name === "AbortError") throw e;
+      if (e instanceof YsAbortError || e instanceof YsTimeoutError) throw e;
       if (attempt < maxAttempts) {
         log.warn(
           "チャンク " + (idx + 1) + " リトライ " + attempt + "/" + maxAttempts + ":",

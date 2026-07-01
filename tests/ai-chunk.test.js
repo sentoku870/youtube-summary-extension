@@ -67,6 +67,28 @@ describe("ai-chunk / processSingleChunk", () => {
     expect(callChatAPINonStream).toHaveBeenCalledTimes(1);
   });
 
+  // ★ A4: YsAbortError もリトライせず throw（旧実装ではリトライされていた）
+  test("YsAbortError はリトライせず即座に上位に throw", async () => {
+    const { YsAbortError } = require("../src/infrastructure/errors");
+    const abortErr = new YsAbortError("外部中断");
+    callChatAPINonStream.mockRejectedValue(abortErr);
+    await expect(processSingleChunk(chunkMessages, config, undefined, 0, 3, 3)).rejects.toBe(
+      abortErr
+    );
+    expect(callChatAPINonStream).toHaveBeenCalledTimes(1);
+  });
+
+  // ★ A4: YsTimeoutError もリトライせず throw（旧実装ではリトライされていた）
+  test("YsTimeoutError はリトライせず即座に上位に throw", async () => {
+    const { YsTimeoutError } = require("../src/infrastructure/errors");
+    const timeoutErr = new YsTimeoutError("APIタイムアウト");
+    callChatAPINonStream.mockRejectedValue(timeoutErr);
+    await expect(processSingleChunk(chunkMessages, config, undefined, 0, 3, 3)).rejects.toBe(
+      timeoutErr
+    );
+    expect(callChatAPINonStream).toHaveBeenCalledTimes(1);
+  });
+
   test("showProgress がチャンク idx/total 表示で呼ばれる", async () => {
     callChatAPINonStream.mockResolvedValueOnce("done");
     await processSingleChunk(chunkMessages, config, undefined, 2, 5, 3);

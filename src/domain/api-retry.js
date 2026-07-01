@@ -31,6 +31,12 @@ export function isRetryableNetworkError(err) {
 
 // 1回の fetch 試行を実行（タイムアウト + 外部 abort 連携）
 async function attemptFetch(url, options, externalSignal) {
+  // 外部 signal が既に abort 済みなら即座に YsAbortError を投げる経路と同じ結果を返す。
+  // addEventListener("abort") は過去イベントを再送しないため、listener 登録だけでは
+  // 取りこぼす。早期に判定してリスナーを一切作らない。
+  if (externalSignal && externalSignal.aborted) {
+    return { response: null, abortedByExternal: true, timedOut: false };
+  }
   const controller = new AbortController();
   const timeoutId = setTimeout(function () {
     controller.abort("timeout");
