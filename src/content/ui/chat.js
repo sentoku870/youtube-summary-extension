@@ -123,7 +123,6 @@ export async function onChatSend() {
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") return;
     if (e instanceof YsAbortError || e instanceof YsTimeoutError) return;
-    if (e.message && e.message.indexOf("中断") !== -1) return;
     if (placeholder) updateChatMessageBody(placeholder.body, "[エラー] " + e.message);
   } finally {
     // コントローラがまだ自分を指している場合のみクリア

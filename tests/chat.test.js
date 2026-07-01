@@ -215,9 +215,17 @@ describe("chat", () => {
       await expect(onChatSend()).resolves.not.toThrow();
     });
 
-    test("エラーメッセージに「中断」が含まれる場合は無視", async () => {
+    // ★ B-2: 文字列に「中断」が含まれていても、YsAbortError / DOMException
+    // AbortError のいずれの型でもないなら通常エラーとして表示する
+    // （旧実装の文字列マッチ判定を廃止）。
+    test("エラーメッセージに「中断」が含まれていても、型不一致ならエラー表示する", async () => {
+      uiState.tabs.summary.config = { apiKey: "k", apiUrl: "u", apiModel: "m" };
       api.callChatAPIStream.mockRejectedValue(new Error("ユーザーによって中断されました"));
-      await expect(onChatSend()).resolves.not.toThrow();
+      await onChatSend();
+      expect(ui.updateChatMessageBody).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringMatching(/\[エラー\].*中断/)
+      );
     });
 
     test("その他のエラーはプレースホルダーにエラー表示", async () => {
