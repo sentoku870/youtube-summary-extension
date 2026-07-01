@@ -160,7 +160,11 @@ describe("model-card", () => {
       expect(card.contains(form)).toBe(true);
     });
 
-    test("rememberedEditingId が削除済み id の場合、フォームを閉じる", async () => {
+    test("rememberedEditingId が削除済み id の場合、フォームを #tab-models に退避して閉じる", async () => {
+      // parkForm の退避先
+      const tabModels = document.createElement("div");
+      tabModels.id = "tab-models";
+      document.body.appendChild(tabModels);
       mockStorage.configs = [
         { id: "1", label: "A", apiKey: "k", apiUrl: "https://a.com", apiModel: "a" }
       ];
@@ -170,17 +174,12 @@ describe("model-card", () => {
       mockStorage.configs = [];
       // 空状態は「未登録」プレースホルダが表示される
       await renderModelList();
-      // カードが削除されると form も DOM から外れる（カード内にあったため）
+      // カードが削除されても form は #tab-models に退避され hidden になる（setVal が効くよう DOM に残す）
       const form = document.getElementById("modelFormContainer");
-      if (form) {
-        // form がまだ DOM にあれば hidden 確認
-        expect(form.hidden).toBe(true);
-      } else {
-        // form が DOM から外れた場合は rememberedEditingId がリセットされたことを確認
-        // （カード削除によりフォームは孤立するが、renderModelList が hidden=true を設定する）
-        // 実装上は form 自体が消えることがある
-        expect(form).toBeNull();
-      }
+      expect(form).not.toBeNull();
+      expect(form.hidden).toBe(true);
+      expect(form.parentNode).not.toBeNull();
+      expect(form.parentNode.id).toBe("tab-models");
     });
 
     test("formContainer が非表示の場合は復元しない", async () => {
@@ -352,18 +351,23 @@ describe("model-card", () => {
   });
 
   describe("detachForm", () => {
-    test("フォームを非表示にしてカードから remove", async () => {
+    test("フォームを #tab-models に退避して hidden にする（setVal が効くよう DOM に残す）", async () => {
       mockStorage.configs = [
         { id: "cfg_y", label: "Y", apiKey: "k", apiUrl: "https://y.com", apiModel: "y" }
       ];
+      // #tab-models を用意（parkForm の退避先）
+      const tabModels = document.createElement("div");
+      tabModels.id = "tab-models";
+      document.body.appendChild(tabModels);
       await renderModelList();
       const form = document.getElementById("modelFormContainer");
       attachFormToCard("cfg_y");
       expect(form.parentNode).not.toBeNull();
       detachForm();
-      // form は DOM から外れる（parentNode が null）し hidden になる
+      // form は hidden になり、#tab-models 配下に退避される（DOM 外には出ない）
       expect(form.hidden).toBe(true);
-      expect(form.parentNode).toBeNull();
+      expect(form.parentNode).not.toBeNull();
+      expect(form.parentNode.id).toBe("tab-models");
       const card = document.querySelector('.model-card[data-config-id="cfg_y"]');
       expect(card.classList.contains("editing")).toBe(false);
     });
@@ -383,6 +387,31 @@ describe("model-card", () => {
       attachFormToCard("1");
       detachForm();
       expect(onFormClosed).toHaveBeenCalled();
+    });
+
+    test("detachForm 後も form が DOM に残るので、再 attach 時に値が正しく反映される", async () => {
+      // 回帰テスト: detachForm で form を完全に取り外すと、
+      // 次回 openFormForEdit/openFormForNew が setVal に失敗して
+      // フォームが空になるバグがあった。#tab-models への退避で setVal を効かせる。
+      const tabModels = document.createElement("div");
+      tabModels.id = "tab-models";
+      document.body.appendChild(tabModels);
+      const form = document.createElement("form");
+      form.id = "modelFormContainer";
+      const input = document.createElement("input");
+      input.id = "configLabel";
+      form.appendChild(input);
+      document.body.appendChild(form);
+      setFormContainer(form);
+
+      // 退避処理 → form は #tab-models に残るので query 可能
+      form.hidden = true;
+      tabModels.appendChild(form);
+      expect(document.getElementById("configLabel")).not.toBeNull();
+      // setVal 相当の操作が効く（document.getElementById で取得できる）
+      const el = document.getElementById("configLabel");
+      el.value = "テスト";
+      expect(el.value).toBe("テスト");
     });
   });
 

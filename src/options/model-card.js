@@ -139,6 +139,38 @@ function buildNoMatchMessage() {
   return li;
 }
 
+// ===== 編集中フォームの復元（renderModelList 内の各分岐から呼ぶ） =====
+function restoreEditingForm(editingCardId) {
+  if (!editingCardId || !formContainerEl || formContainerEl.hidden) return;
+  if (editingCardId === "new") {
+    // 新規作成モード：新しい placeholder を作ってフォームを再 attach
+    const placeholder = buildNewCardPlaceholder();
+    modelListEl.insertBefore(placeholder, modelListEl.firstChild);
+    placeholder.appendChild(formContainerEl);
+    return;
+  }
+  const card = modelListEl.querySelector(
+    '.model-card[data-config-id="' + cssEscape(editingCardId) + '"]'
+  );
+  if (card) {
+    card.classList.add("editing");
+    if (formContainerEl.parentNode !== card) {
+      card.appendChild(formContainerEl);
+    }
+    return;
+  }
+  // カードが見つからない（削除された等）→ フォームを #tab-models に退避
+  rememberedEditingId = null;
+  parkForm();
+}
+
+// ===== 編集中フォームを閉じて退避（カードが見つからないとき用） =====
+function closeEditingForm(editingCardId) {
+  if (!editingCardId || !formContainerEl || formContainerEl.hidden) return;
+  rememberedEditingId = null;
+  parkForm();
+}
+
 // ===== 一覧描画 =====
 async function renderModelList() {
   if (!modelListEl) {
@@ -154,12 +186,14 @@ async function renderModelList() {
 
   if (configs.length === 0) {
     modelListEl.appendChild(buildEmptyMessage());
+    closeEditingForm(editingCardId);
     return;
   }
 
   const filtered = filterConfigCards(configs, searchKeyword);
   if (filtered.length === 0) {
     modelListEl.appendChild(buildNoMatchMessage());
+    closeEditingForm(editingCardId);
     return;
   }
 
@@ -168,28 +202,7 @@ async function renderModelList() {
   }
 
   // 編集中だったカードを復元
-  if (editingCardId && formContainerEl && !formContainerEl.hidden) {
-    if (editingCardId === "new") {
-      // 新規作成モード：新しい placeholder を作ってフォームを再 attach
-      const placeholder = buildNewCardPlaceholder();
-      modelListEl.insertBefore(placeholder, modelListEl.firstChild);
-      placeholder.appendChild(formContainerEl);
-    } else {
-      const card = modelListEl.querySelector(
-        '.model-card[data-config-id="' + cssEscape(editingCardId) + '"]'
-      );
-      if (card) {
-        card.classList.add("editing");
-        if (formContainerEl.parentNode !== card) {
-          card.appendChild(formContainerEl);
-        }
-      } else {
-        // カードが見つからない（削除された等）→ フォームを閉じる
-        rememberedEditingId = null;
-        formContainerEl.hidden = true;
-      }
-    }
-  }
+  restoreEditingForm(editingCardId);
 }
 
 function getEditingCardId() {
@@ -239,12 +252,21 @@ function attachFormToCard(id) {
   }, 50);
 }
 
+// ===== フォームを #tab-models に退避（DOM 内に残して setVal を効かせる） =====
+function parkForm() {
+  if (!formContainerEl) return;
+  formContainerEl.hidden = true;
+  const parking = document.getElementById("tab-models");
+  if (parking && formContainerEl.parentNode !== parking) {
+    parking.appendChild(formContainerEl);
+  }
+}
+
 // ===== フォームのデタッチ（保存・キャンセル時） =====
 function detachForm() {
   if (!formContainerEl) return;
   clearEditingState();
-  formContainerEl.hidden = true;
-  if (formContainerEl.parentNode) formContainerEl.parentNode.removeChild(formContainerEl);
+  parkForm();
   rememberedEditingId = null;
   if (onFormClosedFn) onFormClosedFn();
 }
