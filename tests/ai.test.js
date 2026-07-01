@@ -666,6 +666,39 @@ describe("callAI", () => {
     );
   });
 
+  // ★ C-1: callAI finally で sessionState.abortController が null 化される
+  test("Map-Reduce全チャンク失敗時: sessionState.abortController は null に戻される", async () => {
+    setupState({
+      all: ["あ".repeat(2000)],
+      allTimestamps: []
+    });
+    setupConfigStorage();
+    callChatAPINonStream.mockResolvedValue(null);
+    callChatAPIStream.mockImplementation(async function () {
+      throw new Error("should not be called");
+    });
+
+    await callAI("summary", false);
+
+    expect(S.abortController).toBeNull();
+  });
+
+  // ★ C-1: 成功時も abortController が null 化される
+  test("正常完了時も sessionState.abortController は null に戻される", async () => {
+    setupState({
+      all: ["あ".repeat(500)],
+      allTimestamps: []
+    });
+    setupConfigStorage();
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
+      onDone("ok");
+    });
+
+    await callAI("summary", false);
+
+    expect(S.abortController).toBeNull();
+  });
+
   test("Map-Reduce 一部チャンク失敗: 成功した分だけで統合", async () => {
     setupState({
       all: ["あ".repeat(3000)], // 大容量

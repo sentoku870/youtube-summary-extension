@@ -25,9 +25,11 @@ function showError(msg) {
  * 戻り値: 常に false（callAI の戻り値として伝播する）
  *
  * @param {Error} e - callAI の try/catch で捕捉された例外
+ * @param {AbortController} [controller] - callAI で生成した controller（C-1 後に null 化済みな
+ *                                       ので、signal.aborted 判定の補助に使う）
  * @returns {false}
  */
-export function handleAiErrors(e) {
+export function handleAiErrors(e, controller) {
   const ui = UI();
   // DOMException (AbortError) → 中断として扱う
   if (e instanceof DOMException && e.name === "AbortError") {
@@ -46,7 +48,13 @@ export function handleAiErrors(e) {
     ui.hideProgress();
     return false;
   }
-  // 中断系は signal.aborted でも検知（メッセージ文字列依存の安全網を廃止）
+  // C-1 後: controller は既に null 化されている可能性があるため、
+  // 渡された controller (callAI で生成したての参照) を優先して aborted を判定する。
+  // どちらも無い場合は安全のため中断扱いしない（既存テスト互換）。
+  if (controller && controller.signal && controller.signal.aborted) {
+    ui.hideProgress();
+    return false;
+  }
   if (sessionState.abortController && sessionState.abortController.signal.aborted) {
     ui.hideProgress();
     return false;

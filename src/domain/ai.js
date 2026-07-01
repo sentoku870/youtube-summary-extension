@@ -149,6 +149,7 @@ export async function callAI(mode, useAbort) {
   ui.hideProgress();
   const summaryTextEl = ui.getSummaryTextEl();
 
+  let controller = null;
   try {
     // 1. コンテキスト準備（字幕取得・config/prompt 解決）
     const ctx = await prepareContext(mode);
@@ -156,18 +157,30 @@ export async function callAI(mode, useAbort) {
 
     // 2. AbortController 設定
     sessionState.abortController = new AbortController();
-    const controller = sessionState.abortController;
+    controller = sessionState.abortController;
     const signal = controller.signal;
 
     // 3. 単一 or Map-Reduce を振り分け
-    const { accumulated, userMessage } = await runSummary(ctx, controller, signal, summaryTextEl);
+    const { accumulated, userMessage } = await runSummary(
+      ctx,
+      controller,
+      signal,
+      summaryTextEl
+    );
     if (accumulated === null) return false; // Map-Reduce 全チャンク失敗
 
     // 4. 結果確定
     finalizeResult(mode, tab, accumulated, ctx.config, ctx.prompt, userMessage, ctx.transcript);
     return true;
   } catch (e) {
-    return handleAiErrors(e);
+    return handleAiErrors(e, controller);
+  } finally {
+    // C-1: 成功/失敗/中断/早期 return いずれの場合も必ず release。
+    // sessionState.abortController に「今回作った controller」が入っている時のみ
+    // クリア（他経路で既に置き換えられている可能性に備える）。
+    if (controller && sessionState.abortController === controller) {
+      sessionState.abortController = null;
+    }
   }
 }
 
