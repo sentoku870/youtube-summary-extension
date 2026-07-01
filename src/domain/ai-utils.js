@@ -117,12 +117,27 @@ export function buildMetaContext(meta) {
 }
 
 // ===== 全体タイムアウトPromise =====
+// 戻り値: { promise, cancel }
+//   - promise: 一定時間後に YsTimeoutError で reject する Promise
+//   - cancel(): タイマーを解除し、promise を永遠に pending 状態にする。
+//     finally ブロックで必ず呼ぶこと（呼ばないと 180 秒後に
+//     Unhandled Rejection として記録される）。
 export function createTimeoutPromise() {
-  return new Promise(function (_, reject) {
-    setTimeout(function () {
+  let timeoutId = null;
+  const promise = new Promise(function (_, reject) {
+    timeoutId = setTimeout(function () {
       reject(
         new YsTimeoutError("処理がタイムアウトしました（" + GLOBAL_TIMEOUT_MS / 1000 + "秒）。")
       );
     }, GLOBAL_TIMEOUT_MS);
   });
+  return {
+    promise: promise,
+    cancel: function () {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    }
+  };
 }

@@ -31,7 +31,7 @@ const FINAL_MERGE_INSTRUCTION =
  * @param {Object} config
  * @param {AbortSignal} signal
  * @param {string} prompt
- * @param {Promise} timeoutPromise
+ * @param {{promise: Promise, cancel: Function}} timeoutPromise - createTimeoutPromise() の戻り値
  * @param {Element} [summaryTextEl]
  * @returns {Promise<string|null>} 統合された要約 or 全チャンク失敗時 null
  */
@@ -84,7 +84,7 @@ export async function processMapReduce(
   for (let i = 0; i < numWorkers; i++) {
     workers.push(worker());
   }
-  await Promise.race([Promise.allSettled(workers), timeoutPromise]);
+  await Promise.race([Promise.allSettled(workers), timeoutPromise.promise]);
 
   if (signal.aborted) {
     throw new DOMException("AbortError", "AbortError");
@@ -139,7 +139,7 @@ export async function processMapReduce(
         },
         signal
       ),
-      timeoutPromise
+      timeoutPromise.promise
     ]);
   } catch (e) {
     renderThrottled.flush("");

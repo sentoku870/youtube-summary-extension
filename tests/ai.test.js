@@ -202,9 +202,10 @@ describe("buildMetaContext", () => {
 describe("createTimeoutPromise", () => {
   test("YsTimeoutErrorでrejectする", async () => {
     jest.useFakeTimers();
-    const promise = createTimeoutPromise();
+    const { promise, cancel } = createTimeoutPromise();
     jest.advanceTimersByTime(180000);
     await expect(promise).rejects.toThrow(YsTimeoutError);
+    cancel();
     jest.useRealTimers();
   }, 1000);
 });

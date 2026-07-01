@@ -118,7 +118,7 @@ async function processSingleStream(messages, config, signal, summaryTextEl, time
         },
         signal
       ),
-      timeoutPromise
+      timeoutPromise.promise
     ]);
   } catch (e) {
     // エラー/中断時も保留中の描画を破棄して空フラッシュする
@@ -174,14 +174,16 @@ export async function callAI(mode, useAbort) {
 // 戻り値: { transcript, transcriptText, config, prompt, metaContext } または null
 async function prepareContext(mode) {
   const ui = UI();
-  const timeoutPromise = createTimeoutPromise();
+  const timeout = createTimeoutPromise();
 
   // 字幕取得（プリロード優先、なければ取得）
   let transcript = sessionState.preloadedTranscript;
   if (!transcript) {
     const fetcher = fetchTranscript();
-    transcript = await Promise.race([fetcher, timeoutPromise]);
+    transcript = await Promise.race([fetcher, timeout.promise]);
   }
+  // 取得経路のタイムアウト promise は不要になったので解放
+  timeout.cancel();
   if (!transcript || !transcript.all || transcript.all.length === 0) {
     showError("字幕が見つかりませんでした。");
     ui.hideProgress();
@@ -230,14 +232,19 @@ async function runSummary(ctx, signal, summaryTextEl) {
       { role: "user", content: baseUser }
     ];
     // processSingleStream は signal を見て中断を内部処理する
-    const timeoutPromise = createTimeoutPromise();
-    const accumulated = await processSingleStream(
-      messages,
-      config,
-      signal,
-      summaryTextEl,
-      timeoutPromise
-    );
+    const timeout = createTimeoutPromise();
+    let accumulated;
+    try {
+      accumulated = await processSingleStream(
+        messages,
+        config,
+        signal,
+        summaryTextEl,
+        timeout
+      );
+    } finally {
+      timeout.cancel();
+    }
     return { accumulated: accumulated, userMessage: baseUser };
   }
 
@@ -250,28 +257,38 @@ async function runSummary(ctx, signal, summaryTextEl) {
       { role: "system", content: prompt },
       { role: "user", content: baseUser }
     ];
-    const timeoutPromise = createTimeoutPromise();
-    const accumulated = await processSingleStream(
-      messages,
-      config,
-      signal,
-      summaryTextEl,
-      timeoutPromise
-    );
+    const timeout = createTimeoutPromise();
+    let accumulated;
+    try {
+      accumulated = await processSingleStream(
+        messages,
+        config,
+        signal,
+        summaryTextEl,
+        timeout
+      );
+    } finally {
+      timeout.cancel();
+    }
     return { accumulated: accumulated, userMessage: baseUser };
   }
 
   // --- Map-Reduce処理 ---
   ui.showProgress("チャンク処理を開始...");
-  const timeoutPromise = createTimeoutPromise();
-  const accumulated = await processMapReduce(
-    chunks,
-    config,
-    signal,
-    prompt,
-    timeoutPromise,
-    summaryTextEl
-  );
+  const timeout = createTimeoutPromise();
+  let accumulated;
+  try {
+    accumulated = await processMapReduce(
+      chunks,
+      config,
+      signal,
+      prompt,
+      timeout,
+      summaryTextEl
+    );
+  } finally {
+    timeout.cancel();
+  }
   ui.hideProgress();
   return { accumulated: accumulated === undefined ? null : accumulated, userMessage: baseUser };
 }

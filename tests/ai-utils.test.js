@@ -94,11 +94,34 @@ describe("ai-utils / buildMetaContext", () => {
 describe("ai-utils / createTimeoutPromise", () => {
   test("180秒後にYsTimeoutErrorでrejectする", async () => {
     jest.useFakeTimers();
-    const promise = createTimeoutPromise();
+    const { promise, cancel } = createTimeoutPromise();
     jest.advanceTimersByTime(180000);
     await expect(promise).rejects.toThrow(YsTimeoutError);
+    cancel();
     jest.useRealTimers();
   }, 1000);
+
+  test("cancel()を呼ぶとタイマーが解除されpromiseはpendingのまま", () => {
+    jest.useFakeTimers();
+    const { promise, cancel } = createTimeoutPromise();
+    cancel();
+    // 180秒進めてもrejectされないことを確認
+    jest.advanceTimersByTime(200000);
+    // pending状態 → resolve/reject判定ヘルパで検証
+    let settled = false;
+    promise.then(
+      function () {
+        settled = true;
+      },
+      function () {
+        settled = true;
+      }
+    );
+    jest.advanceTimersByTime(0);
+    expect(settled).toBe(false);
+    cancel();
+    jest.useRealTimers();
+  });
 });
 
 // ===== linkTimestamps =====
