@@ -15,8 +15,30 @@ import { get, set, remove, K } from "./storage-core.js";
 // A の要約が B タブの content として誤表示される致命的なバグがあった。
 // （B タブで再生成ボタンを押すと正常に動くのは、regenerate() が
 //   loadCachedSummary を経由しないため。）
+//
+// C-2: 長時間セッションで Map が際限なく増えるのを防ぐため、
+// エントリ数の上限 + LRU (挿入順ベース) で古いものから削除する。
+// Map は挿入順を保持するので、末尾に追加して先頭から溢れた分を削除する。
 const summaryCacheMemory = new Map();
 const SUMMARY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SUMMARY_CACHE_MAX_ENTRIES = 200;
+
+/**
+ * キャッシュに値を入れ、上限超過時は最も古いエントリを削除する。
+ * @param {string} key
+ * @param {Object} value
+ */
+function setWithLRU(key, value) {
+  // 同じキーで再 set すると挿入位置が末尾に移る (Map の仕様)。
+  // これにより LRU セマンティクスが成立する (再アクセス = 新しく使う)。
+  if (summaryCacheMemory.has(key)) summaryCacheMemory.delete(key);
+  summaryCacheMemory.set(key, value);
+  while (summaryCacheMemory.size > SUMMARY_CACHE_MAX_ENTRIES) {
+    const oldestKey = summaryCacheMemory.keys().next().value;
+    if (oldestKey === undefined) break;
+    summaryCacheMemory.delete(oldestKey);
+  }
+}
 
 function getCacheStorageKey(videoId, mode) {
   const safeMode = String(mode || "default").replace(/[^a-zA-Z0-9_-]/g, "");
@@ -42,7 +64,7 @@ export async function saveSummaryCache(videoId, mode, data) {
     transcriptCount: data.transcriptCount,
     timestamp: Date.now()
   };
-  summaryCacheMemory.set(memKey, value);
+  setWithLRU(memKey, value);
   await set({ [key]: value });
 }
 
@@ -67,7 +89,7 @@ export async function loadSummaryCache(videoId, mode) {
     await remove(key);
     return null;
   }
-  summaryCacheMemory.set(memKey, data);
+  setWithLRU(memKey, data);
   return data;
 }
 

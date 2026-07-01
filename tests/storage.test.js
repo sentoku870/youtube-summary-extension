@@ -616,6 +616,48 @@ describe("loadSummaryCache", () => {
   });
 });
 
+// ===== C-2: メモリキャッシュ LRU 上限 =====
+describe("summaryCacheMemory LRU 上限", () => {
+  beforeEach(() => {
+    chrome.storage.local.set.mockReset();
+    chrome.storage.local.get.mockReset();
+    storage.__resetSummaryCacheMemory();
+  });
+
+  test("上限を超えると最も古いエントリが削除される", async () => {
+    // 200 件入れても上限以下は維持される
+    chrome.storage.local.set.mockResolvedValue(undefined);
+    for (let i = 0; i < 210; i++) {
+      // 201件目以降で古いものが消える (200 が上限)
+      await storage.saveSummaryCache("video" + i, "summary", {
+        content: "c" + i,
+        modelLabel: "m",
+        transcriptCount: 1
+      });
+    }
+    // 古いエントリ (例: video0) はメモリにないため storage.get が呼ばれる
+    chrome.storage.local.get.mockResolvedValue({});
+    await storage.loadSummaryCache("video0", "summary");
+    expect(chrome.storage.local.get).toHaveBeenCalled();
+    // 新しいエントリ (例: video209) はメモリにあるため storage.get は呼ばれない
+    chrome.storage.local.get.mockClear();
+    await storage.loadSummaryCache("video209", "summary");
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+  });
+
+  test("再 set したキーは末尾に移り LRU セマンティクスが成立する", async () => {
+    chrome.storage.local.set.mockResolvedValue(undefined);
+    await storage.saveSummaryCache("videoA", "summary", { content: "A" });
+    await storage.saveSummaryCache("videoB", "summary", { content: "B" });
+    // 再度 videoA を set すると末尾に移る
+    await storage.saveSummaryCache("videoA", "summary", { content: "A2" });
+    chrome.storage.local.get.mockClear();
+    // videoA はメモリにある (get を呼ばない)
+    await storage.loadSummaryCache("videoA", "summary");
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+  });
+});
+
 // ===== clearSummaryCache =====
 describe("clearSummaryCache", () => {
   beforeEach(() => {
