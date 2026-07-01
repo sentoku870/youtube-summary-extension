@@ -569,9 +569,9 @@ describe("fetchWithRetry", () => {
     external.abort(); // 呼び出し時点で既に abort
     const options = { headers: {}, body: "{}", signal: external.signal };
 
-    await expect(
-      fetchWithRetry("https://api.test.com", options, 3)
-    ).rejects.toBeInstanceOf(YsAbortError);
+    await expect(fetchWithRetry("https://api.test.com", options, 3)).rejects.toBeInstanceOf(
+      YsAbortError
+    );
 
     expect(global.fetch).not.toHaveBeenCalled();
   });
