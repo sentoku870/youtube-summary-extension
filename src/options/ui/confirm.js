@@ -15,6 +15,11 @@ function closeModal(overlay) {
   if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
   if (activeOverlay === overlay) activeOverlay = null;
   document.removeEventListener("keydown", onKeydown);
+  // C-5: モーダルが閉じたら pagehide リスナーも外す
+  if (typeof overlay._onPageHide === "function") {
+    window.removeEventListener("pagehide", overlay._onPageHide);
+    overlay._onPageHide = null;
+  }
 }
 
 function onKeydown(e) {
@@ -98,6 +103,16 @@ export function confirmDialog(options) {
     document.body.appendChild(overlay);
     activeOverlay = overlay;
     document.addEventListener("keydown", onKeydown);
+    // C-5: ページ離脱 / BFCache 化で Promise が未確定のまま残るのを防ぐ。
+    // pagehide で false (キャンセル扱い) で resolve する。
+    const onPageHide = function () {
+      if (activeOverlay === overlay) {
+        closeModal(overlay);
+        resolve(false);
+      }
+    };
+    overlay._onPageHide = onPageHide;
+    window.addEventListener("pagehide", onPageHide);
     // requestAnimationFrame で次フレームにフォーカス。
     // 旧 setTimeout(0) よりレイアウト確定後にフォーカスされチラつきを抑える。
     // rAF 非対応環境では setTimeout(0) にフォールバック。

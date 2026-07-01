@@ -64,6 +64,15 @@ describe("message-handler", () => {
     });
   });
 
+  // ★ C-5: リスナーが removeListener 可能
+  test("__unregisterMessageListenerForTest で chrome.runtime.onMessage から removeListener される", () => {
+    const mockRemove = jest.fn();
+    global.chrome.runtime.onMessage.removeListener = mockRemove;
+    const { __unregisterMessageListenerForTest } = require("../src/content/ui/message-handler");
+    __unregisterMessageListenerForTest();
+    expect(mockRemove).toHaveBeenCalled();
+  });
+
   describe("ysGetTranscript", () => {
     test("パネル未生成 → createPanel / bindEvents / applyFontSize / applyTheme 呼ばれる", async () => {
       S.panelEl = null;

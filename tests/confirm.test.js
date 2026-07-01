@@ -152,4 +152,15 @@ describe("confirmDialog", () => {
       expect(r1).toBe(false);
     });
   });
+
+  // ★ C-5: pagehide イベントでモーダルが閉じて false で resolve される
+  test("pagehide イベントで pending Promise が false で resolve される", async () => {
+    const promise = confirmDialog({ message: "test" });
+    expect(document.querySelector(".ys-confirm-overlay")).not.toBeNull();
+    // pagehide 発火
+    window.dispatchEvent(new Event("pagehide"));
+    const result = await promise;
+    expect(result).toBe(false);
+    expect(document.querySelector(".ys-confirm-overlay")).toBeNull();
+  });
 });
