@@ -3,7 +3,7 @@
   "name": "YouTube 要約",
   "version": "1.0.0",
   "description": "YouTube動画の字幕を取得しAIで要約する拡張機能",
-  "permissions": ["storage", "activeTab", "tabs", "scripting"],
+  "permissions": ["storage", "activeTab", "tabs"],
   "host_permissions": [
     "*://*.youtube.com/*",
     "https://api.deepseek.com/*",
