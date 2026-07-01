@@ -23,7 +23,13 @@ jest.mock("../src/content/ui/ui.js", () => ({
   hideProgress: jest.fn()
 }));
 jest.mock("../src/content/ui/tabs.js", () => ({
-  updateTabActive: jest.fn()
+  updateTabActive: jest.fn(),
+  applyButtonTitles: jest.fn()
+}));
+
+const mockBindStorageListener = jest.fn();
+jest.mock("../src/content/ui/storage-listener.js", () => ({
+  bindStorageListener: mockBindStorageListener
 }));
 
 // location をスタブ化
@@ -43,6 +49,7 @@ describe("navigation", () => {
     window.location.href = "https://www.youtube.com/watch?v=test";
     window.location.hash = "";
     jest.clearAllMocks();
+    mockBindStorageListener.mockClear();
   });
 
   afterEach(() => {
@@ -217,6 +224,19 @@ describe("navigation", () => {
       nav.startNavigationDetection(onReinit);
       window.dispatchEvent(makePageShowEvent(false));
       expect(onReinit).not.toHaveBeenCalled();
+    });
+
+    // ★ B-1: BFCache 復元時、pagehide で外された chrome.storage.onChanged
+    // リスナーを再登録しないと、別タブでの設定変更が反映されない。
+    test("persisted=true 復元時に bindStorageListener が呼ばれて applyButtonTitles 監視が再開される", () => {
+      const onReinit = jest.fn();
+      mockBindStorageListener.mockClear();
+      nav.startNavigationDetection(onReinit);
+      window.dispatchEvent(makePageShowEvent(true));
+      expect(mockBindStorageListener).toHaveBeenCalled();
+      // 引数には関数（applyButtonTitles または同等の callback）が渡される
+      const arg = mockBindStorageListener.mock.calls[0][0];
+      expect(typeof arg).toBe("function");
     });
   });
 

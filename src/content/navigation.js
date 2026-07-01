@@ -13,8 +13,9 @@ import { uiState, sessionState, resetSession } from "../shared/state.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
 import { createLogger } from "../shared/logger.js";
 import { abortCurrentStream } from "../domain/ai.js";
-import { updateTabActive } from "./ui/tabs.js";
+import { applyButtonTitles, updateTabActive } from "./ui/tabs.js";
 import { clearSummaryContent, hideProgress } from "./ui/ui.js";
+import { bindStorageListener } from "./ui/storage-listener.js";
 import { TAB_IDS } from "../shared/constants.js";
 
 const log = createLogger("navigation");
@@ -98,6 +99,15 @@ function bindPageShowHandler() {
       log.log("BFCache から復元されました。再初期化します。");
       uiState.initialized = false;
       handleNavigation();
+      // B-1: pagehide で chrome.storage.onChanged リスナーが解除されているため、
+      // 復元時に applyButtonTitles を呼んでボタン表示とストレージ監視を再有効化する。
+      // bindStorageListener は冪等 (内部で旧リスナーを removeListener する) なので
+      // 安全に再呼び出し可能。
+      try {
+        bindStorageListener(applyButtonTitles);
+      } catch (e) {
+        log.warn("BFCache 復元時の storage listener 再登録に失敗:", e);
+      }
     }
   });
 }
