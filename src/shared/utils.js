@@ -82,16 +82,20 @@ export function getAvailableTokens(_text, modelName, maxTokens) {
 // ===== 1行をトークン制限内で強制分割（巨大行対策） =====
 // トークン見積もりは文字種ベースのため厳密ではないが、
 // 巨大行が1チャンクにまるごと入ってAPI上限を超える事態を防ぐ。
-function splitOversizedLine(line, maxTokens) {
+// C-3: UTF-16 の code unit 単位で substring すると surrogate pair の
+// 途中で切れて孤立サロゲートが生まれる。code point (Array.from) 単位で
+// 分割してから結合し、絵文字などを含む行でも壊れないようにする。
+export function splitOversizedLine(line, maxTokens) {
   const lineTokens = estimateTokens(line);
   if (lineTokens <= maxTokens) return [line];
 
   // 文字数ベースで逆算して安全な上限文字数を決める
   // （1文字あたり最大2トークンと見なして余裕を持たせる）
   const safeChars = Math.max(1, Math.floor(maxTokens / 2));
+  const codePoints = Array.from(line);
   const result = [];
-  for (let i = 0; i < line.length; i += safeChars) {
-    result.push(line.substring(i, i + safeChars));
+  for (let i = 0; i < codePoints.length; i += safeChars) {
+    result.push(codePoints.slice(i, i + safeChars).join(""));
   }
   return result;
 }

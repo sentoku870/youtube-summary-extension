@@ -5,6 +5,7 @@ const {
   estimateTokens,
   getModelContextWindow,
   getAvailableTokens,
+  splitOversizedLine,
   splitIntoChunks,
   isYouTubeWatchPage
 } = require("../src/shared/utils");
@@ -134,6 +135,50 @@ describe("splitIntoChunks", () => {
     const chunks = splitIntoChunks(text, maxTokens);
     for (const chunk of chunks) {
       expect(estimateTokens(chunk)).toBeLessThanOrEqual(maxTokens + 100); // 最終行のオーバー分を許容
+    }
+  });
+});
+
+// ===== splitOversizedLine (C-3: surrogate pair 保護) =====
+describe("splitOversizedLine", () => {
+  test("トークン制限内の行はそのまま返す", () => {
+    expect(splitOversizedLine("短い行", 100)).toEqual(["短い行"]);
+  });
+
+  test("長い行は分割される", () => {
+    const line = "あ".repeat(1000);
+    const result = splitOversizedLine(line, 10);
+    expect(result.length).toBeGreaterThan(1);
+    // 結合すると元の文字列に戻る
+    expect(result.join("")).toBe(line);
+  });
+
+  // ★ C-3: 絵文字 (surrogate pair) を含む行を分割しても孤立サロゲートが
+  // 生まれないことを確認する。
+  test("絵文字 (surrogate pair) を含む行を分割しても孤立サロゲートにならない", () => {
+    // 絵文字 🎉 (U+1F389) は UTF-16 で 2 code unit (surrogate pair) になる
+    const line = "🎉".repeat(20); // 20 code points = 40 code units
+    const result = splitOversizedLine(line, 4); // safeChars=2 → 2 code points ずつ
+    expect(result.length).toBe(10);
+    // 各チャンクがコードポイント単位で完全であることを確認
+    for (const part of result) {
+      // 2 code points ずつに切れている (絵文字 2 個 = 4 code units)
+      expect(Array.from(part).length).toBe(2);
+      expect(part).toBe("🎉🎉");
+      // 孤立サロゲート検出: コードポイント数の和が code unit 数と一致
+      // (不一致なら途中で切れている)
+      expect(part.length).toBe(4);
+    }
+  });
+
+  test("日本語と絵文字の混在行を分割しても内容が保持される", () => {
+    const line = "あ🎉い🎊う".repeat(100);
+    const result = splitOversizedLine(line, 4);
+    expect(result.join("")).toBe(line);
+    // 各チャンクに孤立サロゲートが含まれない
+    for (const part of result) {
+      // コードポイント数の和が元の和と一致
+      expect(Array.from(part).join("")).toBe(part);
     }
   });
 });
