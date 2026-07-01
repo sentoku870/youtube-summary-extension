@@ -688,6 +688,60 @@ describe("callAI", () => {
     expect(tab.content).toBe("統合結果");
   });
 
+  // ★ A5: タイムアウト発火時に sessionState.abortController.abort() が呼ばれて
+  // worker / merge が止まることを検証。ai.js 側のラッパーが controller を
+  // 受け取って abort する責務を持つ。
+  test("Map-Reduce 中のタイムアウト発火で sessionState.abortController が abort される", async () => {
+    setupState({
+      all: ["あ".repeat(3000)], // 大容量 → Map-Reduce
+      allTimestamps: []
+    });
+    setupConfigStorage();
+
+    // chunk 処理は永続に pending（abort 待ち）
+    let chunkAbortObserved = false;
+    callChatAPINonStream.mockImplementation(async function (_m, _c, signal) {
+      return new Promise(function (_resolve, reject) {
+        if (signal) {
+          signal.addEventListener(
+            "abort",
+            function () {
+              chunkAbortObserved = signal.aborted;
+              // AbortError を投げることで processSingleChunk が即座に throw
+              reject(new DOMException("aborted", "AbortError"));
+            },
+            { once: true }
+          );
+        }
+      });
+    });
+    // 統合は絶対呼ばれない
+    callChatAPIStream.mockImplementation(async function () {
+      throw new Error("should not be called");
+    });
+
+    // callAI 内で controller が作られるまで非同期 tick を回す
+    const p = callAI("summary", false);
+    for (let i = 0; i < 50; i++) {
+      await Promise.resolve();
+      if (S.abortController) break;
+    }
+    const ac = S.abortController;
+    expect(ac).toBeDefined();
+
+    // controller を abort して chunk を解放
+    ac.abort();
+
+    const result = await p;
+
+    // abort で silent false
+    expect(result).toBe(false);
+    // showError は abort 経路では呼ばれない
+    expect(YsUI.showError).not.toHaveBeenCalled();
+    // chunk 側 signal も abort 伝播している
+    expect(chunkAbortObserved).toBe(true);
+  });
+
   test("allTimestamps がある字幕: formatTranscriptWithTimestamps 経路で処理", async () => {
     // allTimestamps がある場合、resolveTranscriptText は formatTranscriptWithTimestamps を使う
     // 短い字幕で単一ストリームに

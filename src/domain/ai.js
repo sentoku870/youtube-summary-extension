@@ -156,10 +156,16 @@ export async function callAI(mode, useAbort) {
 
     // 2. AbortController 設定
     sessionState.abortController = new AbortController();
-    const signal = sessionState.abortController.signal;
+    const controller = sessionState.abortController;
+    const signal = controller.signal;
 
     // 3. 単一 or Map-Reduce を振り分け
-    const { accumulated, userMessage } = await runSummary(ctx, signal, summaryTextEl);
+    const { accumulated, userMessage } = await runSummary(
+      ctx,
+      controller,
+      signal,
+      summaryTextEl
+    );
     if (accumulated === null) return false; // Map-Reduce 全チャンク失敗
 
     // 4. 結果確定
@@ -216,7 +222,9 @@ async function prepareContext(mode) {
 // ===== 要約実行（単一 or Map-Reduce 振り分け） =====
 // 戻り値: { accumulated, userMessage }
 //   accumulated === null は Map-Reduce 全チャンク失敗（呼び元でハンドリング）
-async function runSummary(ctx, signal, summaryTextEl) {
+//   controller: 外部から渡される AbortController。タイムアウト時に abort() を呼んで
+//               worker 内の API コールを停止させるために必要。
+async function runSummary(ctx, controller, signal, summaryTextEl) {
   const ui = UI();
   const { transcriptText, config, prompt, metaContext } = ctx;
   // 出力予約分（max_tokens）も考慮して入力に使える上限を計算
@@ -276,6 +284,19 @@ async function runSummary(ctx, signal, summaryTextEl) {
   // --- Map-Reduce処理 ---
   ui.showProgress("チャンク処理を開始...");
   const timeout = createTimeoutPromise();
+  // タイムアウト発火時に controller を abort() して worker / merge を停止する。
+  // worker 内の processSingleChunk → callChatAPINonStream は同じ signal を
+  // 受け取っているため、abort された瞬間に次の API コールは即座に中断される。
+  const timeoutAbort = timeout.promise.catch(function (e) {
+    if (controller && !controller.signal.aborted) {
+      try {
+        controller.abort("timeout");
+      } catch {
+        /* ignore */
+      }
+    }
+    throw e;
+  });
   let accumulated;
   try {
     accumulated = await processMapReduce(
@@ -283,7 +304,7 @@ async function runSummary(ctx, signal, summaryTextEl) {
       config,
       signal,
       prompt,
-      timeout,
+      { promise: timeoutAbort, cancel: timeout.cancel.bind(timeout) },
       summaryTextEl
     );
   } finally {

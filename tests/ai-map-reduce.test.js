@@ -205,6 +205,56 @@ describe("processMapReduce", () => {
       // abort 後はworkerループが抜けるため、callCount は大きくならない
       expect(callCount).toBeLessThanOrEqual(5);
     });
+
+    // ★ A5: タイムアウト発火時に chunk ワーカーは signal が abort されることで
+    // 即座に YsTimeoutError で throw する。ai.js 側で controller.abort() を
+    // 呼ぶ責務を持つ (processMapReduce 単体テストでは ai.js のラッパーが
+    // 介在しないため、ここでは chunk 側の signal abort 伝播を検証する)。
+    test("タイムアウト発火時は chunk 側 signal を abort して merge をスキップ", async () => {
+      const { YsTimeoutError } = require("../src/infrastructure/errors");
+      const controller = new AbortController();
+      let chunkSignal = null;
+      api.callChatAPINonStream.mockImplementation(async function (_m, _c, signal) {
+        chunkSignal = signal;
+        return new Promise(function (_resolve, reject) {
+          if (signal) {
+            signal.addEventListener(
+              "abort",
+              function () {
+                reject(new YsTimeoutError("timeout"));
+              },
+              { once: true }
+            );
+          }
+        });
+      });
+      let mergeCalled = false;
+      api.callChatAPIStream.mockImplementation(async function () {
+        mergeCalled = true;
+        return "merged";
+      });
+
+      const timeout = {
+        promise: new Promise(function (_resolve, reject) {
+          setTimeout(function () {
+            // タイムアウト発火時に controller を abort する（ai.js と同じ責務）
+            controller.abort("timeout");
+            reject(new YsTimeoutError("全体タイムアウト"));
+          }, 30);
+        }),
+        cancel: jest.fn()
+      };
+
+      await expect(
+        processMapReduce(["chunk1", "chunk2"], config, controller.signal, "p", timeout)
+      ).rejects.toBeInstanceOf(YsTimeoutError);
+
+      // chunk 側 signal も abort されている
+      expect(chunkSignal).not.toBeNull();
+      expect(chunkSignal.aborted).toBe(true);
+      // merge は呼ばれない
+      expect(mergeCalled).toBe(false);
+    });
   });
 
   describe("チャンクワーカー", () => {

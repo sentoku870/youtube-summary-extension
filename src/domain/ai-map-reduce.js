@@ -84,7 +84,22 @@ export async function processMapReduce(
   for (let i = 0; i < numWorkers; i++) {
     workers.push(worker());
   }
-  await Promise.race([Promise.allSettled(workers), timeoutPromise.promise]);
+  // タイムアウト発火時に processMapReduce の引数で受け取った signal
+  // (呼び元 ai.js の sessionState.abortController.signal) は
+  // 外部からのみ abort 可能。processSingleChunk → callChatAPINonStream
+  // には同じ signal が伝わるため、processSingleChunk 内の YsAbortError/
+  // YsTimeoutError 判定 (A4 で追加) で worker が即時停止する。
+  // ここではタイムアウト例外を呼び元 (ai.js) に確実に伝播させる役割を担う。
+  const timeoutP = timeoutPromise && timeoutPromise.promise;
+  if (timeoutP) {
+    await Promise.race([Promise.allSettled(workers), timeoutP]).catch(function (e) {
+      // signal.aborted を経由して worker 側にも中断が伝播したあとに
+      // ここに来る。例外を上位に伝播させる。
+      throw e;
+    });
+  } else {
+    await Promise.allSettled(workers);
+  }
 
   if (signal.aborted) {
     throw new DOMException("AbortError", "AbortError");
@@ -97,6 +112,11 @@ export async function processMapReduce(
   if (chunkSummaries.length === 0) {
     ui.showError("すべてのチャンクの処理に失敗しました。");
     return null;
+  }
+
+  // チャンク要約は得られているが、タイムアウト/中断で merge には進めない
+  if (signal.aborted) {
+    throw new DOMException("AbortError", "AbortError");
   }
 
   // マージ用プロンプト構築
@@ -121,7 +141,7 @@ export async function processMapReduce(
     if (summaryTextEl) setMarkdown(summaryTextEl, text || "");
   }, STREAM_THROTTLE_MS);
   try {
-    await Promise.race([
+    const raceArgs = [
       callChatAPIStream(
         finalMessages,
         config,
@@ -138,12 +158,16 @@ export async function processMapReduce(
           if (summaryTextEl) linkTimestamps(summaryTextEl);
         },
         signal
-      ),
-      timeoutPromise.promise
-    ]);
+      )
+    ];
+    if (timeoutP) raceArgs.push(timeoutP);
+    await Promise.race(raceArgs);
   } catch (e) {
     renderThrottled.flush("");
     throw e;
+  }
+  if (signal.aborted) {
+    throw new DOMException("AbortError", "AbortError");
   }
   return accumulated;
 }
