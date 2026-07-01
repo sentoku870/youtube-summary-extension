@@ -161,12 +161,7 @@ export async function callAI(mode, useAbort) {
     const signal = controller.signal;
 
     // 3. 単一 or Map-Reduce を振り分け
-    const { accumulated, userMessage } = await runSummary(
-      ctx,
-      controller,
-      signal,
-      summaryTextEl
-    );
+    const { accumulated, userMessage } = await runSummary(ctx, controller, signal, summaryTextEl);
     if (accumulated === null) return false; // Map-Reduce 全チャンク失敗
 
     // 4. 結果確定

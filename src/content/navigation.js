@@ -159,10 +159,7 @@ function bindDomBridges() {
     // B-4: 同一 URL の短時間連発を 1 回の handleNavigation にまとめる。
     // 異なる URL の場合はガードを無視（通常の動画切替）。
     const now = Date.now();
-    if (
-      lastHandledUrl === payload.url &&
-      now - lastHandledAt < NAV_DEDUPE_WINDOW_MS
-    ) {
+    if (lastHandledUrl === payload.url && now - lastHandledAt < NAV_DEDUPE_WINDOW_MS) {
       log.log("NAV_FINISH dedupe: skip (same url within " + NAV_DEDUPE_WINDOW_MS + "ms)");
       return;
     }

@@ -1,17 +1,8 @@
 // tests/api.test.js — API層の単体テスト
-const {
-  callChatAPIStream,
-  callChatAPINonStream
-} = require("../src/domain/api");
-const {
-  fetchWithRetry,
-  handleErrorResponse
-} = require("../src/domain/api-retry");
+const { callChatAPIStream, callChatAPINonStream } = require("../src/domain/api");
+const { fetchWithRetry, handleErrorResponse } = require("../src/domain/api-retry");
 const { readStream } = require("../src/domain/api-stream");
-const {
-  buildAuthHeaders,
-  isOpenRouterUrl
-} = require("../src/domain/api-auth");
+const { buildAuthHeaders, isOpenRouterUrl } = require("../src/domain/api-auth");
 const { buildRequestConfig } = require("../src/domain/api-internals");
 
 // YsAPIError の参照（ステータス情報の検証用）

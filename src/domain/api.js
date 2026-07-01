@@ -3,14 +3,8 @@
 //  認証 (api-auth) / リトライ (api-retry) / SSE (api-stream) /
 //  リクエスト構築 (api-internals) を束ねて公開する。
 // ============================================================
-import {
-  API_MAX_RETRIES_STREAM,
-  API_MAX_RETRIES_NONSTREAM
-} from "../shared/constants.js";
-import {
-  fetchWithRetry,
-  handleErrorResponse
-} from "./api-retry.js";
+import { API_MAX_RETRIES_STREAM, API_MAX_RETRIES_NONSTREAM } from "../shared/constants.js";
+import { fetchWithRetry, handleErrorResponse } from "./api-retry.js";
 import { readStream } from "./api-stream.js";
 import { buildRequestConfig } from "./api-internals.js";
 
