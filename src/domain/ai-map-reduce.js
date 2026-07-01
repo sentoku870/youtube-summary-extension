@@ -8,6 +8,11 @@ import { setMarkdown } from "./markdown.js";
 import { MAX_CONCURRENCY, CHUNK_MAX_ATTEMPTS } from "../shared/constants.js";
 import { getUiAdapter } from "./ports.js";
 import { processSingleChunk } from "./ai-chunk.js";
+import { createRafThrottle } from "../shared/raf-throttle.js";
+import { linkTimestamps } from "./ai-utils.js";
+
+// ストリーミング描画のスロットル間隔。ai.js と揃える。
+const STREAM_THROTTLE_MS = 60;
 
 const CHUNK_WORKER_PROMPT_SUFFIX = "\n\nこれは動画の一部分です。";
 
@@ -110,20 +115,35 @@ export async function processMapReduce(
   ];
 
   let accumulated = "";
-  await Promise.race([
-    callChatAPIStream(
-      finalMessages,
-      config,
-      function (chunk) {
-        accumulated = chunk;
-        if (summaryTextEl) setMarkdown(summaryTextEl, accumulated);
-      },
-      function (fullText) {
-        accumulated = fullText || accumulated;
-      },
-      signal
-    ),
-    timeoutPromise
-  ]);
+  // 単一ストリームと同じくスロットル。長い統合結果で DOM が
+  // O(n²) 再構築にならないようにする。
+  const renderThrottled = createRafThrottle(function (text) {
+    if (summaryTextEl) setMarkdown(summaryTextEl, text || "");
+  }, STREAM_THROTTLE_MS);
+  try {
+    await Promise.race([
+      callChatAPIStream(
+        finalMessages,
+        config,
+        function (chunk) {
+          accumulated = chunk;
+          renderThrottled(accumulated);
+        },
+        function (fullText) {
+          accumulated = fullText || accumulated;
+          renderThrottled.flush(accumulated);
+          // T3-S1: 最終確定時にタイムスタンプをアンカー化する。
+          // finalizeResult 側の setSummaryContent 二度描きを廃止したため
+          // こちらで担当する。
+          if (summaryTextEl) linkTimestamps(summaryTextEl);
+        },
+        signal
+      ),
+      timeoutPromise
+    ]);
+  } catch (e) {
+    renderThrottled.flush("");
+    throw e;
+  }
   return accumulated;
 }

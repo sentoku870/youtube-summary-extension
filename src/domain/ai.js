@@ -23,11 +23,19 @@ import { fetchTranscript } from "./transcript.js";
 import {
   formatTranscriptWithTimestamps,
   buildMetaContext,
-  createTimeoutPromise
+  createTimeoutPromise,
+  linkTimestamps
 } from "./ai-utils.js";
 import { getUiAdapter } from "./ports.js";
 import { finalizeResult } from "./ai-finalize.js";
 import { handleAiErrors } from "./ai-errors.js";
+import { createRafThrottle } from "../shared/raf-throttle.js";
+
+// ストリーミング描画のスロットル間隔。
+// チャット (chat.js) と同じ 60ms。連続チャンクを 1 フレームにまとめ、
+// marked + DOMPurify + linkTimestamps の O(n²) 再描画による
+// 残像/ちらつきを抑える。
+const STREAM_THROTTLE_MS = 60;
 
 function UI() {
   return getUiAdapter();
@@ -81,23 +89,42 @@ export async function fetchConfigAndPrompt(mode) {
 }
 
 // ===== 単一ストリーム要約（トークン収まる場合） =====
+// チャンク到着ごと setMarkdown を呼ぶと、長文で marked + DOMPurify + innerHTML
+// 再構築が O(n²) 化するため、createRafThrottle で 1 フレームに 1 回まで間引く。
+// 完了時 flush() を呼んで保留中の最終描画を必ず反映する。
 async function processSingleStream(messages, config, signal, summaryTextEl, timeoutPromise) {
   let accumulated = "";
-  await Promise.race([
-    callChatAPIStream(
-      messages,
-      config,
-      function (chunk) {
-        accumulated = chunk;
-        if (summaryTextEl) setMarkdown(summaryTextEl, accumulated);
-      },
-      function (fullText) {
-        accumulated = fullText || accumulated;
-      },
-      signal
-    ),
-    timeoutPromise
-  ]);
+  const renderThrottled = createRafThrottle(function (text) {
+    if (summaryTextEl) setMarkdown(summaryTextEl, text || "");
+  }, STREAM_THROTTLE_MS);
+  try {
+    await Promise.race([
+      callChatAPIStream(
+        messages,
+        config,
+        function (chunk) {
+          accumulated = chunk;
+          renderThrottled(accumulated);
+        },
+        function (fullText) {
+          accumulated = fullText || accumulated;
+          // 完了時はスロットルを待たず即時1回確定描画する
+          renderThrottled.flush(accumulated);
+          // T3-S1: タイムスタンプリンクは最終確定時にだけ走らせる。
+          // ストリーミング中は raw [MM:SS] のまま表示し、完了時に
+          // アンカーへ置換する。旧 finalizeResult での setSummaryContent
+          // 二度描きを廃止したため、ここで linkTimestamps を直接呼ぶ。
+          if (summaryTextEl) linkTimestamps(summaryTextEl);
+        },
+        signal
+      ),
+      timeoutPromise
+    ]);
+  } catch (e) {
+    // エラー/中断時も保留中の描画を破棄して空フラッシュする
+    renderThrottled.flush("");
+    throw e;
+  }
   return accumulated;
 }
 

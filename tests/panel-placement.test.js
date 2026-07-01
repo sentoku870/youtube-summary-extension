@@ -337,4 +337,92 @@ describe("panel.js パネル配置 (placement)", () => {
       jest.useRealTimers();
     });
   });
+
+  // ===== T3-S1: ユーザー操作後の relocate 抑止 =====
+  describe("relocateWhenReady: ユーザー操作後の再配置スキップ", () => {
+    test("activeTab が立っている状態で secondary が出現しても body のまま固定される", async () => {
+      document.body.innerHTML = "";
+      // secondary なしで開始 → body フォールバック経路
+      jest.useFakeTimers();
+      const { placePanel } = require("../src/content/ui/panel-placement");
+      const panel = document.createElement("div");
+      const promise = placePanel(panel, 100);
+      // placePanel が body フォールバックするまで進める
+      await jest.advanceTimersByTimeAsync(150);
+      // この時点で panel は body 配下に置かれている
+      expect(panel.parentNode).toBe(document.body);
+
+      // ユーザーがすでにタブをクリックして activeTab セット済みをシミュレート
+      S.activeTab = "summary";
+
+      // secondary-inner を追加して MutationObserver を発火させる
+      const secondaryInner = document.createElement("div");
+      secondaryInner.id = "secondary-inner";
+      document.body.appendChild(secondaryInner);
+      // MutationObserver のマイクロタスクをフラッシュ
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // activeTab があるため relocateWhenReady は再配置しない
+      expect(panel.parentNode).toBe(document.body);
+      expect(panel.parentNode).not.toBe(secondaryInner);
+
+      await promise;
+      jest.useRealTimers();
+      // テスト後の状態を戻す
+      S.activeTab = null;
+    });
+
+    test("タブが generated 済みの状態では secondary 出現で再配置しない", async () => {
+      document.body.innerHTML = "";
+      jest.useFakeTimers();
+      const { placePanel } = require("../src/content/ui/panel-placement");
+      const panel = document.createElement("div");
+      const promise = placePanel(panel, 100);
+      await jest.advanceTimersByTimeAsync(150);
+      expect(panel.parentNode).toBe(document.body);
+
+      // いずれかのタブが生成済み（例: キャッシュ復元済み）状態を再現
+      S.tabs = { summary: { generated: true }, customA: {}, customB: {} };
+
+      const secondaryInner = document.createElement("div");
+      secondaryInner.id = "secondary-inner";
+      document.body.appendChild(secondaryInner);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // generated フラグでも relocate は抑止される
+      expect(panel.parentNode).toBe(document.body);
+
+      await promise;
+      jest.useRealTimers();
+      S.tabs = {};
+    });
+
+    test("ユーザー操作なし + 未生成なら通常通り secondary へ再配置される", async () => {
+      document.body.innerHTML = "";
+      jest.useFakeTimers();
+      const { placePanel } = require("../src/content/ui/panel-placement");
+      const panel = document.createElement("div");
+      const promise = placePanel(panel, 100);
+      await jest.advanceTimersByTimeAsync(150);
+      expect(panel.parentNode).toBe(document.body);
+
+      // activeTab=null, 全タブ未生成（既定状態）
+      S.activeTab = null;
+      S.tabs = {};
+
+      const secondaryInner = document.createElement("div");
+      secondaryInner.id = "secondary-inner";
+      document.body.appendChild(secondaryInner);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // 操作なしなら relocateWhenReady が再配置する
+      expect(panel.parentNode).toBe(secondaryInner);
+
+      await promise;
+      jest.useRealTimers();
+    });
+  });
 });

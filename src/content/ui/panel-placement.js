@@ -12,6 +12,7 @@
 //    - placePanel(panel) -> Promise<void>
 // ============================================================
 import { createLogger } from "../../shared/logger.js";
+import { uiState } from "../../shared/state.js";
 
 const log = createLogger("panel-placement");
 
@@ -127,7 +128,27 @@ function logPlacement(panel) {
 
 // ===== body フォールバック後、secondary 出現で再配置 =====
 function relocateWhenReady(panel) {
+  // ユーザーがすでにタブを操作しているか応答を見ている場合は、
+  // パネルを body のまま固定し #secondary への再配置は行わない。
+  // 移動の瞬間にレイアウトシフト → ストリーミング描画が「ぶれる/かぶる」現象を
+  // 起こすため。空タブのときだけ body → #secondary の自動昇格を許可する。
+  function isUserInteracted() {
+    if (uiState.activeTab) return true;
+    const tabs = uiState.tabs || {};
+    for (const id in tabs) {
+      if (Object.prototype.hasOwnProperty.call(tabs, id) && tabs[id] && tabs[id].generated) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   const obs = new MutationObserver(function () {
+    if (isUserInteracted()) {
+      log.log("ユーザー操作済みのためパネルの再配置をスキップします");
+      obs.disconnect();
+      return;
+    }
     const r = getWatchSecondary();
     if (r && r.source.indexOf("#secondary") !== -1 && panel.parentNode !== r.el) {
       let refNode = null;

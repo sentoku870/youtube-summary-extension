@@ -53,7 +53,12 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
 
   if (uiState.activeTab === mode) {
     ui.hideProgress();
-    ui.setSummaryContent(content);
+    // T3-S1: ストリームの最終チャンクで summaryTextEl は既に最新 content で
+    // 描画済み。setSummaryContent() を再度呼ぶと marked + DOMPurify +
+    // linkTimestamps がもう一度走って応答テキストが「一旦消えて再描画」
+    // する残像/ちらつきを起こすため、ここでは DOM 反映をスキップする。
+    // （タブ切替や再生成など、別経路で再描画するケースは renderTabContent
+    //  / setSummaryRaw 側に委譲する）
     ui.updateInfoLabel(
       "使用モデル: " + config.apiModel + " | 字幕 " + transcript.all.length + " 件"
     );

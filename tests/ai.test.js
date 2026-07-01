@@ -262,8 +262,15 @@ describe("finalizeResult", () => {
     finalizeResult("summary", tab, "text", config, "prompt", "msg", transcript);
 
     expect(YsUI.hideProgress).toHaveBeenCalled();
-    expect(YsUI.setSummaryContent).toHaveBeenCalledWith("text");
+    // T3-S1: ストリーミング経路では setMarkdown + linkTimestamps は
+    // processSingleStream / processMapReduce の onDone で行うため、
+    // finalizeResult 側で setSummaryContent を呼ぶと DOM の二度描き
+    // （残像/ちらつきの原因）になる。情報ラベル・ボタン類のみ更新する。
+    expect(YsUI.setSummaryContent).not.toHaveBeenCalled();
+    expect(YsUI.updateInfoLabel).toHaveBeenCalled();
     expect(YsUI.showChatArea).toHaveBeenCalled();
+    expect(YsUI.showCopyButton).toHaveBeenCalled();
+    expect(YsUI.showRegenButton).toHaveBeenCalled();
     expect(YsTabs.updateTabUI).toHaveBeenCalled();
   });
 
@@ -484,7 +491,11 @@ describe("callAI", () => {
     expect(tab.chatHistory).toHaveLength(3);
     expect(tab.chatHistory[2].content).toBe("最終的な要約");
     // UI表示の呼び出し
-    expect(YsUI.setSummaryContent).toHaveBeenCalledWith("最終的な要約");
+    // T3-S1: ストリーミング経路では setMarkdown + linkTimestamps は
+    // processSingleStream の onDone で確定済み。finalizeResult は
+    // 情報ラベル・チャット・コピー/再生成ボタンの表示更新のみ担当する。
+    expect(YsUI.setSummaryContent).not.toHaveBeenCalled();
+    expect(YsUI.updateInfoLabel).toHaveBeenCalled();
     expect(YsUI.showChatArea).toHaveBeenCalled();
     expect(YsUI.showCopyButton).toHaveBeenCalled();
     expect(YsUI.showRegenButton).toHaveBeenCalled();
@@ -797,5 +808,131 @@ describe("callAI", () => {
       return call[0] && call[0]["summary_cache_abc123XYZ45_summary"];
     });
     expect(found).toBe(true);
+  });
+});
+
+// ===== T3-S1: ストリーミング描画のスロットルと linkTimestamps 確定 =====
+describe("callAI: ストリーミング描画のスロットルと linkTimestamps 確定", () => {
+  // 別 describe で setMarkdown / linkTimestamps をモックするため、
+  // 先に require していた ai.js バインドをリセットする必要がある。
+  // ここでは setMarkdown / linkTimestamps のみ差し替える。
+  let setMarkdownSpy;
+  let linkTimestampsSpy;
+  let originalGetSummaryTextEl;
+
+  function setupState(transcript) {
+    U.activeTab = "summary";
+    U.tabs = {
+      summary: {
+        generated: false,
+        content: "",
+        config: null,
+        modelLabel: "",
+        transcriptCount: 0,
+        chatHistory: []
+      }
+    };
+    S.abortController = null;
+    S.videoMeta = null;
+    S.transcriptText = "";
+    S.preloadedTranscript = transcript;
+    Object.defineProperty(window, "location", {
+      value: {
+        href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        search: "?v=dQw4w9WgXcQ",
+        pathname: "/watch"
+      },
+      writable: true,
+      configurable: true
+    });
+  }
+
+  function setupConfigStorage() {
+    const db = {
+      apiConfigs: [{ id: "cfg1", apiKey: "key1", apiModel: "gpt-4", maxTokens: "4096" }],
+      btnApiConfig_summary: "cfg1",
+      prompt_summary: "カスタムプロンプト"
+    };
+    chrome.storage.local.get.mockImplementation(async function (key) {
+      if (key === null || key === undefined) return db;
+      if (Object.prototype.hasOwnProperty.call(db, key)) {
+        return { [key]: db[key] };
+      }
+      return {};
+    });
+    chrome.storage.local.set.mockResolvedValue(undefined);
+    chrome.storage.local.remove.mockResolvedValue(undefined);
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    callChatAPIStream.mockReset();
+    callChatAPINonStream.mockReset();
+    chrome.storage.local.get.mockReset();
+    chrome.storage.local.set.mockReset();
+    chrome.storage.local.remove.mockReset();
+
+    // ai.js は同モジュールを1度だけロードするため、spy は require 後に
+    // プロパティを差し替える方式で注入する。
+    const markdownMod = require("../src/domain/markdown");
+    const aiUtilsMod = require("../src/domain/ai-utils");
+    setMarkdownSpy = jest.spyOn(markdownMod, "setMarkdown").mockImplementation(function () {});
+    linkTimestampsSpy = jest.spyOn(aiUtilsMod, "linkTimestamps").mockImplementation(function () {});
+
+    // summaryTextEl として実 DOM を返すように差し替え
+    originalGetSummaryTextEl = global.YsPanel.getEl;
+    const realEl = document.createElement("div");
+    realEl.id = "ys-summaryText";
+    global.YsPanel.getEl = jest.fn(function () {
+      return realEl;
+    });
+  });
+
+  afterEach(() => {
+    setMarkdownSpy.mockRestore();
+    linkTimestampsSpy.mockRestore();
+    global.YsPanel.getEl = originalGetSummaryTextEl;
+  });
+
+  test("onDone 時に linkTimestamps が summaryTextEl に対して呼ばれる", async () => {
+    setupState({ all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage();
+
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
+      onChunk("途中");
+      onDone("最終 [00:01] リンク対象");
+    });
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(true);
+
+    // T3-S1: 最終確定時にタイムスタンプがアンカー化される
+    expect(linkTimestampsSpy).toHaveBeenCalled();
+    const arg = linkTimestampsSpy.mock.calls[0][0];
+    expect(arg.id).toBe("ys-summaryText");
+  });
+
+  test("連続チャンクでも setMarkdown の呼び出しは間引かれる（スロットル動作）", async () => {
+    setupState({ all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage();
+
+    // 60ms 未満に 5 チャンクを集中させて到着させる
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
+      onChunk("chunk1");
+      onChunk("chunk2");
+      onChunk("chunk3");
+      onChunk("chunk4");
+      onDone("chunk5-final");
+    });
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(true);
+
+    // スロットル無しの旧実装なら 5 回 + 完了時で 6 回。
+    // スロットル (60ms 間隔) なら最初の 1 回 + flush 1 回 ≒ 2 回程度に
+    // 抑制されるはず。実装の詳細は環境に依存するため緩めに検証。
+    const callCount = setMarkdownSpy.mock.calls.length;
+    expect(callCount).toBeGreaterThanOrEqual(1);
+    expect(callCount).toBeLessThanOrEqual(4);
   });
 });

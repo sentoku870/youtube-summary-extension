@@ -192,5 +192,34 @@ describe("panel", () => {
       expect(btnCustomA.disabled).toBe(false);
       expect(btnCustomB.disabled).toBe(false);
     });
+
+    // ===== T3-S1: スタイル適用が placePanel 完了前に走る =====
+    describe("T3-S1: スタイル即時適用", () => {
+      const {
+        applyTheme,
+        applyFontSize,
+        applyPanelHeight
+      } = require("../src/content/ui/appearance");
+
+      test("createPanel 呼び出し時点で applyTheme/Font/PanelHeight が同期的に発火する", () => {
+        // createPanel は placePanel の解決を待たず、appearance 関数を即座に呼ぶ
+        createPanel();
+
+        expect(applyTheme).toHaveBeenCalledTimes(1);
+        expect(applyFontSize).toHaveBeenCalledTimes(1);
+        expect(applyPanelHeight).toHaveBeenCalledTimes(1);
+      });
+
+      test("placePanel が解決する前のタイマー段階でも apply* は呼ばれている", () => {
+        // fakeTimers で placePanel の polling を進めていない状態を作る
+        createPanel();
+
+        // placePanel は async (waitForSecondary の setTimeout で待機中) のはず
+        // その前段で appearance は完了している
+        expect(applyTheme).toHaveBeenCalled();
+        expect(applyFontSize).toHaveBeenCalled();
+        expect(applyPanelHeight).toHaveBeenCalled();
+      });
+    });
   });
 });

@@ -108,15 +108,18 @@ export function createPanel() {
   const btnSummary = getEl("#ys-btn-summary");
   if (btnSummary) btnSummary.textContent = "⏳ 字幕取得中...";
 
+  // T3-S1: スタイル（テーマ/フォントサイズ/パネル高さ）は配置 (placePanel) の
+  // 完了を待たず即座に適用を開始する。appearance.js は uiState.panelEl を
+  // 直接参照するため、DOM 挿入前でも安全に CSS 変数をセットできる。
+  // 旧実装では placePanel の解決を待つため、ユーザーが高速でボタンを押した
+  // ときに「未スタイル → スタイル適用」の 2 段レイアウトで応答がちらついて
+  // いた（残像/かぶりの原因）。
+  applyTheme();
+  applyFontSize();
+  applyPanelHeight();
+
   // 配置（非同期：#secondary が現れるまで待ってから配置）
-  // テーマ・フォントサイズは「配置完了後」に適用する
-  // （applyTheme/applyFontSize が document.querySelector で要素を探すため、
-  //   挿入前に呼ぶと null になり適用されないバグを修正）
-  placePanel(S.panelEl).then(function () {
-    applyTheme();
-    applyFontSize();
-    applyPanelHeight();
-  });
+  placePanel(S.panelEl);
 
   return S.panelEl;
 }
