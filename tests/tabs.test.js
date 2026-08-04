@@ -405,6 +405,7 @@ describe("tabs", () => {
 
     // 回帰防止: tab.generated=true 切替時に scrollContentTop が呼ばれる
     test("tab.generated=true 切替時に requestAnimationFrame 経由で scrollContentTop が呼ばれる", async () => {
+      jest.useFakeTimers();
       S.tabs.summary.generated = true;
       S.tabs.summary.content = "x";
       // content-area を取得し、scrollTop セッターをスパイ。
@@ -420,11 +421,10 @@ describe("tabs", () => {
         configurable: true
       });
       await switchTab("summary");
-      // RAF ポリフィル (setTimeout(cb, 0)) の発火を待つ
-      await new Promise(function (resolve) {
-        setTimeout(resolve, 50);
-      });
+      // RAF ポリフィル (setTimeout(cb, 0)) を発火させる
+      jest.runAllTimers();
       expect(setSpy).toHaveBeenCalledWith(0);
+      jest.useRealTimers();
     });
 
     // 回帰防止: switchTab() の冒頭で必ず進行中のストリームを中断する
