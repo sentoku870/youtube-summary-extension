@@ -171,15 +171,6 @@ describe("version / getAppGitCommit", () => {
     expect(commit).toBeNull();
   });
 
-  test("本番パス（動的 import 失敗時）は null", async () => {
-    mockChrome = undefined;
-    loadVersion();
-    __setBuildInfoForTest(undefined);
-    const commit = await getAppGitCommit();
-    // 動的 import の結果次第（null か string）両方の可能性がある
-    expect(commit === null || typeof commit === "string").toBe(true);
-  });
-
   test("gitCommit が空文字のとき null", async () => {
     mockChrome = undefined;
     loadVersion();

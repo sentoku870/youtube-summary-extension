@@ -872,7 +872,10 @@ describe("tabs", () => {
 
   // ===== onChatSend (DOM イベント経由) =====
   describe("onChatSend (keydown Enter)", () => {
-    test("空テキストでは no-op", () => {
+    // 注: 以下の正常系・各種エラー系の網羅テストは tests/chat.test.js に集約。
+    // tabs.test.js ではイベントハンドラの橋渡し（bindEvents → onChatSend 起動）に
+    // 特化したテストのみ残す。
+    test("空テキストでは no-op（preventDefault はされるが API 呼ばれず）", () => {
       bindEvents();
       const chatInput = getEl("#ys-chatInput");
       chatInput.value = "";
@@ -884,104 +887,10 @@ describe("tabs", () => {
         cancelable: true
       });
       chatInput.dispatchEvent(event);
-      // onChatSend は呼ばれるが早期 return
-      // e.preventDefault() は onChatSend 呼び出し前にあるので preventDefault される
+      // onChatSend は呼ばれるが早期 return するため preventDefault される
       expect(event.defaultPrevented).toBe(true);
       // api モジュールは呼ばれない
       expect(api.callChatAPIStream).not.toHaveBeenCalled();
-    });
-
-    test("tab.generated=false の場合「先に要約を生成してください」エラー", async () => {
-      bindEvents();
-      S.activeTab = "summary";
-      S.tabs.summary.generated = false;
-      const chatInput = getEl("#ys-chatInput");
-      chatInput.value = "質問";
-
-      chatInput.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "Enter",
-          shiftKey: false,
-          isComposing: false,
-          bubbles: true,
-          cancelable: true
-        })
-      );
-      await flushPromises();
-
-      const calls = mockAppendChatMessage.mock.calls;
-      const lastAssistantCall = calls
-        .filter(function (c) {
-          return c[0] === "assistant";
-        })
-        .pop();
-      expect(lastAssistantCall).toBeDefined();
-      expect(lastAssistantCall[1]).toEqual(expect.stringContaining("先に要約"));
-    });
-
-    test("resolveApiConfig が null の場合「API 設定がされていません」エラー", async () => {
-      bindEvents();
-      S.activeTab = "summary";
-      S.tabs.summary.generated = true;
-      S.tabs.summary.config = null;
-      ai.resolveApiConfig.mockResolvedValue(null);
-      const chatInput = getEl("#ys-chatInput");
-      chatInput.value = "質問";
-
-      chatInput.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "Enter",
-          shiftKey: false,
-          isComposing: false,
-          bubbles: true,
-          cancelable: true
-        })
-      );
-      await flushPromises();
-      await flushPromises();
-
-      // updateChatMessageBody が呼ばれ、エラーメッセージを含む
-      expect(ui.updateChatMessageBody).toHaveBeenCalled();
-      const lastCall =
-        ui.updateChatMessageBody.mock.calls[ui.updateChatMessageBody.mock.calls.length - 1];
-      expect(lastCall[1]).toEqual(expect.stringContaining("API設定がされていません"));
-    });
-
-    test("正常系: ストリーミングで chatHistory に user/assistant が push される", async () => {
-      bindEvents();
-      S.activeTab = "summary";
-      S.tabs.summary.generated = true;
-      S.tabs.summary.config = { apiKey: "k", apiUrl: "u", apiModel: "m" };
-      S.tabs.summary.chatHistory = [
-        { role: "system", content: "sys" },
-        { role: "user", content: "prompt" },
-        { role: "assistant", content: "answer" }
-      ];
-      api.callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
-        onChunk("回答テキスト");
-        onDone("回答テキスト");
-      });
-      const chatInput = getEl("#ys-chatInput");
-      chatInput.value = "質問";
-
-      chatInput.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "Enter",
-          shiftKey: false,
-          isComposing: false,
-          bubbles: true,
-          cancelable: true
-        })
-      );
-      await flushPromises();
-      await flushPromises();
-
-      // chatHistory に user と assistant が追加
-      expect(S.tabs.summary.chatHistory.length).toBe(5);
-      expect(S.tabs.summary.chatHistory[3].role).toBe("user");
-      expect(S.tabs.summary.chatHistory[3].content).toBe("質問");
-      expect(S.tabs.summary.chatHistory[4].role).toBe("assistant");
-      expect(S.tabs.summary.chatHistory[4].content).toBe("回答テキスト");
     });
   });
 
