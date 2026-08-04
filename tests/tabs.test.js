@@ -1114,19 +1114,4 @@ describe("tabs", () => {
       expect(callAI).toHaveBeenCalled();
     });
   });
-
-  describe("scrollContentTop: #ys-content-area がない場合", () => {
-    test("area がなければ何もしない（クラッシュしない）", () => {
-      buildPanelDOM();
-      // #ys-content-area を削除
-      const area = document.getElementById("ys-content-area");
-      if (area) area.remove();
-      // scrollContentTop は内部関数だが switchTab 経由でテスト可能
-      // ここではクラッシュしないことだけ確認
-      expect(() => {
-        const ev = new Event("test");
-        document.dispatchEvent(ev);
-      }).not.toThrow();
-    });
-  });
 });

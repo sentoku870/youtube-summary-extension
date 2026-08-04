@@ -221,13 +221,18 @@ describe("button-card", () => {
       const input = document.getElementById("btnTitle_summary");
       input.value = "FlushTitle";
       fireInput(input);
-      // タイマーは進めるが flush で先に処理
       jest.advanceTimersByTime(100);
       await flushAllSaves();
       await Promise.resolve();
       const lastCall = set.mock.calls[set.mock.calls.length - 1][0];
       expect(lastCall.btnTitle_summary).toBe("FlushTitle");
       jest.useRealTimers();
+    });
+
+    test("タイマー未設定時の flushAllSaves は noop", async () => {
+      initButtonCards();
+      // タイマーを設定しないで flush
+      await expect(flushAllSaves()).resolves.toBeUndefined();
     });
   });
 
@@ -289,26 +294,6 @@ describe("button-card", () => {
       sel.value = "";
       await refreshButtonModelSelects();
       expect(sel.value).toBe("");
-    });
-  });
-
-  describe("flushAllSaves", () => {
-    test("保留中のタイマーを即時コミット", async () => {
-      initButtonCards();
-      const promptEl = document.getElementById("prompt_summary");
-      promptEl.value = "new value";
-      // タイマーを設定
-      promptEl.dispatchEvent(new Event("input"));
-      // 即時コミット
-      const bc = require("../src/options/button-card.js");
-      await expect(bc.flushAllSaves()).resolves.toBeUndefined();
-    });
-
-    test("タイマー未設定時の flushAllSaves は noop", async () => {
-      initButtonCards();
-      const bc = require("../src/options/button-card.js");
-      // タイマーを設定しないで flush
-      await expect(bc.flushAllSaves()).resolves.toBeUndefined();
     });
   });
 

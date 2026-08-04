@@ -18,7 +18,8 @@ const {
   showProgress,
   hideProgress,
   focusChatInput,
-  clearChatHistory
+  clearChatHistory,
+  setSummaryRaw
 } = require("../src/content/ui/ui");
 const { getEl } = require("../src/content/ui/panel");
 const { setMarkdown } = require("../src/domain/markdown");
@@ -349,8 +350,6 @@ describe("ui", () => {
   });
 
   describe("setSummaryRaw", () => {
-    const { setSummaryRaw } = require("../src/content/ui/ui");
-
     test("要素の textContent にプレーンテキストを設定する", () => {
       const summaryEl = document.createElement("div");
       summaryEl.innerHTML = "<p>古い内容</p>";
