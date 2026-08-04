@@ -1,18 +1,10 @@
 // tests/storage.test.js — ストレージ層の単体テスト
+const helpers = require("./__helpers__/index.cjs");
 const storage = require("../src/infrastructure/storage");
 const storageCore = require("../src/infrastructure/storage-core");
 
 // chrome.storage.local のモック（runtime.idも含めないと isExtensionContextValid() がfalseになる）
-global.chrome = {
-  runtime: { id: "test-extension-id" },
-  storage: {
-    local: {
-      get: jest.fn(),
-      set: jest.fn(),
-      remove: jest.fn()
-    }
-  }
-};
+helpers.installChromeMock();
 
 describe("storage-core: コンテキスト無効時の挙動", () => {
   beforeEach(() => {

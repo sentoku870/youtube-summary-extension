@@ -35,16 +35,8 @@ global.YsTabs = {
 
 // chrome.storage.local のモック（require前に設定）
 // runtime.id も含めないと isExtensionContextValid() がfalseになりstorage操作が全てスキップされる
-global.chrome = {
-  runtime: { id: "test-extension-id" },
-  storage: {
-    local: {
-      get: jest.fn(),
-      set: jest.fn(),
-      remove: jest.fn()
-    }
-  }
-};
+const helpers = require("./__helpers__/index.cjs");
+helpers.installChromeMock();
 
 // モジュールをrequire
 require("../src/infrastructure/errors");
@@ -407,55 +399,13 @@ describe("abortCurrentStream", () => {
 // callAI はドメイン層のメインオーケストレーション関数。
 // api.js は jest.mock で、transcript は state.preloadedTranscript 経由で、
 // storage は chrome.storage.local で、それぞれモック化済み。
+const {
+  setupCallAIState: setupState,
+  setupCallAIConfigStorage: setupConfigStorage
+} = require("./__helpers__/ai-test-helpers.cjs");
+
 describe("callAI", () => {
-  // callAI 用の共通セットアップ
-  function setupState(transcript) {
-    U.activeTab = "summary";
-    U.tabs = {
-      summary: {
-        generated: false,
-        content: "",
-        config: null,
-        modelLabel: "",
-        transcriptCount: 0,
-        chatHistory: []
-      }
-    };
-    S.abortController = null;
-    S.videoMeta = null;
-    S.transcriptText = "";
-    S.preloadedTranscript = transcript;
-
-    // saveSummaryCache が window.location.search を参照するため設定
-    Object.defineProperty(window, "location", {
-      value: {
-        href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        search: "?v=dQw4w9WgXcQ",
-        pathname: "/watch"
-      },
-      writable: true,
-      configurable: true
-    });
-  }
-
-  // API設定とプロンプトの解決に成功するよう chrome.storage を設定
-  // キー指定のモック（順序非依存）。Promise.all 化で呼び出し順序が変わるため
-  // mockImplementation ベースにする。
-  function setupConfigStorage() {
-    const db = {
-      apiConfigs: [{ id: "cfg1", apiKey: "key1", apiModel: "gpt-4", maxTokens: "4096" }],
-      btnApiConfig_summary: "cfg1",
-      prompt_summary: "カスタムプロンプト"
-    };
-    chrome.storage.local.get.mockImplementation(async function (key) {
-      if (key === null || key === undefined) return db;
-      if (Object.prototype.hasOwnProperty.call(db, key)) {
-        return { [key]: db[key] };
-      }
-      return {};
-    });
-    chrome.storage.local.set.mockResolvedValue(undefined);
-  }
+  // 共通セットアップは __helpers__/ai-test-helpers.cjs に集約
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -468,12 +418,12 @@ describe("callAI", () => {
 
   test("単一ストリーム成功: 字幕→設定解決→ストリーミング→finalize", async () => {
     // 短い字幕（gpt-4 なら available=2457、これより小さく単一ストリーム）
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)], // 約1000トークン < 2457
       allTimestamps: [],
       meta: { title: "テスト動画" }
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onChunk("途中の要約");
@@ -507,11 +457,11 @@ describe("callAI", () => {
 
   test("Map-Reduceパス: 字幕が長大な場合はチャンク分割して統合", async () => {
     // gpt-4 (available=2457) を超える長さ
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(2000)], // 約4000トークン > 2457
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     // 各チャンク要約を返す
     callChatAPINonStream.mockResolvedValue("チャンク要約");
@@ -534,8 +484,8 @@ describe("callAI", () => {
   });
 
   test("字幕が空の場合はshowErrorでfalseを返す", async () => {
-    setupState({ all: [], allTimestamps: [] });
-    setupConfigStorage();
+    setupState(U, S, { all: [], allTimestamps: [] });
+    setupConfigStorage(chrome);
 
     const result = await callAI("summary", false);
 
@@ -545,7 +495,7 @@ describe("callAI", () => {
   });
 
   test("API設定が未解決の場合はshowErrorでfalseを返す", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(100)],
       allTimestamps: []
     });
@@ -561,11 +511,11 @@ describe("callAI", () => {
   });
 
   test("callChatAPIStreamがYsAbortErrorでrejectされた場合はfalseを返す", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     callChatAPIStream.mockRejectedValue(new YsAbortError("中断されました"));
 
@@ -576,11 +526,11 @@ describe("callAI", () => {
   });
 
   test("callChatAPIStreamがYsTimeoutErrorでrejectされた場合はfalseを返す", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     callChatAPIStream.mockRejectedValue(new YsTimeoutError("タイムアウトしました"));
 
@@ -591,11 +541,11 @@ describe("callAI", () => {
   });
 
   test("callChatAPIStreamがYsAPIErrorでrejectされた場合はshowErrorでfalseを返す", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     callChatAPIStream.mockRejectedValue(new YsAPIError("APIエラー発生", 500, ""));
 
@@ -608,11 +558,11 @@ describe("callAI", () => {
   });
 
   test("DOMException AbortErrorの場合はサイレントにfalseを返す（showErrorなし）", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     const abortErr = new DOMException("aborted", "AbortError");
     callChatAPIStream.mockRejectedValue(abortErr);
@@ -625,11 +575,11 @@ describe("callAI", () => {
   });
 
   test("useAbort=trueの場合は既存のAbortControllerを中断してから開始する", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     const abortSpy = jest.fn();
     S.abortController = { abort: abortSpy };
@@ -645,11 +595,11 @@ describe("callAI", () => {
 
   // ===== 追加: Map-Reduce の失敗系と allTimestamps 経路 =====
   test("Map-Reduce全チャンク失敗: showError で false を返す", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(2000)], // 約4000トークン
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     // すべてのチャンク要約が null (processSingleChunk が maxAttempts 到達で失敗)
     callChatAPINonStream.mockResolvedValue(null);
@@ -668,11 +618,11 @@ describe("callAI", () => {
 
   // ★ C-1: callAI finally で sessionState.abortController が null 化される
   test("Map-Reduce全チャンク失敗時: sessionState.abortController は null に戻される", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(2000)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
     callChatAPINonStream.mockResolvedValue(null);
     callChatAPIStream.mockImplementation(async function () {
       throw new Error("should not be called");
@@ -685,11 +635,11 @@ describe("callAI", () => {
 
   // ★ C-1: 成功時も abortController が null 化される
   test("正常完了時も sessionState.abortController は null に戻される", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
     callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onDone("ok");
     });
@@ -700,11 +650,11 @@ describe("callAI", () => {
   });
 
   test("Map-Reduce 一部チャンク失敗: 成功した分だけで統合", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(3000)], // 大容量
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     // 最初のリトライで成功 → リトライはスキップされる
     callChatAPINonStream.mockResolvedValue("部分要約");
@@ -725,11 +675,11 @@ describe("callAI", () => {
   // worker / merge が止まることを検証。ai.js 側のラッパーが controller を
   // 受け取って abort する責務を持つ。
   test("Map-Reduce 中のタイムアウト発火で sessionState.abortController が abort される", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(3000)], // 大容量 → Map-Reduce
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     // chunk 処理は永続に pending（abort 待ち）
     let chunkAbortObserved = false;
@@ -778,7 +728,7 @@ describe("callAI", () => {
   test("allTimestamps がある字幕: formatTranscriptWithTimestamps 経路で処理", async () => {
     // allTimestamps がある場合、resolveTranscriptText は formatTranscriptWithTimestamps を使う
     // 短い字幕で単一ストリームに
-    setupState({
+    setupState(U, S, {
       all: ["fallback"],
       allTimestamps: [
         { text: "あ", offset: 0 },
@@ -787,7 +737,7 @@ describe("callAI", () => {
       ],
       meta: { title: "t" }
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       // messages の user content に [00:00] 形式が含まれることを確認
@@ -805,11 +755,11 @@ describe("callAI", () => {
   });
 
   test("中断系: '中断' メッセージだけでは showError が呼ばれる（文字列判定廃止）", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     // 旧: 文字列 "中断" で silent false だったが、型/フラグ判定に変更
     callChatAPIStream.mockRejectedValue(new Error("処理が中断されました"));
@@ -823,11 +773,11 @@ describe("callAI", () => {
   });
 
   test("中断系: signal.aborted 時にサイレント false", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     // callAI 実行後に abortController.signal を abort する特殊実装
     callChatAPIStream.mockImplementation(async function () {
@@ -845,11 +795,11 @@ describe("callAI", () => {
   });
 
   test("window.location の videoId 抽出: 通常の watch URL から保存", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onDone("要約");
@@ -868,11 +818,11 @@ describe("callAI", () => {
   });
 
   test("window.location が /shorts/ 形式でも videoId を抽出", async () => {
-    setupState({
+    setupState(U, S, {
       all: ["あ".repeat(500)],
       allTimestamps: []
     });
-    setupConfigStorage();
+    setupConfigStorage(chrome);
 
     // /shorts/<id> 形式の URL
     Object.defineProperty(window, "location", {
@@ -908,50 +858,6 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
   let linkTimestampsSpy;
   let originalGetSummaryTextEl;
 
-  function setupState(transcript) {
-    U.activeTab = "summary";
-    U.tabs = {
-      summary: {
-        generated: false,
-        content: "",
-        config: null,
-        modelLabel: "",
-        transcriptCount: 0,
-        chatHistory: []
-      }
-    };
-    S.abortController = null;
-    S.videoMeta = null;
-    S.transcriptText = "";
-    S.preloadedTranscript = transcript;
-    Object.defineProperty(window, "location", {
-      value: {
-        href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        search: "?v=dQw4w9WgXcQ",
-        pathname: "/watch"
-      },
-      writable: true,
-      configurable: true
-    });
-  }
-
-  function setupConfigStorage() {
-    const db = {
-      apiConfigs: [{ id: "cfg1", apiKey: "key1", apiModel: "gpt-4", maxTokens: "4096" }],
-      btnApiConfig_summary: "cfg1",
-      prompt_summary: "カスタムプロンプト"
-    };
-    chrome.storage.local.get.mockImplementation(async function (key) {
-      if (key === null || key === undefined) return db;
-      if (Object.prototype.hasOwnProperty.call(db, key)) {
-        return { [key]: db[key] };
-      }
-      return {};
-    });
-    chrome.storage.local.set.mockResolvedValue(undefined);
-    chrome.storage.local.remove.mockResolvedValue(undefined);
-  }
-
   beforeEach(() => {
     jest.clearAllMocks();
     callChatAPIStream.mockReset();
@@ -983,8 +889,8 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
   });
 
   test("onDone 時に linkTimestamps が summaryTextEl に対して呼ばれる", async () => {
-    setupState({ all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
-    setupConfigStorage();
+    setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage(chrome);
 
     callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
       onChunk("途中");
@@ -1001,8 +907,8 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
   });
 
   test("連続チャンクでも setMarkdown の呼び出しは間引かれる（スロットル動作）", async () => {
-    setupState({ all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
-    setupConfigStorage();
+    setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage(chrome);
 
     // 60ms 未満に 5 チャンクを集中させて到着させる
     callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {

@@ -32,17 +32,15 @@ const appearance = require("../src/content/ui/appearance");
 const transcript = require("../src/domain/transcript");
 
 // chrome.runtime.onMessage.addListener をモックして登録された listener を保持
-const mockAddListener = jest.fn();
-global.chrome = {
-  runtime: { onMessage: { addListener: mockAddListener } }
-};
+const helpers = require("./__helpers__/index.cjs");
+helpers.installChromeMock();
 
 // モジュール読み込み（リスナー登録が走る）
 require("../src/content/ui/message-handler");
 
 // 登録された listener をモジュールロード時に保持
 // （clearAllMocks で消えないよう、別変数に保存）
-const registeredListener = mockAddListener.mock.calls[0][0];
+const registeredListener = global.chrome.runtime.onMessage.addListener.mock.calls[0][0];
 
 function getRegisteredListener() {
   return registeredListener;

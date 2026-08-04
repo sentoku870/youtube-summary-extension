@@ -1,17 +1,8 @@
 // tests/ai-chunk.test.js — 単一チャンク処理（リトライ対応）の単体テスト
 
 // chrome.storage モック（依存解決前に設定）
-global.chrome = {
-  runtime: { id: "test-extension-id" },
-  storage: {
-    local: {
-      get: jest.fn().mockResolvedValue({}),
-      set: jest.fn().mockResolvedValue(undefined),
-      remove: jest.fn().mockResolvedValue(undefined)
-    },
-    onChanged: { addListener: jest.fn(), removeListener: jest.fn() }
-  }
-};
+const helpers = require("./__helpers__/index.cjs");
+helpers.installChromeMock();
 
 jest.mock("../src/domain/api.js", () => ({
   callChatAPINonStream: jest.fn()

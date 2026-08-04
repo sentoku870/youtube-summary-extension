@@ -13,10 +13,8 @@ if (typeof requestAnimationFrame === "undefined") {
 }
 
 // chrome.storage.onChanged をモック
-global.chrome = global.chrome || {};
-global.chrome.storage = global.chrome.storage || {};
-global.chrome.storage.onChanged = { addListener: jest.fn(), removeListener: jest.fn() };
-global.chrome.runtime = global.chrome.runtime || {};
+const helpers = require("./__helpers__/index.cjs");
+helpers.installChromeMock();
 // navigator.clipboard のモック
 Object.defineProperty(navigator, "clipboard", {
   value: { writeText: jest.fn().mockResolvedValue(undefined) },

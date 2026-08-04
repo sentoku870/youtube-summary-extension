@@ -75,7 +75,8 @@ describe("storage-listener", () => {
       expect(uiState.storageOnChangedCleanupBound).toBe(false);
     });
 
-    test("btnTitle_ キーの変更で onUpdate が呼ばれる（デバウンス 150ms）", (done) => {
+    test("btnTitle_ キーの変更で onUpdate が呼ばれる（デバウンス 150ms）", () => {
+      jest.useFakeTimers();
       const onUpdate = jest.fn();
       bindStorageListener(onUpdate);
       // addCalls に登録されたリスナーを直接呼び出す
@@ -83,21 +84,20 @@ describe("storage-listener", () => {
       listener({ btnTitle_summary: { newValue: "X" } });
       // デバウンス中なのでまだ呼ばれない
       expect(onUpdate).not.toHaveBeenCalled();
-      setTimeout(() => {
-        expect(onUpdate).toHaveBeenCalledTimes(1);
-        done();
-      }, 200);
+      jest.advanceTimersByTime(150);
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      jest.useRealTimers();
     });
 
-    test("prompt_ キーの変更で onUpdate が呼ばれる", (done) => {
+    test("prompt_ キーの変更で onUpdate が呼ばれる", () => {
+      jest.useFakeTimers();
       const onUpdate = jest.fn();
       bindStorageListener(onUpdate);
       const listener = addCalls[0];
       listener({ prompt_summary: { newValue: "X" } });
-      setTimeout(() => {
-        expect(onUpdate).toHaveBeenCalledTimes(1);
-        done();
-      }, 200);
+      jest.advanceTimersByTime(150);
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      jest.useRealTimers();
     });
 
     test("無関係なキー（例: theme）の変更では onUpdate は呼ばれない", () => {
@@ -108,20 +108,21 @@ describe("storage-listener", () => {
       expect(onUpdate).not.toHaveBeenCalled();
     });
 
-    test("複数キー変更で1度だけデバウンスされる", (done) => {
+    test("複数キー変更で1度だけデバウンスされる", () => {
+      jest.useFakeTimers();
       const onUpdate = jest.fn();
       bindStorageListener(onUpdate);
       const listener = addCalls[0];
       listener({ btnTitle_summary: { newValue: "A" } });
       listener({ prompt_customA: { newValue: "B" } });
       listener({ btnTitle_customB: { newValue: "C" } });
-      setTimeout(() => {
-        expect(onUpdate).toHaveBeenCalledTimes(1);
-        done();
-      }, 200);
+      jest.advanceTimersByTime(150);
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      jest.useRealTimers();
     });
 
-    test("btnTitle と prompt の混在でも1度だけ呼ばれる", (done) => {
+    test("btnTitle と prompt の混在でも1度だけ呼ばれる", () => {
+      jest.useFakeTimers();
       const onUpdate = jest.fn();
       bindStorageListener(onUpdate);
       const listener = addCalls[0];
@@ -130,10 +131,9 @@ describe("storage-listener", () => {
         btnTitle_summary: { newValue: "X" },
         prompt_summary: { newValue: "Y" }
       });
-      setTimeout(() => {
-        expect(onUpdate).toHaveBeenCalledTimes(1);
-        done();
-      }, 200);
+      jest.advanceTimersByTime(150);
+      expect(onUpdate).toHaveBeenCalledTimes(1);
+      jest.useRealTimers();
     });
   });
 
@@ -148,17 +148,16 @@ describe("storage-listener", () => {
       expect(uiState.storageOnChangedListener).toBe(null);
     });
 
-    test("デバウンスタイマーもクリアされる", (done) => {
+    test("デバウンスタイマーもクリアされる", () => {
+      jest.useFakeTimers();
       const onUpdate = jest.fn();
       bindStorageListener(onUpdate);
       const listener = addCalls[0];
       listener({ btnTitle_summary: { newValue: "X" } });
       unbindStorageListener();
-      // タイマー解除後は呼ばれない
-      setTimeout(() => {
-        expect(onUpdate).not.toHaveBeenCalled();
-        done();
-      }, 200);
+      jest.advanceTimersByTime(200);
+      expect(onUpdate).not.toHaveBeenCalled();
+      jest.useRealTimers();
     });
 
     test("未登録時に呼んでも例外を投げない", () => {
