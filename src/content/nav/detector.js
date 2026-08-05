@@ -49,7 +49,11 @@ function startFallbackPolling() {
     if (url !== lastObservedUrl) {
       lastObservedUrl = url;
       lastNavAt = Date.now();
-      if (isYouTubeWatchPage(url)) handleNavigation();
+      // N-4: 直接 handleNavigation() を呼ばず、emit 経由で NAV_DEDUPE ガードを通す。
+      // SPA イベントとポーリングが同じ URL を検出しても二重リセットを防ぐ。
+      if (isYouTubeWatchPage(url)) {
+        emit(INTERNAL_EVENTS.NAV_FINISH, { url: url });
+      }
       return;
     }
     if (Date.now() - lastNavAt > FALLBACK_POLL_MAX_IDLE_MS) {
@@ -100,7 +104,11 @@ function bindDomBridges() {
   document.addEventListener("yt-page-data-updated", function () {
     emit(INTERNAL_EVENTS.NAV_FINISH, { url: location.href });
   });
+  // N-3: popstate にも hashchange と同じ #t=NN 抑制を入れる。
+  // 戻る/進むで #t= ハッシュが残っていると無条件で handleNavigation が
+  // 走ってしまい、#ys-panel がリセットされる問題があった。
   window.addEventListener("popstate", function () {
+    if (/[#&]t=\d+/.test(location.hash)) return;
     emit(INTERNAL_EVENTS.NAV_FINISH, { url: location.href });
   });
   window.addEventListener("hashchange", function () {
