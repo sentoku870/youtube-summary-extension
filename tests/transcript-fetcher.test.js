@@ -3,6 +3,7 @@ const {
   retrieveVideoId,
   extractVideoMeta,
   parseTranscriptXml,
+  pickBestTrack,
   fetchYtTranscript
 } = require("../src/domain/transcript-fetcher");
 
@@ -180,6 +181,71 @@ describe("parseTranscriptXml", () => {
   test("空のXMLは空配列を返す", () => {
     const result = parseTranscriptXml("<transcript></transcript>", "en");
     expect(result).toEqual([]);
+  });
+});
+
+// ===== pickBestTrack =====
+describe("pickBestTrack", () => {
+  test("lang一致の手動字幕がASRより優先される", () => {
+    const tracks = [
+      { baseUrl: "u-asr-ja", languageCode: "ja", kind: "asr" },
+      { baseUrl: "u-manual-ja", languageCode: "ja" }
+    ];
+    expect(pickBestTrack(tracks, "ja").baseUrl).toBe("u-manual-ja");
+  });
+
+  test("lang未指定でも手動字幕がASRより優先される", () => {
+    const tracks = [
+      { baseUrl: "u-asr-ja", languageCode: "ja", kind: "asr" },
+      { baseUrl: "u-manual-en", languageCode: "en" }
+    ];
+    expect(pickBestTrack(tracks, undefined).baseUrl).toBe("u-manual-en");
+  });
+
+  test("lang一致の手動がなくASRだけならASRが選ばれる", () => {
+    const tracks = [
+      { baseUrl: "u-asr-ja", languageCode: "ja", kind: "asr" },
+      { baseUrl: "u-asr-en", languageCode: "en", kind: "asr" }
+    ];
+    expect(pickBestTrack(tracks, "ja").baseUrl).toBe("u-asr-ja");
+  });
+
+  test("手動字幕が一切なければcaptionTracks[0]にフォールバック", () => {
+    const tracks = [
+      { baseUrl: "u-asr-ja", languageCode: "ja", kind: "asr" },
+      { baseUrl: "u-asr-en", languageCode: "en", kind: "asr" }
+    ];
+    expect(pickBestTrack(tracks, undefined).baseUrl).toBe("u-asr-ja");
+  });
+
+  test("kind未指定+vssIdが'a.'始まりはASR扱い", () => {
+    const tracks = [
+      { baseUrl: "u-asr-via-vssid", languageCode: "ja", vssId: "a.ja" },
+      { baseUrl: "u-manual", languageCode: "ja" }
+    ];
+    expect(pickBestTrack(tracks, "ja").baseUrl).toBe("u-manual");
+  });
+
+  test("kind未指定+vssIdが'a.'以外なら手動扱い", () => {
+    const tracks = [
+      { baseUrl: "u-fake-asr", languageCode: "ja", vssId: "j.ja" },
+      { baseUrl: "u-manual", languageCode: "ja" }
+    ];
+    expect(pickBestTrack(tracks, "ja").baseUrl).toBe("u-fake-asr");
+  });
+
+  test("lang一致のトラックが一切ない場合は手動字幕（言語問わず）にフォールバック", () => {
+    const tracks = [
+      { baseUrl: "u-asr-ja", languageCode: "ja", kind: "asr" },
+      { baseUrl: "u-manual-en", languageCode: "en" }
+    ];
+    expect(pickBestTrack(tracks, "fr").baseUrl).toBe("u-manual-en");
+  });
+
+  test("空配列はundefinedを返す", () => {
+    expect(pickBestTrack([], "ja")).toBeUndefined();
+    expect(pickBestTrack(undefined, "ja")).toBeUndefined();
+    expect(pickBestTrack(null, "ja")).toBeUndefined();
   });
 });
 

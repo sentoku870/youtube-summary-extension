@@ -61,16 +61,68 @@ export function extractVideoMeta(playerData) {
 }
 
 /**
+ * captionTracks から最適なトラックを優先度に従って選択する。
+ *
+ * 優先度:
+ *   1. lang に一致し、かつ手動字幕（kind !== "asr"）
+ *   2. lang に一致（ASRでも可）
+ *   3. 手動字幕（言語問わず）
+ *   4. captionTracks[0]（最終フォールバック）
+ *
+ * ASR 判定: track.kind === "asr"、または（kind 不在で vssId が "a." 始まり）。
+ * vssId 先頭の "a." は YouTube 側が付与する ASR トラック識別のフォールバック。
+ *
+ * @param {Array<{languageCode?: string, kind?: string, vssId?: string, baseUrl?: string}>} captionTracks
+ * @param {string|undefined} lang - 優先言語コード。未指定なら優先度 1〜2 をスキップ。
+ * @returns {Object|undefined} 選択されたトラック。captionTracks が空なら undefined。
+ */
+export function pickBestTrack(captionTracks, lang) {
+  if (!Array.isArray(captionTracks) || captionTracks.length === 0) return undefined;
+
+  const isAsr = function (t) {
+    if (t.kind === "asr") return true;
+    if (t.kind === undefined && typeof t.vssId === "string" && t.vssId.startsWith("a.")) {
+      return true;
+    }
+    return false;
+  };
+
+  const matchLang = function (t) {
+    return lang && t.languageCode === lang;
+  };
+
+  const found1 = captionTracks.find(function (t) {
+    return matchLang(t) && !isAsr(t);
+  });
+  if (found1) return found1;
+
+  if (lang) {
+    const found2 = captionTracks.find(matchLang);
+    if (found2) return found2;
+  }
+
+  const found3 = captionTracks.find(function (t) {
+    return !isAsr(t);
+  });
+  if (found3) return found3;
+
+  return captionTracks[0];
+}
+
+/**
  * Fetch and parse transcript from caption tracks
  */
 async function fetchTranscriptFromTracks(captionTracks, videoId, config) {
-  let track = captionTracks[0];
-  if (config && config.lang) {
-    const found = captionTracks.find(function (t) {
-      return t.languageCode === config.lang;
-    });
-    if (found) track = found;
-  }
+  const lang = config && config.lang ? config.lang : undefined;
+  const track = pickBestTrack(captionTracks, lang);
+  if (!track || !track.baseUrl) return null;
+
+  log.log("字幕トラック選択:", {
+    lang: track.languageCode,
+    kind: track.kind,
+    vssId: track.vssId,
+    manual: track.kind !== "asr"
+  });
 
   const transcriptURL = track.baseUrl;
   const resp = await fetch(transcriptURL, {
