@@ -19,6 +19,13 @@ let currentDebounceTimer = null;
  * tabs.js の bindEvents() から毎回呼ばれても安全。
  */
 export function bindStorageListener(onUpdate) {
+  // Phase 3-7: BFCache 復元時に旧 debounce タイマーが残っていると、
+  // 新 listener の onUpdate を新 listener 参照でキャプチャ済みの旧
+  // callback 経由で呼んでしまう。入口で必ずクリアして状態リークを防ぐ。
+  if (currentDebounceTimer) {
+    clearTimeout(currentDebounceTimer);
+    currentDebounceTimer = null;
+  }
   try {
     // 既存リスナーを解放
     if (S.storageOnChangedListener) {

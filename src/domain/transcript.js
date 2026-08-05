@@ -86,9 +86,20 @@ export async function preloadTranscript() {
     } catch (e) {
       log.log("字幕プリロード失敗 (" + attempt + "/" + retries + "):", e.message);
       if (attempt < retries) {
+        // Phase 3-7: 動画切替時に世代カウンタが進むとこの await が resolve
+        // されるが、ジェネレータチェック (myGen !== S._transcriptGen) で
+        // 次のループ冒頭で抜けられる。setTimeout のコールバック自体は
+        // 走り、network リクエストを開始するが、fetchTranscript 内で
+        // 再度世代チェックされ結果は破棄される。早期にループを抜ける
+        // ためにポリフィル的に短絡判定を先頭に追加。
+        const waitMs = 1500 * attempt;
         await new Promise(function (r) {
-          setTimeout(r, 1500 * attempt);
+          setTimeout(r, waitMs);
         });
+        if (myGen !== S._transcriptGen) {
+          log.log("リトライ待機中に動画切替（世代 mismatch）");
+          return;
+        }
       }
     }
   }

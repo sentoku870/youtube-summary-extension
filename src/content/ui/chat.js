@@ -77,10 +77,16 @@ function prepareChatTurn() {
 
   // editIndex = 追加前の chatHistory 長。編集ボタンの data-edit-index と対応
   const editIndex = tab.chatHistory.length;
-  const userMsg = appendChatMessage("user", text, { editIndex: editIndex });
-  // state push を先に行い、appendChatMessage が throw した場合に
-  // state と DOM が不整合にならないよう try/catch 内で管理する。
+  // state push を先に行い、appendChatMessage が throw した場合は pop で
+  // ロールバック（state と DOM の不整合を防ぐ）
   tab.chatHistory.push({ role: "user", content: text });
+  let userMsg;
+  try {
+    userMsg = appendChatMessage("user", text, { editIndex: editIndex });
+  } catch (e) {
+    tab.chatHistory.pop();
+    throw e;
+  }
 
   // 進行中のチャットがあれば中断して新しいリクエストを開始
   abortChatStream();
