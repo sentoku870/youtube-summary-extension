@@ -9,7 +9,7 @@
 import { sessionState as S, setSessionState } from "../shared/state.js";
 import { loadSubtitleLang } from "../infrastructure/storage-config.js";
 import { emit, INTERNAL_EVENTS } from "../shared/event-bus.js";
-import { fetchYtTranscript } from "./transcript-fetcher.js";
+import { fetchYtTranscript } from "./transcript-fetcher/index.js";
 import { createLogger } from "../shared/logger.js";
 
 const log = createLogger("transcript");

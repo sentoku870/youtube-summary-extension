@@ -46,7 +46,7 @@ jest.mock("../src/shared/event-bus.js", function () {
 
 // fetchYtTranscript のモック
 const mockFetchYtTranscript = jest.fn();
-jest.mock("../src/domain/transcript-fetcher.js", function () {
+jest.mock("../src/domain/transcript-fetcher/index.js", function () {
   return { fetchYtTranscript: mockFetchYtTranscript };
 });
 
