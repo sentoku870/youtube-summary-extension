@@ -1,6 +1,7 @@
 // ============================================================
 //  panel.js — DOM生成・要素検索・ボタン制御（ESM版）
 //  Phase C-1: 配置戦略を panel-placement.js に分離。
+//  Phase 3-3: 静的 HTML テンプレートを panel-template.js に分離。
 //  本モジュールは
 //    - DOM 検索キャッシュ付き getEl
 //    - 全ボタン制御 (enableAllButtons)
@@ -13,6 +14,7 @@ import { createInitialTabState } from "../../shared/state.js";
 import { applyTheme, applyFontSize, applyPanelHeight } from "./appearance.js";
 import { TAB_IDS } from "../../shared/constants.js";
 import { placePanel } from "./panel-placement.js";
+import { PANEL_HTML } from "./panel-template.js";
 import "./sidebar.css";
 
 // ===== DOM 検索キャッシュ =====
@@ -60,32 +62,10 @@ export function createPanel() {
   });
   const panelEl = document.createElement("div");
   panelEl.id = "yt-summary-root";
-  // 静的マークアップのため innerHTML を使用（XSS 対策: すべてコンパイル時リテラル）
-  panelEl.innerHTML =
-    '<div class="ys-tab-row">' +
-    '<button id="ys-btn-summary" class="ys-tab-btn">📝 A</button>' +
-    '<button id="ys-btn-customA" class="ys-tab-btn">📊 B</button>' +
-    '<button id="ys-btn-customB" class="ys-tab-btn">💡 C</button>' +
-    "</div>" +
-    '<div id="ys-panel" style="display:none">' +
-    '<div id="ys-error"></div>' +
-    '<div id="ys-content-area">' +
-    '<div id="ys-summaryText" class="ys-md"></div>' +
-    '<div id="ys-progress" style="display:none;padding:8px;background:#444;color:#fff;border-radius:4px;font-size:12px;margin:4px 0;"></div>' +
-    '<div id="ys-infoRow">' +
-    '<span id="ys-infoLabel"></span>' +
-    '<button id="ys-copyBtn" class="ys-action-btn" style="display:none;margin-left:8px;">📋 コピー</button>' +
-    '<button id="ys-regenBtn" class="ys-action-btn" style="display:none;margin-left:4px;">🔄 再生成</button>' +
-    "</div>" +
-    '<div id="ys-chatHistory"></div>' +
-    "</div>" +
-    '<div id="ys-chatArea" style="display:none;">' +
-    '<div class="chat-row">' +
-    '<textarea id="ys-chatInput" rows="1" placeholder="質問を入力... (Enter=送信 / Shift+Enter=改行)"></textarea>' +
-    '<button id="ys-chatClearBtn">クリア</button>' +
-    "</div>" +
-    "</div>" +
-    "</div>";
+  // 静的マークアップ（すべてコンパイル時リテラル）のため innerHTML を使用。
+  // XSS 安全性は panel-template.js 側に集約。AGENTS.md の innerHTML ルール
+  // に基づき、ユーザー入力は textContent / createElement 経由で挿入する。
+  panelEl.innerHTML = PANEL_HTML;
 
   // panelEl 構築後に uiState へ一括反映（setUiState で 1 箇所に集約）
   setUiState({
