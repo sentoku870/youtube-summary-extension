@@ -33,6 +33,9 @@ function switchTab(tabId) {
     const active = b.getAttribute("data-tab") === tabId;
     b.classList.toggle("active", active);
     b.setAttribute("aria-selected", active ? "true" : "false");
+    // ARIA Authoring Practices Guide に従い、選択中タブのみ tabindex=0、
+    // それ以外は tabindex=-1 のロービングタブインデックスを設定。
+    b.setAttribute("tabindex", active ? "0" : "-1");
   });
   document.querySelectorAll(".tab-content").forEach(function (c) {
     const active = c.id === tabId;

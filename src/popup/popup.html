@@ -50,7 +50,9 @@
     <h1>YouTube 要約</h1>
     <button id="dlBtn" disabled>💾 字幕DL</button>
     <button id="settingsBtn">⚙ 設定</button>
-    <div class="status" id="statusText">YouTube動画のページを開いて字幕を取得してください</div>
+    <div class="status" id="statusText" role="status" aria-live="polite">
+      YouTube動画のページを開いて字幕を取得してください
+    </div>
 
     <script type="module" src="popup.js"></script>
   </body>
