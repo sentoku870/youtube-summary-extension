@@ -2,21 +2,19 @@
 //  tabs.js — タブ状態管理 + 切替ロジック（ESM版）
 //  Phase B-2: bindEvents を tabs-events.js に分離。
 //  Phase P1-D: applyButtonTitles を tabs-ui.js に分離。
+//  Phase 3-2: saveSummaryCache のロードと applyCachedSummary を
+//             tab-cache.js に分離。
 //  本モジュールは「タブ状態 + switchTab」の薄層に専念し、
-//  DOM イベント登録は tabs-events.js、描画ヘルパは tabs-ui.js に委譲する。
+//  DOM イベント登録は tabs-events.js、描画ヘルパは tabs-ui.js、
+//  キャッシュ復元は tab-cache.js に委譲する。
 //  Phase 2-B: uiState の書き込みを setUiState 経由に統一。
 // ============================================================
 import { uiState as S, sessionState, setUiState } from "../../shared/state.js";
 import { getEl } from "./panel.js";
 import { updateTabUI, updateTabActive, renderTabContent, applyButtonTitles } from "./tabs-ui.js";
 import { callAI, abortCurrentStream } from "../../domain/ai.js";
-import { loadSummaryCache } from "../../infrastructure/storage-cache.js";
-import { CHAT_HISTORY_SEED_LENGTH } from "../../shared/constants.js";
-import { createLogger } from "../../shared/logger.js";
-import { getCurrentVideoId } from "../../shared/utils.js";
+import { loadCachedSummary, applyCachedSummary } from "./tab-cache.js";
 import { abortChatStream } from "./chat.js";
-
-const log = createLogger("tabs");
 
 // tabs-ui.js / chat.js からの再エクスポート（呼び出し側の互換用）
 // B-2: bindEvents は tabs-events.js から直接 import する（循環依存回避）。
@@ -101,34 +99,6 @@ export async function switchTab(mode) {
     requestAnimationFrame(function () {
       scrollContentTop();
     });
-  }
-}
-
-// T2-A5: 現在の videoId + mode に対する saveSummaryCache を取得。
-// chatHistory は保存していないため、UI 復元は content / modelLabel / transcriptCount のみ。
-async function loadCachedSummary(mode) {
-  try {
-    const videoId = getCurrentVideoId();
-    if (!videoId) return null;
-    const cached = await loadSummaryCache(videoId, mode);
-    if (!cached) return null;
-    return cached;
-  } catch (e) {
-    log.warn("loadCachedSummary failed:", e && e.message);
-    return null;
-  }
-}
-
-function applyCachedSummary(tab, cached) {
-  tab.generated = true;
-  tab.content = cached.content || "";
-  tab.modelLabel = cached.modelLabel || "";
-  tab.transcriptCount = cached.transcriptCount || 0;
-  // config は保存していないため null。チャット開始時に再解決される。
-  tab.config = null;
-  // chatHistory は保存していない。system ロールのみのシードを入れてチャット可能に。
-  if (!Array.isArray(tab.chatHistory) || tab.chatHistory.length < CHAT_HISTORY_SEED_LENGTH) {
-    tab.chatHistory = [];
   }
 }
 
