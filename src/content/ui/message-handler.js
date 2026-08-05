@@ -86,12 +86,36 @@ function onRuntimeMessage(msg, sender, sendResponse) {
   }
 }
 
-try {
-  chrome.runtime.onMessage.addListener(onRuntimeMessage);
-} catch {
-  log.warn(
-    "runtime.onMessage listener could not be registered (extension context may be invalid)."
-  );
+// 登録済みかを追跡（pagehide での二重 removeListener を防ぐ）
+let listenerRegistered = false;
+function registerRuntimeListener() {
+  if (listenerRegistered) return;
+  try {
+    chrome.runtime.onMessage.addListener(onRuntimeMessage);
+    listenerRegistered = true;
+  } catch {
+    log.warn(
+      "runtime.onMessage listener could not be registered (extension context may be invalid)."
+    );
+  }
+}
+function unregisterRuntimeListener() {
+  if (!listenerRegistered) return;
+  try {
+    chrome.runtime.onMessage.removeListener(onRuntimeMessage);
+  } catch {
+    /* context invalidated */
+  }
+  listenerRegistered = false;
+}
+
+registerRuntimeListener();
+
+// Phase 4-6: pagehide でリスナーを解放（MV3 Service Worker 再起動や拡張リロード
+// 後のゾンビリスナーを排除）。BFCache 復元時は navigation.js の bindStorageListener
+// 経路でリスナーが再登録される。
+if (typeof window !== "undefined" && typeof window.addEventListener === "function") {
+  window.addEventListener("pagehide", unregisterRuntimeListener);
 }
 
 // C-5: テスト用: 登録済みリスナーを解除する。teardown で呼ぶと
@@ -99,9 +123,5 @@ try {
 // 本体はガードで prod では何もしないため、export 1 つ分のコストのみ。
 export function __unregisterMessageListenerForTest() {
   if (!globalThis.__DEV__) return;
-  try {
-    chrome.runtime.onMessage.removeListener(onRuntimeMessage);
-  } catch {
-    /* context invalidated */
-  }
+  unregisterRuntimeListener();
 }
