@@ -87,9 +87,24 @@ function mockNavigatorOnline(value) {
   };
 }
 
+/**
+ * window.location をテスト用に差し替える。
+ * Jest 30 / jsdom 26+ では window.location の再代入やプロパティ再定義が
+ * 失敗するため、history.replaceState 経由で同じ origin の URL を切り替える。
+ * package.json の jest.testEnvironmentOptions.url を
+ * "https://www.youtube.com/" にしておくことが前提。
+ *
+ * @param {object} props 設定するプロパティ (href のみ参照)
+ */
+function setWindowLocation(props) {
+  const href = (props && props.href) || "";
+  window.history.replaceState({}, "", href || "/");
+}
+
 module.exports = {
   makeDiv,
   clearBody,
   setupYouTubeWatchDom,
-  mockNavigatorOnline
+  mockNavigatorOnline,
+  setWindowLocation
 };

@@ -260,9 +260,13 @@ describe("getCurrentVideoId", () => {
     expect(getCurrentVideoId("https://example.com/watch?v=xxx")).toBeNull();
   });
 
-  test("空文字 / null / 不正URL は null", () => {
-    expect(getCurrentVideoId("")).toBeNull();
-    expect(getCurrentVideoId(null)).toBeNull();
+  test("空文字 / null は window.location.href にフォールバック、不正URL は null", () => {
+    // "" / null / undefined は window.location.href にフォールバックするため、
+    // testEnvironmentOptions で設定した youtube.com/watch?v=test の videoId が返る。
+    expect(getCurrentVideoId("")).toBe("test");
+    expect(getCurrentVideoId(null)).toBe("test");
+    expect(getCurrentVideoId(undefined)).toBe("test");
+    // 不正な URL 文字列は null
     expect(getCurrentVideoId("not-a-url")).toBeNull();
   });
 

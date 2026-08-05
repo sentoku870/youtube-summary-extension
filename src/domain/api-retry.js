@@ -179,7 +179,7 @@ export async function handleErrorResponse(response) {
   } catch (e) {
     log.error("failed to read error response body:", e);
   }
-  let statusMsg = "";
+  let statusMsg;
   if (response.status === 429) {
     statusMsg = "APIの利用制限中です（レート制限）。しばらく待ってから再試行してください。";
   } else if (response.status >= 500) {

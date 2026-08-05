@@ -2,6 +2,8 @@
 //
 // callAI() テスト用に重複していた setupState / setupConfigStorage を共通化する。
 
+const { setWindowLocation } = require("./dom-mock.cjs");
+
 /**
  * callAI 用の uiState / sessionState / window.location を初期化する。
  *
@@ -27,14 +29,8 @@ function setupCallAIState(U, S, transcript) {
   S.preloadedTranscript = transcript;
 
   // saveSummaryCache が window.location.search を参照するため設定
-  Object.defineProperty(window, "location", {
-    value: {
-      href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      search: "?v=dQw4w9WgXcQ",
-      pathname: "/watch"
-    },
-    writable: true,
-    configurable: true
+  setWindowLocation({
+    href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
   });
 }
 

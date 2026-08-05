@@ -767,14 +767,10 @@ describe("callAI", () => {
     setupConfigStorage(chrome);
 
     // /shorts/<id> 形式の URL
-    Object.defineProperty(window, "location", {
-      value: {
-        href: "https://www.youtube.com/shorts/abc123XYZ45",
-        search: "",
-        pathname: "/shorts/abc123XYZ45"
-      },
-      writable: true,
-      configurable: true
+    helpers.setWindowLocation({
+      href: "https://www.youtube.com/shorts/abc123XYZ45",
+      search: "",
+      pathname: "/shorts/abc123XYZ45"
     });
 
     callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {

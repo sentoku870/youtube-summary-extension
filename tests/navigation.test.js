@@ -53,7 +53,7 @@ describe("navigation", () => {
     clearAll();
     helpers.resetStates();
     nav.__resetNavigationForTest();
-    window.location.href = "https://www.youtube.com/watch?v=test";
+    helpers.setWindowLocation({ href: "https://www.youtube.com/watch?v=test" });
     window.location.hash = "";
     jest.clearAllMocks();
     mockBindStorageListener.mockClear();
@@ -252,11 +252,11 @@ describe("navigation", () => {
     test("persisted=true だが動画ページでない場合は onReinit を呼ばない", () => {
       const onReinit = jest.fn();
       const oldHref = window.location.href;
-      window.location.href = "https://www.youtube.com/feed/trending";
+      helpers.setWindowLocation({ href: "https://www.youtube.com/feed/trending" });
       nav.startNavigationDetection(onReinit);
       window.dispatchEvent(makePageShowEvent(true));
       expect(onReinit).not.toHaveBeenCalled();
-      window.location.href = oldHref;
+      helpers.setWindowLocation({ href: oldHref });
     });
 
     test("persisted=false の場合は onReinit を呼ばない", () => {
@@ -393,7 +393,7 @@ describe("navigation", () => {
       nav.startNavigationDetection(onReinit);
       // 初期化直後は lastObservedUrl = current
       // URL を変更
-      window.location.href = "https://www.youtube.com/watch?v=changed";
+      helpers.setWindowLocation({ href: "https://www.youtube.com/watch?v=changed" });
       jest.advanceTimersByTime(10000);
       expect(onReinit).toHaveBeenCalled();
     });

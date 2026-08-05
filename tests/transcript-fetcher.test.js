@@ -13,13 +13,13 @@ if (typeof TextDecoder === "undefined") {
   global.TextDecoder = NodeTextDecoder;
 }
 
+const helpers = require("./__helpers__/index.cjs");
+
 // window.location.href を切り替えるヘルパー（fetchYtTranscriptが参照するため）
+// Jest 30 / jsdom 26+ で Object.defineProperty(window, "location") が
+// "Cannot redefine property" で失敗するため、共通ヘルパー経由にする。
 function setLocation(href) {
-  Object.defineProperty(window, "location", {
-    value: { href: href, search: "", pathname: "/" },
-    writable: true,
-    configurable: true
-  });
+  helpers.setWindowLocation({ href: href, search: "", pathname: "/" });
 }
 
 // ===== retrieveVideoId =====
@@ -408,7 +408,10 @@ describe("fetchYtTranscript", () => {
   });
 
   test("動画IDが抽出できないURLではエラーオブジェクトを返す", async () => {
-    setLocation("https://example.com/not-a-youtube-page");
+    // youtube.com 内の videoId 不在 URL (/feed/trending) を使用。
+    // testEnvironmentOptions で origin を youtube.com にしているため、
+    // example.com などへの cross-origin navigation は jsdom が拒否する。
+    setLocation("https://www.youtube.com/feed/trending");
 
     const result = await fetchYtTranscript();
 

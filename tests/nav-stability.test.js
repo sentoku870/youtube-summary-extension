@@ -71,7 +71,7 @@ describe("N-1: resetState() の動画ID別パネル非表示", () => {
     helpers.resetStates();
     nav.__resetNavigationForTest();
     jest.clearAllMocks();
-    window.location.href = "https://www.youtube.com/watch?v=initial";
+    helpers.setWindowLocation({ href: "https://www.youtube.com/watch?v=initial" });
     window.location.hash = "";
   });
 
@@ -127,7 +127,7 @@ describe("N-1: resetState() の動画ID別パネル非表示", () => {
 
     nav.startNavigationDetection(jest.fn());
 
-    window.location.href = "https://www.youtube.com/watch?v=other";
+    helpers.setWindowLocation({ href: "https://www.youtube.com/watch?v=other" });
     const { emit } = require("../src/shared/event-bus");
     emit("nav:finish", { url: "https://www.youtube.com/watch?v=other" });
 
@@ -163,7 +163,7 @@ describe("N-3: popstate の #t=NN 抑制", () => {
     helpers.resetStates();
     nav.__resetNavigationForTest();
     jest.clearAllMocks();
-    window.location.href = "https://www.youtube.com/watch?v=test";
+    helpers.setWindowLocation({ href: "https://www.youtube.com/watch?v=test" });
     window.location.hash = "";
   });
 
@@ -237,7 +237,7 @@ describe("N-4: ポーリング経路も NAV_DEDUPE 経由", () => {
     nav.startNavigationDetection(onReinit);
 
     // 初期化直後 (lastObservedUrl = current) → URL変更 → 10秒タイマー発火
-    window.location.href = "https://www.youtube.com/watch?v=changed";
+    helpers.setWindowLocation({ href: "https://www.youtube.com/watch?v=changed" });
     jest.advanceTimersByTime(10000);
 
     expect(onReinit).toHaveBeenCalledTimes(1);
@@ -258,7 +258,7 @@ describe("N-4: ポーリング経路も NAV_DEDUPE 経由", () => {
     expect(onReinit).toHaveBeenCalledTimes(1);
 
     // ポーリングで同じ URL を発火させる（200ms 内のため dedupe されるはず）
-    window.location.href = "https://www.youtube.com/watch?v=foo";
+    helpers.setWindowLocation({ href: "https://www.youtube.com/watch?v=foo" });
     // lastObservedUrl を進める
     jest.advanceTimersByTime(10);
     // さらにポーリング emit

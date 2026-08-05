@@ -298,14 +298,10 @@ describe("tabs", () => {
       };
       storage.loadSummaryCache.mockResolvedValue(cached);
       // window.location を YouTube watch 形式に
-      Object.defineProperty(window, "location", {
-        value: {
-          href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-          search: "?v=dQw4w9WgXcQ",
-          pathname: "/watch"
-        },
-        writable: true,
-        configurable: true
+      helpers.setWindowLocation({
+        href: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        search: "?v=dQw4w9WgXcQ",
+        pathname: "/watch"
       });
 
       await switchTab("summary");
@@ -386,10 +382,9 @@ describe("tabs", () => {
           resolveCache = r;
         })
       );
-      Object.defineProperty(window, "location", {
-        value: { href: "https://www.youtube.com/watch?v=abc", pathname: "/watch" },
-        writable: true,
-        configurable: true
+      helpers.setWindowLocation({
+        href: "https://www.youtube.com/watch?v=abc",
+        pathname: "/watch"
       });
 
       // switchTab を await せず開始
@@ -1020,10 +1015,8 @@ describe("tabs", () => {
       loadSummaryCache.mockRejectedValue(new Error("storage error"));
       // (getCurrentVideoId removed - unused)
       // 動画ページにいる
-      Object.defineProperty(window, "location", {
-        value: { href: "https://www.youtube.com/watch?v=abc" },
-        writable: true,
-        configurable: true
+      helpers.setWindowLocation({
+        href: "https://www.youtube.com/watch?v=abc"
       });
       S.tabs.summary.generated = false;
       S.tabs.summary.content = "";
