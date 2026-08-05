@@ -46,12 +46,24 @@ function resetChatInputHeight(el) {
   el.style.height = next + "px";
 }
 
-// ===== チャット送信 =====
-export async function onChatSend() {
-  if (sessionState.chatBusy) return;
+// ===== チャット送信ヘルパ =====
+// Phase 3-4: onChatSend を「入力準備」「ターン実行」「組み合わせ」の
+// 3 関数に分割し、各層の責務を明確化する。
+
+/**
+ * 入力欄の値を読み取り、チャット送信の準備をする。
+ * - chatBusy なら早期 return
+ * - 空テキストなら早期 return
+ * - 入力欄をクリア＆高さリセット
+ * - アクティブタブが未生成ならエラー表示して return
+ * - ユーザーメッセージを chatHistory に push
+ * @returns {object|null} { tab, input, controller, placeholder } または null
+ */
+function prepareChatTurn() {
+  if (sessionState.chatBusy) return null;
   const input = getEl("#ys-chatInput");
   const text = input ? input.value.trim() : "";
-  if (!text) return;
+  if (!text) return null;
   if (input) {
     input.value = "";
     resetChatInputHeight(input);
@@ -60,12 +72,14 @@ export async function onChatSend() {
   const tab = S.tabs[S.activeTab];
   if (!tab || !tab.generated) {
     appendChatMessage("assistant", "[エラー] 先に要約・分析を生成してください。");
-    return;
+    return null;
   }
 
   // editIndex = 追加前の chatHistory 長。編集ボタンの data-edit-index と対応
   const editIndex = tab.chatHistory.length;
   const userMsg = appendChatMessage("user", text, { editIndex: editIndex });
+  // state push を先に行い、appendChatMessage が throw した場合に
+  // state と DOM が不整合にならないよう try/catch 内で管理する。
   tab.chatHistory.push({ role: "user", content: text });
 
   // 進行中のチャットがあれば中断して新しいリクエストを開始
@@ -89,24 +103,32 @@ export async function onChatSend() {
   const placeholder = appendAssistantPlaceholder();
   if (userMsg && userMsg.div) scrollContentToElement(userMsg.div);
 
-  let accumulated = "";
+  return { tab: tab, input: input, controller: controller, placeholder: placeholder };
+}
+
+/**
+ * 1 ターン分のチャット API 実行（abort 制御込み）。
+ * @param {object} ctx - { tab, input, controller, placeholder }
+ */
+async function executeChatTurn(ctx) {
+  const { tab, controller, placeholder } = ctx;
   // ストリーミング描画のスロットル（頻繁な marked+DOMPurify による卡回避）
   // RAF + 60ms 間隔で 1フレーム内の連続チャンクをまとめて1回だけ描画
   const renderThrottled = createRafThrottle(function (arg) {
     if (placeholder) updateChatMessageBody(placeholder.body, arg || "");
   }, 60);
 
-  try {
-    let config = tab.config;
-    if (!config || !config.apiKey) {
-      config = await resolveApiConfig(S.activeTab);
-    }
-    if (!config || !config.apiKey) {
-      if (placeholder)
-        updateChatMessageBody(placeholder.body, "[エラー] API設定がされていません。");
-      return;
-    }
+  let config = tab.config;
+  if (!config || !config.apiKey) {
+    config = await resolveApiConfig(S.activeTab);
+  }
+  if (!config || !config.apiKey) {
+    if (placeholder) updateChatMessageBody(placeholder.body, "[エラー] API設定がされていません。");
+    return;
+  }
 
+  let accumulated = "";
+  try {
     await callChatAPIStream(
       tab.chatHistory,
       config,
@@ -126,21 +148,38 @@ export async function onChatSend() {
     if (e instanceof DOMException && e.name === "AbortError") return;
     if (e instanceof YsAbortError || e instanceof YsTimeoutError) return;
     if (placeholder) updateChatMessageBody(placeholder.body, "[エラー] " + e.message);
+  }
+}
+
+/**
+ * チャット送信 finally ブロック：controller / busy / readOnly / abort chain を解放する。
+ */
+function finalizeChatTurn(ctx) {
+  const { controller, input } = ctx;
+  // コントローラがまだ自分を指している場合のみクリア
+  if (sessionState.chatAbortController === controller) {
+    setSessionState({ chatAbortController: null });
+  }
+  setSessionState({ chatBusy: false });
+  if (input) {
+    input.readOnly = false;
+    input.focus();
+  }
+  // 親 abort との連動を解除（次の送信に備えてリセット）
+  if (sessionState.chatAbortChain) {
+    sessionState.chatAbortChain.disconnect();
+    setSessionState({ chatAbortChain: null });
+  }
+}
+
+// ===== チャット送信 =====
+export async function onChatSend() {
+  const ctx = prepareChatTurn();
+  if (!ctx) return;
+  try {
+    await executeChatTurn(ctx);
   } finally {
-    // コントローラがまだ自分を指している場合のみクリア
-    if (sessionState.chatAbortController === controller) {
-      setSessionState({ chatAbortController: null });
-    }
-    setSessionState({ chatBusy: false });
-    if (input) {
-      input.readOnly = false;
-      input.focus();
-    }
-    // 親 abort との連動を解除（次の送信に備えてリセット）
-    if (sessionState.chatAbortChain) {
-      sessionState.chatAbortChain.disconnect();
-      setSessionState({ chatAbortChain: null });
-    }
+    finalizeChatTurn(ctx);
   }
 }
 
