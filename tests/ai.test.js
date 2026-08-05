@@ -344,7 +344,7 @@ describe("abortCurrentStream", () => {
 const {
   setupCallAIState: setupState,
   setupCallAIConfigStorage: setupConfigStorage
-} = require("./__helpers__/ai-test-helpers.cjs");
+} = require("./__helpers__/index.cjs");
 
 describe("callAI", () => {
   // 共通セットアップは __helpers__/ai-test-helpers.cjs に集約
