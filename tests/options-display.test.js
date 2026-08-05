@@ -129,6 +129,14 @@ describe("options-display", () => {
       expect(dark.getAttribute("aria-checked")).toBe("true");
       expect(light.classList.contains("active")).toBe(false);
     });
+
+    test("documentElement に data-theme を反映する", () => {
+      initDisplayTab();
+      setThemeActiveFromValue("dark");
+      expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+      setThemeActiveFromValue("light");
+      expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    });
   });
 
   describe("syncPresets", () => {

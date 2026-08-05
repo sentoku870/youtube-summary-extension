@@ -1,5 +1,5 @@
 // tests/logger.test.js — createLogger の単体テスト
-const { createLogger } = require("../src/shared/logger");
+const { createLogger, redactSecrets } = require("../src/shared/logger");
 
 describe("createLogger", () => {
   let logSpy;
@@ -70,5 +70,80 @@ describe("createLogger", () => {
     // 元に戻す
     globalThis.__LOG_LEVEL__ = originalLogLevel;
     jest.resetModules();
+  });
+});
+
+describe("redactSecrets", () => {
+  let logSpy;
+  let warnSpy;
+  let errSpy;
+
+  beforeEach(() => {
+    logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    errSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+    warnSpy.mockRestore();
+    errSpy.mockRestore();
+  });
+  test("オブジェクト内の apiKey を [REDACTED] に置換", () => {
+    expect(redactSecrets({ apiKey: "sk-12345678abcdef" })).toEqual({ apiKey: "[REDACTED]" });
+  });
+
+  test("スネークケース api_key / 大文字小文字混在 APIKey も対象", () => {
+    expect(redactSecrets({ api_key: "sk-12345678xx", APIKey: "sk-abcdefghi" })).toEqual({
+      api_key: "[REDACTED]",
+      APIKey: "[REDACTED]"
+    });
+  });
+
+  test("authorization ヘッダの値を [REDACTED] に", () => {
+    expect(redactSecrets({ authorization: "Bearer abcdefgh1234" })).toEqual({
+      authorization: "[REDACTED]"
+    });
+  });
+
+  test("文字列中の sk- パターンをマスク", () => {
+    expect(redactSecrets("error: sk-12345678abcdefgh token invalid")).toBe(
+      "error: [REDACTED] token invalid"
+    );
+  });
+
+  test("Bearer xxx 文字列をマスク", () => {
+    expect(redactSecrets("Authorization: Bearer abcdefgh1234xxxxx")).toBe(
+      "Authorization: Bearer [REDACTED]"
+    );
+  });
+
+  test("無関係なキーはそのまま", () => {
+    expect(redactSecrets({ model: "gpt-4", url: "https://api.example.com" })).toEqual({
+      model: "gpt-4",
+      url: "https://api.example.com"
+    });
+  });
+
+  test("循環参照でもクラッシュしない", () => {
+    const obj = { a: 1 };
+    obj.self = obj;
+    expect(() => redactSecrets(obj)).not.toThrow();
+    expect(redactSecrets(obj).self).toBe("[Circular]");
+  });
+
+  test("入れ子のオブジェクトも再帰 redaction", () => {
+    expect(
+      redactSecrets({ outer: { inner: { apiKey: "sk-12345678abcdef" } } })
+    ).toEqual({ outer: { inner: { apiKey: "[REDACTED]" } } });
+  });
+
+  test("logger.log 経由で API キーがマスクされる", () => {
+    const log = createLogger("secrets");
+    log.log({ apiKey: "sk-12345678abcdef", model: "gpt-4" });
+    expect(logSpy).toHaveBeenCalledWith("[YouTube 要約][secrets]", {
+      apiKey: "[REDACTED]",
+      model: "gpt-4"
+    });
   });
 });

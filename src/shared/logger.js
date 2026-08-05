@@ -2,6 +2,7 @@
 //  logger.js — console ログのカテゴリ別ラッパー
 //  [YouTube 要約][<category>] プレフィックスを統一付与。
 //  開発時のデバッグを支援。本番ビルド時は log() の出力を抑止。
+//  機密情報（API キー / Authorization ヘッダ等）は自動で [REDACTED] に置換。
 // ============================================================
 
 // 本番ビルド判定: vite.config.js の `define` で
@@ -11,9 +12,63 @@
 // Jest 環境: import.meta を使わず globalThis 経由なのでパースエラーなし
 const isDev = (typeof globalThis !== "undefined" && globalThis.__LOG_LEVEL__) !== "production";
 
+// ===== 機密情報 redaction =====
+// - 文字列: API キーらしきパターン (sk-, gsk-, Bearer xxx) を [REDACTED] に置換
+// - オブジェクト: 機密キーの値を [REDACTED] に置換（1 段のみ、走査は無限ループ回避のため深さ制限あり）
+const SENSITIVE_KEYS = new Set(["apikey", "api_key", "authorization", "auth", "x-api-key"]);
+const SK_PATTERN = /\bsk-[A-Za-z0-9_-]{8,}\b/g;
+const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._\-+/=]{8,}\b/g;
+const REDACTED = "[REDACTED]";
+const MAX_DEPTH = 4;
+
+function redactString(value) {
+  return value.replace(SK_PATTERN, REDACTED).replace(BEARER_PATTERN, "Bearer " + REDACTED);
+}
+
+function redactValue(value, seen, depth) {
+  if (depth >= MAX_DEPTH) return value;
+  if (value == null) return value;
+  if (typeof value === "string") return redactString(value);
+  if (typeof value !== "object") return value;
+  // Error / Date / RegExp / Map / Set は prototype や内部スロットを持つため
+  // そのまま返す（logger に渡るのはほぼ Error のみ）。
+  if (
+    value instanceof Error ||
+    value instanceof Date ||
+    value instanceof RegExp ||
+    value instanceof Map ||
+    value instanceof Set
+  ) {
+    return value;
+  }
+  if (seen.has(value)) return "[Circular]";
+  seen.add(value);
+  if (Array.isArray(value)) {
+    const out = new Array(value.length);
+    for (let i = 0; i < value.length; i++) out[i] = redactValue(value[i], seen, depth + 1);
+    seen.delete(value);
+    return out;
+  }
+  const out = {};
+  for (const key of Object.keys(value)) {
+    const lower = key.toLowerCase();
+    if (SENSITIVE_KEYS.has(lower)) {
+      out[key] = REDACTED;
+    } else {
+      out[key] = redactValue(value[key], seen, depth + 1);
+    }
+  }
+  seen.delete(value);
+  return out;
+}
+
+export function redactSecrets(arg) {
+  return redactValue(arg, new WeakSet(), 0);
+}
+
 function toArgs(prefix, args) {
   const out = [prefix];
-  for (let i = 0; i < args.length; i++) out.push(args[i]);
+  for (let i = 0; i < args.length; i++) out.push(redactSecrets(args[i]));
   return out;
 }
 

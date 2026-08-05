@@ -104,9 +104,7 @@ export async function onChatSend() {
     }
 
     await callChatAPIStream(
-      [{ role: "system", content: S.tabs[S.activeTab].chatHistory[0].content }].concat(
-        tab.chatHistory
-      ),
+      tab.chatHistory,
       config,
       function (chunk) {
         accumulated = chunk;

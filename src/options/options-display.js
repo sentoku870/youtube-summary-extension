@@ -77,6 +77,7 @@ function setThemeFromValue(value) {
     c.classList.toggle("active", active);
     c.setAttribute("aria-checked", active ? "true" : "false");
   });
+  document.documentElement.setAttribute("data-theme", value);
 }
 
 // ===== プリセットチップ生成 =====

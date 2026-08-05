@@ -21,6 +21,7 @@
   --ys-bg: #fafafa;
   --ys-bg-soft: #f0f0f0;
   --ys-text-muted: #888;
+  --ys-text: #222;
   --ys-radius: 6px;
   --ys-radius-sm: 4px;
 
@@ -515,13 +516,12 @@ button:focus-visible {
   flex-shrink: 0;
 }
 .version-info-value {
-  color: var(--ys-text);
+  color: var(--ys-text, #222);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 600;
   text-align: right;
   word-break: break-all;
 }
-[data-theme="dark"] .version-info,
 :root[data-theme="dark"] .version-info {
   background: rgba(255, 255, 255, 0.04);
 }

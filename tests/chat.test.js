@@ -149,6 +149,21 @@ describe("chat", () => {
       expect(lastAssistant.content).toBe("AI回答");
     });
 
+    test("API に渡す messages は chatHistory と同一（system 重複なし）", async () => {
+      api.callChatAPIStream.mockReset();
+      api.callChatAPIStream.mockImplementation(async function (_m, _c, onChunk, onDone) {
+        if (onDone) onDone("OK");
+      });
+      await onChatSend();
+      const hist = uiState.tabs.summary.chatHistory;
+      const [sentMessages] = api.callChatAPIStream.mock.calls[0];
+      // chatHistory の参照がそのまま渡される
+      expect(sentMessages).toBe(hist);
+      // system メッセージは先頭の 1 件のみ
+      const systemMessages = sentMessages.filter((m) => m.role === "system");
+      expect(systemMessages.length).toBe(1);
+    });
+
     test("tab.config があり apiKey があるならそのまま使用", async () => {
       uiState.tabs.summary.config = { apiKey: "k", apiUrl: "u", apiModel: "m" };
       api.callChatAPIStream.mockResolvedValue(undefined);
