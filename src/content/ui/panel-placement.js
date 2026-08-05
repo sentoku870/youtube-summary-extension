@@ -86,6 +86,11 @@ function waitForSecondary(maxWaitMs) {
 // Polymer/YouTube が #secondary-inner 配下の未知要素に .hidden を付与して
 // display:none にしてしまうのを防ぐ。
 // 監視は WeakMap で管理（パネル破棄時に Observer も自動 GC される）
+//
+// Phase 3-5: YouTube 側の意図的な `hidden` 属性付与（シアター / ミニプレーヤー等）
+// を上書きしないよう、attributeFilter を `class` のみに限定。
+// `hidden` 属性の removeAttribute は初回配置時の 1 回だけ実施し、
+// その後の属性変更は監視対象外（class の変化のみ反応）。
 const hiddenObservers = new WeakMap();
 
 function ensureVisibleAndWatch(panel) {
@@ -99,11 +104,8 @@ function ensureVisibleAndWatch(panel) {
       panel.classList.remove("hidden");
       log.warn("YouTube 側から .hidden が付与されたため除去しました");
     }
-    if (panel.hasAttribute("hidden")) {
-      panel.removeAttribute("hidden");
-    }
   });
-  mo.observe(panel, { attributes: true, attributeFilter: ["class", "hidden"] });
+  mo.observe(panel, { attributes: true, attributeFilter: ["class"] });
   hiddenObservers.set(panel, mo);
 }
 
@@ -146,7 +148,7 @@ function relocateWhenReady(panel) {
   const obs = new MutationObserver(function () {
     if (isUserInteracted()) {
       log.log("ユーザー操作済みのためパネルの再配置をスキップします");
-      obs.disconnect();
+      cleanup();
       return;
     }
     const r = getWatchSecondary();
@@ -160,13 +162,37 @@ function relocateWhenReady(panel) {
       ensureVisibleAndWatch(panel);
       log.log("サイドバー出現につきパネルを再配置しました @ " + r.source);
       logPlacement(panel);
-      obs.disconnect();
+      cleanup();
     }
   });
-  obs.observe(document.documentElement || document.body, { childList: true, subtree: true });
-  setTimeout(function () {
+  // Phase 3-5: 観察対象を `<html>` 全体から、YouTube の主要レイアウト要素
+  // （`#columns` / `#primary` / `#secondary` を含む `<ytd-watch-flexy>`）の
+  // 直近祖先へ絞り、YouTube のチャット欄 / コメント / 推奨動画での数千回
+  // のコールバック発火によるフレーム落ちを防ぐ。`childList` のみを監視。
+  const observeTarget = findWatchFlexyRoot() || document.documentElement;
+  obs.observe(observeTarget, { childList: true, subtree: true });
+
+  // タイムアウトの戻り値を保持し、disconnect 時に clearTimeout する。
+  let timeoutId = setTimeout(cleanup, RELOCATE_OBSERVER_TIMEOUT_MS);
+
+  function cleanup() {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
     obs.disconnect();
-  }, RELOCATE_OBSERVER_TIMEOUT_MS);
+  }
+}
+
+// Phase 3-5: relocateWhenReady の観察対象を特定するため、YouTube の
+// レイアウトルート（<ytd-watch-flexy> または #columns）を返す。
+// 見つからない場合は document.documentElement にフォールバック。
+function findWatchFlexyRoot() {
+  const flexy = document.querySelector("ytd-watch-flexy");
+  if (flexy) return flexy;
+  const columns = document.getElementById("columns");
+  if (columns && columns.parentNode) return columns.parentNode;
+  return null;
 }
 
 /**

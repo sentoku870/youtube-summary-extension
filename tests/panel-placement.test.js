@@ -301,20 +301,37 @@ describe("panel.js パネル配置 (placement)", () => {
       logSpy.mockRestore();
     });
 
-    test("ensureVisibleAndWatch: hidden 属性も除去する", async () => {
+    test("ensureVisibleAndWatch: .hidden クラスは除去する", async () => {
       jest.useFakeTimers();
       buildYouTubeWatchPage({ secondaryInner: true });
       createPanel();
       await jest.runAllTimersAsync();
       jest.useRealTimers();
       const panel = S.panelEl;
-      // hidden 属性を付与
-      panel.setAttribute("hidden", "");
-      // MutationObserver が発火して hidden 属性が除去される
+      // .hidden クラスを付与
+      panel.classList.add("hidden");
+      // MutationObserver が発火して .hidden クラスが除去される
       await new Promise(function (r) {
         setTimeout(r, 10);
       });
-      expect(panel.hasAttribute("hidden")).toBe(false);
+      expect(panel.classList.contains("hidden")).toBe(false);
+    });
+
+    test("ensureVisibleAndWatch: hidden 属性は YouTube 意図的付与を尊重して上書きしない", async () => {
+      // Phase 3-5: attributeFilter を class のみに限定したため、
+      // YouTube 側の意図的な hidden 属性付与は尊重する。
+      jest.useFakeTimers();
+      buildYouTubeWatchPage({ secondaryInner: true });
+      createPanel();
+      await jest.runAllTimersAsync();
+      jest.useRealTimers();
+      const panel = S.panelEl;
+      panel.setAttribute("hidden", "");
+      await new Promise(function (r) {
+        setTimeout(r, 10);
+      });
+      // hidden 属性は除去されず維持される
+      expect(panel.hasAttribute("hidden")).toBe(true);
     });
 
     test("relocateWhenReady: secondary 出現後に再配置される", async () => {
