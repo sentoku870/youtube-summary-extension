@@ -62,7 +62,10 @@ setUiAdapter({
   }
 });
 
-const MIN_INIT_INTERVAL_MS = 2000;
+// N-5: BFCache 復元直後にユーザーが即座にボタンを押しても reinit が
+// ブロックされないよう、ガード間隔を 2000ms → 500ms に短縮。
+// 500ms 以内の連続 reinit は依然として二重実行を防ぐ。
+const MIN_INIT_INTERVAL_MS = 500;
 
 function doInit() {
   // T2-D1: パネル再利用時のプリロード漏れを修正
