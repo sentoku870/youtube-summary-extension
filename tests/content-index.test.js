@@ -166,6 +166,36 @@ describe("content/index.js — エントリポイント", () => {
       await safeInit();
       // クラッシュしなかったことだけ確認
     });
+
+    // N-5: MIN_INIT_INTERVAL_MS を 500ms に短縮。BFCache 復元直後の
+    // ユーザー押下でも reinit がブロックされない。
+    test("500ms 経過後の再呼出: reinit される", async () => {
+      const safeInit = getSafeInit();
+      const { uiState: uiStateRef } = require("../src/shared/state");
+      uiStateRef.initialized = false;
+      uiStateRef.lastInitTime = Date.now() - 600; // 600ms 前
+      uiStateRef.panelEl = null;
+      const panel = require("../src/content/ui/panel");
+      panel.createPanel.mockClear();
+
+      await safeInit();
+
+      expect(panel.createPanel).toHaveBeenCalled();
+    });
+
+    test("500ms 以内の再呼出: ガードで no-op", async () => {
+      const safeInit = getSafeInit();
+      const { uiState: uiStateRef } = require("../src/shared/state");
+      uiStateRef.initialized = false;
+      uiStateRef.lastInitTime = Date.now() - 100; // 100ms 前（500ms 未満）
+      uiStateRef.panelEl = null;
+      const panel = require("../src/content/ui/panel");
+      panel.createPanel.mockClear();
+
+      await safeInit();
+
+      expect(panel.createPanel).not.toHaveBeenCalled();
+    });
   });
 
   // ===== preloadTranscript ライフサイクル =====

@@ -922,3 +922,81 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
     expect(S.abortController).not.toBe(prevSignal);
   });
 });
+
+// ===== N-2: abort 時に renderSummaryChunk に空文字を流さない =====
+describe("N-2: processSingleStream の abort 時に DOM を空にしない", () => {
+  let renderSummaryChunkSpy;
+  let originalGetSummaryTextEl;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    callChatAPIStream.mockReset();
+    chrome.storage.local.get.mockReset();
+    chrome.storage.local.set.mockReset();
+    chrome.storage.local.remove.mockReset();
+
+    const ports = require("../src/domain/ports");
+    const ui = ports.getUiAdapter();
+    renderSummaryChunkSpy = jest.spyOn(ui, "renderSummaryChunk").mockImplementation(function () {});
+
+    // summaryTextEl として実 DOM を返す
+    originalGetSummaryTextEl = global.YsPanel.getEl;
+    const realEl = document.createElement("div");
+    realEl.id = "ys-summaryText";
+    realEl.textContent = "previous result";
+    document.body.appendChild(realEl);
+    global.YsPanel.getEl = jest.fn(function () {
+      return realEl;
+    });
+
+    resetSharedSession();
+    U.tabs = {
+      summary: { generated: false, content: "", chatHistory: [] }
+    };
+  });
+
+  afterEach(() => {
+    renderSummaryChunkSpy.mockRestore();
+    global.YsPanel.getEl = originalGetSummaryTextEl;
+    const el = document.getElementById("ys-summaryText");
+    if (el) el.remove();
+  });
+
+  test('abort 時に renderSummaryChunk("") が呼ばれないこと', async () => {
+    setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage(chrome);
+
+    // 旧 stream が abort されたシナリオを再現:
+    // callChatAPIStream が AbortError を throw する。
+    callChatAPIStream.mockImplementation(async function () {
+      throw new DOMException("aborted", "AbortError");
+    });
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(false);
+
+    // N-2: abort 時に renderSummaryChunk("") を呼ばない。
+    // もし空文字を flush してしまうと、ユーザーが「回答が消えた」と感じる。
+    const emptyCalls = renderSummaryChunkSpy.mock.calls.filter(function (args) {
+      return args[0] === "";
+    });
+    expect(emptyCalls).toHaveLength(0);
+  });
+
+  test('通常のエラー時に renderSummaryChunk("") が呼ばれないこと', async () => {
+    setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage(chrome);
+
+    callChatAPIStream.mockRejectedValue(new Error("network down"));
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(false);
+
+    // N-2: 通常エラー時も空フラッシュしない（handleAiErrors で
+    // clearSummaryContent が呼ばれる責務）。
+    const emptyCalls = renderSummaryChunkSpy.mock.calls.filter(function (args) {
+      return args[0] === "";
+    });
+    expect(emptyCalls).toHaveLength(0);
+  });
+});
