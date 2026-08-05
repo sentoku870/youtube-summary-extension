@@ -2,8 +2,11 @@
 //  transcript.js — 字幕取得・プリロード・リトライ（ESM版）
 //  Phase A-1/A-2: content/ui への依存を排除 → event-bus に切り替え
 //  これにより domain 層は純粋に content/ui に依存しなくなる。
+//  Phase 2-B: 世代管理（_transcriptGen, _transcriptPromise）の書き込みは
+//  race condition 防止のため直接代入を維持。複数キー同時更新のみ
+//  setSessionState で原子的書き換えを行う。
 // ============================================================
-import { sessionState as S } from "../shared/state.js";
+import { sessionState as S, setSessionState } from "../shared/state.js";
 import { loadSubtitleLang } from "../infrastructure/storage-config.js";
 import { emit, INTERNAL_EVENTS } from "../shared/event-bus.js";
 import { fetchYtTranscript } from "./transcript-fetcher.js";
@@ -40,8 +43,10 @@ export async function fetchTranscript() {
     // ままになる問題をこれで防ぐ。preloadTranscript 側で二重発火した場合も
     // event-bridge の applyButtonTitles は冪等なので問題なし。
     if (r && r.all && r.all.length > 0 && !S.transcriptReady) {
-      S.preloadedTranscript = r;
-      S.transcriptReady = true;
+      setSessionState({
+        preloadedTranscript: r,
+        transcriptReady: true
+      });
       emit(INTERNAL_EVENTS.TRANSCRIPT_READY, { transcript: r });
     }
     return r;
@@ -70,8 +75,10 @@ export async function preloadTranscript() {
           log.log("古い字幕取得結果を破棄（世代 mismatch at store）");
           return;
         }
-        S.preloadedTranscript = transcript;
-        S.transcriptReady = true;
+        setSessionState({
+          preloadedTranscript: transcript,
+          transcriptReady: true
+        });
         // UI層はこのイベントを購読してボタン文言を更新
         emit(INTERNAL_EVENTS.TRANSCRIPT_READY, { transcript: transcript });
         return;
@@ -93,9 +100,11 @@ export async function preloadTranscript() {
 // 字幕の再試行（リトライボタン用）
 export async function retryTranscript() {
   if (S.pendingRetry) return;
-  S.pendingRetry = true;
-  S.preloadedTranscript = null;
-  S.transcriptReady = false;
+  setSessionState({
+    pendingRetry: true,
+    preloadedTranscript: null,
+    transcriptReady: false
+  });
 
   // UI層はこのイベントを購読して「取得中...」表示
   emit(INTERNAL_EVENTS.TRANSCRIPT_RETRY, {});

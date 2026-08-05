@@ -1,7 +1,14 @@
 // tests/state.test.js — state.js の単体テスト
 const stateModule = require("../src/shared/state");
-const { uiState, sessionState, resetSession, createInitialSessionState, createInitialTabState } =
-  stateModule;
+const {
+  uiState,
+  sessionState,
+  setUiState,
+  setSessionState,
+  resetSession,
+  createInitialSessionState,
+  createInitialTabState
+} = stateModule;
 
 describe("uiState（UI 状態）", () => {
   test("期待される全プロパティを持つ", () => {
@@ -75,5 +82,35 @@ describe("createInitialTabState", () => {
     const t2 = createInitialTabState();
     t1.content = "test";
     expect(t2.content).toBe("");
+  });
+});
+
+describe("setUiState", () => {
+  test("patch を uiState にマージする", () => {
+    setUiState({ initialized: true, lastInitTime: 12345 });
+    expect(uiState.initialized).toBe(true);
+    expect(uiState.lastInitTime).toBe(12345);
+  });
+
+  test("未指定のプロパティは保持される", () => {
+    setUiState({ activeTab: "summary" });
+    expect(uiState.eventsBound).toBe(false);
+    expect(uiState.tabs).toEqual({});
+  });
+});
+
+describe("setSessionState", () => {
+  test("patch を sessionState にマージする", () => {
+    setSessionState({ transcriptReady: true, transcriptText: "abc" });
+    expect(sessionState.transcriptReady).toBe(true);
+    expect(sessionState.transcriptText).toBe("abc");
+  });
+
+  test("複数キーの同時更新（abortController クリア）", () => {
+    sessionState.abortController = { abort: function () {} };
+    sessionState.chatBusy = true;
+    setSessionState({ abortController: null, chatBusy: false });
+    expect(sessionState.abortController).toBeNull();
+    expect(sessionState.chatBusy).toBe(false);
   });
 });

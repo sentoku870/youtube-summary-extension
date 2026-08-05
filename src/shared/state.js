@@ -4,6 +4,9 @@
 //  セッション状態（動画単位データ）に分割。
 //  UI 状態: パネル寿命で保持。動画切替で消えない。
 //  セッション状態: 動画切替ごとに resetSession() で初期化。
+//
+//  Phase 2-B: 直接書き換えを setUiState / setSessionState 経由に集約。
+//  state 変更点を 1 箇所にまとめ、テスト時の追跡とデバッグを容易にする。
 // ============================================================
 import { TAB_IDS } from "./constants.js";
 
@@ -23,6 +26,15 @@ export const uiState = {
   storageOnChangedListener: null,
   storageOnChangedCleanupBound: false
 };
+
+/**
+ * UI 状態へ patch を適用する。
+ * 例: setUiState({ initialized: true, lastInitTime: Date.now() });
+ * @param {Partial<typeof uiState>} patch
+ */
+export function setUiState(patch) {
+  Object.assign(uiState, patch);
+}
 
 /**
  * セッション状態の初期値を生成
@@ -56,13 +68,20 @@ export function createInitialSessionState() {
 export const sessionState = createInitialSessionState();
 
 /**
+ * セッション状態へ patch を適用する。
+ * 例: setSessionState({ transcriptReady: true, transcriptText });
+ * @param {object} patch
+ */
+export function setSessionState(patch) {
+  Object.assign(sessionState, patch);
+}
+
+/**
  * セッション状態を初期値にリセット
  * 動画切替時に呼ぶ
  */
 export function resetSession() {
-  const fresh = createInitialSessionState();
-  for (const key of Object.keys(sessionState)) delete sessionState[key];
-  Object.assign(sessionState, fresh);
+  Object.assign(sessionState, createInitialSessionState());
 }
 
 /**

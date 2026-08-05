@@ -10,7 +10,7 @@
 //    - infrastructure/storage-cache.js: saveToStorage / saveSummaryCache
 //    - domain/ports.js: UI adapter
 // ============================================================
-import { uiState, sessionState } from "../shared/state.js";
+import { uiState, setSessionState } from "../shared/state.js";
 import { saveToStorage, saveSummaryCache } from "../infrastructure/storage-cache.js";
 import { getCurrentVideoId } from "../shared/utils.js";
 import { CHAT_HISTORY_SEED_LENGTH } from "../shared/constants.js";
@@ -68,7 +68,7 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
     ui.showRegenButton();
   }
   ui.updateTabUI();
-  sessionState.abortController = null;
+  setSessionState({ abortController: null });
 
   saveToStorage(content, transcript.all);
   try {

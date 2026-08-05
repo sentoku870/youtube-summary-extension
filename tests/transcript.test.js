@@ -12,7 +12,14 @@ const mockSessionState = {
   pendingRetry: false
 };
 jest.mock("../src/shared/state.js", function () {
-  return { sessionState: mockSessionState };
+  return {
+    sessionState: mockSessionState,
+    // Phase 2-B: setSessionState は sessionState への Object.assign の薄いラッパ。
+    // テストでは実オブジェクトへの反映を保証するため素通しにする。
+    setSessionState: jest.fn(function (patch) {
+      Object.assign(mockSessionState, patch);
+    })
+  };
 });
 
 // loadSubtitleLang のモック

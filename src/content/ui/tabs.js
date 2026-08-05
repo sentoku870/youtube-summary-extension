@@ -4,8 +4,9 @@
 //  Phase P1-D: applyButtonTitles を tabs-ui.js に分離。
 //  本モジュールは「タブ状態 + switchTab」の薄層に専念し、
 //  DOM イベント登録は tabs-events.js、描画ヘルパは tabs-ui.js に委譲する。
+//  Phase 2-B: uiState の書き込みを setUiState 経由に統一。
 // ============================================================
-import { uiState as S, sessionState } from "../../shared/state.js";
+import { uiState as S, sessionState, setUiState } from "../../shared/state.js";
 import { getEl } from "./panel.js";
 import { updateTabUI, updateTabActive, renderTabContent, applyButtonTitles } from "./tabs-ui.js";
 import { callAI, abortCurrentStream } from "../../domain/ai.js";
@@ -43,11 +44,11 @@ export async function switchTab(mode) {
 
   if (S.activeTab === mode) {
     panel.style.display = "none";
-    S.activeTab = null;
+    setUiState({ activeTab: null });
     updateTabActive();
     return;
   }
-  S.activeTab = mode;
+  setUiState({ activeTab: mode });
   panel.style.display = "flex";
   updateTabActive();
   if (tab.generated) {

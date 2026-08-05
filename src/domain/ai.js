@@ -9,7 +9,7 @@
 // ============================================================
 import { getAvailableTokens, estimateTokens, splitIntoChunks } from "../shared/utils.js";
 import { callChatAPIStream } from "./api.js";
-import { uiState, sessionState } from "../shared/state.js";
+import { uiState, sessionState, setSessionState } from "../shared/state.js";
 import { processMapReduce } from "./ai-map-reduce.js";
 import {
   loadBtnApiConfigId,
@@ -57,8 +57,8 @@ export async function resolveApiConfig(mode) {
 export function abortCurrentStream() {
   if (sessionState.abortController) {
     sessionState.abortController.abort();
-    sessionState.abortController = null;
   }
+  setSessionState({ abortController: null });
 }
 
 // ===== エラー表示（DI経由でUIにエラー表示） =====
@@ -146,7 +146,7 @@ export async function callAI(mode, useAbort) {
     if (!ctx) return false; // 準備段階でユーザー向けエラー表示済み
 
     // 2. AbortController 設定
-    sessionState.abortController = new AbortController();
+    setSessionState({ abortController: new AbortController() });
     controller = sessionState.abortController;
     const signal = controller.signal;
 
@@ -164,7 +164,7 @@ export async function callAI(mode, useAbort) {
     // sessionState.abortController に「今回作った controller」が入っている時のみ
     // クリア（他経路で既に置き換えられている可能性に備える）。
     if (controller && sessionState.abortController === controller) {
-      sessionState.abortController = null;
+      setSessionState({ abortController: null });
     }
   }
 }
@@ -190,9 +190,11 @@ async function prepareContext(mode) {
   }
 
   // メタ情報・字幕テキストを session 状態に保存
-  sessionState.videoMeta = transcript.meta || null;
   const transcriptText = resolveTranscriptText(transcript);
-  sessionState.transcriptText = transcriptText;
+  setSessionState({
+    videoMeta: transcript.meta || null,
+    transcriptText: transcriptText
+  });
 
   // API 設定＋プロンプト解決
   const resolved = await fetchConfigAndPrompt(mode);

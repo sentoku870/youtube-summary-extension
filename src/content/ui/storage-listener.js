@@ -2,8 +2,9 @@
 //  storage-listener.js — chrome.storage.onChanged リスナー管理
 //  tabs.js から分離。設定変更をデバウンスして applyButtonTitles を再実行する。
 //  bindEvents 再呼び出しと pagehide 時の removeListener を一元管理。
+//  Phase 2-B: uiState 書き込みを setUiState 経由に統一。
 // ============================================================
-import { uiState as S } from "../../shared/state.js";
+import { uiState as S, setUiState } from "../../shared/state.js";
 import { createLogger } from "../../shared/logger.js";
 
 const log = createLogger("storage-listener");
@@ -41,12 +42,12 @@ export function bindStorageListener(onUpdate) {
         onUpdate();
       }, 150);
     };
-    S.storageOnChangedListener = listener;
+    setUiState({ storageOnChangedListener: listener });
     chrome.storage.onChanged.addListener(listener);
 
     // ページ離脱 / BFCache 復元失敗時にリスナーを解放（メモリリーク予防）
     if (!S.storageOnChangedCleanupBound) {
-      S.storageOnChangedCleanupBound = true;
+      setUiState({ storageOnChangedCleanupBound: true });
       window.addEventListener("pagehide", function () {
         unbindStorageListener();
       });
@@ -69,7 +70,7 @@ export function unbindStorageListener() {
     } catch {
       /* context invalidated */
     }
-    S.storageOnChangedListener = null;
+    setUiState({ storageOnChangedListener: null });
   }
   if (currentDebounceTimer) {
     clearTimeout(currentDebounceTimer);

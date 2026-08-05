@@ -3,7 +3,7 @@
 //  tabs.js から分離。sessionState 経由で状態にアクセスし、
 //  UI ヘルパは ui-chat.js / panel.js へ委譲する。
 // ============================================================
-import { uiState as S, sessionState } from "../../shared/state.js";
+import { uiState as S, sessionState, setSessionState } from "../../shared/state.js";
 import { getEl } from "./panel.js";
 import {
   appendChatMessage,
@@ -25,12 +25,14 @@ import { CHAT_HISTORY_SEED_LENGTH } from "../../shared/constants.js";
 export function abortChatStream() {
   if (sessionState.chatAbortController) {
     sessionState.chatAbortController.abort();
-    sessionState.chatAbortController = null;
   }
   if (sessionState.chatAbortChain) {
     sessionState.chatAbortChain.disconnect();
-    sessionState.chatAbortChain = null;
   }
+  setSessionState({
+    chatAbortController: null,
+    chatAbortChain: null
+  });
 }
 
 // ===== チャット入力欄の高さ自動リサイズ =====
@@ -73,9 +75,11 @@ export async function onChatSend() {
     sessionState.abortController && sessionState.abortController.signal
   );
   const controller = chain.controller;
-  sessionState.chatAbortController = controller;
-  sessionState.chatAbortChain = chain;
-  sessionState.chatBusy = true;
+  setSessionState({
+    chatAbortController: controller,
+    chatAbortChain: chain,
+    chatBusy: true
+  });
   if (input) input.readOnly = true;
 
   // AI回答の空枠を作成。
@@ -125,9 +129,9 @@ export async function onChatSend() {
   } finally {
     // コントローラがまだ自分を指している場合のみクリア
     if (sessionState.chatAbortController === controller) {
-      sessionState.chatAbortController = null;
+      setSessionState({ chatAbortController: null });
     }
-    sessionState.chatBusy = false;
+    setSessionState({ chatBusy: false });
     if (input) {
       input.readOnly = false;
       input.focus();
@@ -135,7 +139,7 @@ export async function onChatSend() {
     // 親 abort との連動を解除（次の送信に備えてリセット）
     if (sessionState.chatAbortChain) {
       sessionState.chatAbortChain.disconnect();
-      sessionState.chatAbortChain = null;
+      setSessionState({ chatAbortChain: null });
     }
   }
 }

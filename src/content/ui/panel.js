@@ -6,8 +6,10 @@
 //    - 全ボタン制御 (enableAllButtons)
 //    - パネルの生成 (createPanel: スケルトン HTML + 状態初期化)
 //  を担当。配置は panel-placement.js に委譲する。
+//  Phase 2-B: uiState の直接書き換えを setUiState() 経由に統一。
 // ============================================================
-import { uiState as S } from "../../shared/state.js";
+import { uiState as S, setUiState } from "../../shared/state.js";
+import { createInitialTabState } from "../../shared/state.js";
 import { applyTheme, applyFontSize, applyPanelHeight } from "./appearance.js";
 import { TAB_IDS } from "../../shared/constants.js";
 import { placePanel } from "./panel-placement.js";
@@ -51,23 +53,15 @@ export function enableAllButtons() {
 export function createPanel() {
   if (S.panelEl) return S.panelEl;
 
-  S.tabIds = [...TAB_IDS];
-  S.tabs = {};
-  S.tabIds.forEach(function (id) {
-    S.tabs[id] = {
-      generated: false,
-      content: "",
-      config: null,
-      modelLabel: "",
-      transcriptCount: 0,
-      chatHistory: []
-    };
+  const tabs = {};
+  const tabIds = [...TAB_IDS];
+  tabIds.forEach(function (id) {
+    tabs[id] = createInitialTabState();
   });
-
-  S.panelEl = document.createElement("div");
-  S.panelEl.id = "yt-summary-root";
+  const panelEl = document.createElement("div");
+  panelEl.id = "yt-summary-root";
   // 静的マークアップのため innerHTML を使用（XSS 対策: すべてコンパイル時リテラル）
-  S.panelEl.innerHTML =
+  panelEl.innerHTML =
     '<div class="ys-tab-row">' +
     '<button id="ys-btn-summary" class="ys-tab-btn">📝 A</button>' +
     '<button id="ys-btn-customA" class="ys-tab-btn">📊 B</button>' +
@@ -92,6 +86,13 @@ export function createPanel() {
     "</div>" +
     "</div>" +
     "</div>";
+
+  // panelEl 構築後に uiState へ一括反映（setUiState で 1 箇所に集約）
+  setUiState({
+    tabIds: tabIds,
+    tabs: tabs,
+    panelEl: panelEl
+  });
 
   // ★ 字幕プリロード完了を待たず、ボタンは押せる状態にする。
   // 旧実装では全ボタンを disabled にしていたが、preloadTranscript() の

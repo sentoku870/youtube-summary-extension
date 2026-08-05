@@ -10,7 +10,7 @@
 // ============================================================
 import { setUiAdapter } from "../domain/ports.js";
 import { createLogger } from "../shared/logger.js";
-import { uiState, sessionState } from "../shared/state.js";
+import { uiState, sessionState, setUiState } from "../shared/state.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
 import { getEl, createPanel } from "./ui/panel.js";
 import { bindEvents } from "./ui/tabs-events.js";
@@ -90,8 +90,7 @@ export function safeInit() {
   if (uiState.initialized) return;
   const now = Date.now();
   if (now - uiState.lastInitTime < MIN_INIT_INTERVAL_MS) return;
-  uiState.lastInitTime = now;
-  uiState.initialized = true;
+  setUiState({ lastInitTime: now, initialized: true });
   init();
 }
 

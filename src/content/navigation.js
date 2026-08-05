@@ -9,7 +9,13 @@
 //  startNavigationDetection() をモックなしで呼び出せる。
 // ============================================================
 import { DOM_EVENTS, INTERNAL_EVENTS, emit, on } from "../shared/event-bus.js";
-import { uiState, sessionState, resetSession } from "../shared/state.js";
+import {
+  uiState,
+  sessionState,
+  resetSession,
+  setUiState,
+  setSessionState
+} from "../shared/state.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
 import { createLogger } from "../shared/logger.js";
 import { abortCurrentStream } from "../domain/ai.js";
@@ -42,9 +48,11 @@ let safeInitFn = null;
 
 // ===== 字幕プリロード状態のリセット（index.js 起動フック用） =====
 export function resetTranscript() {
-  sessionState.preloadedTranscript = null;
-  sessionState.transcriptReady = false;
-  sessionState._transcriptGen = (sessionState._transcriptGen || 0) + 1;
+  setSessionState({
+    preloadedTranscript: null,
+    transcriptReady: false,
+    _transcriptGen: (sessionState._transcriptGen || 0) + 1
+  });
 }
 
 // ===== 動画切替時のフルリセット =====
@@ -66,7 +74,7 @@ function resetState() {
         t.chatHistory = [];
       }
     });
-    uiState.activeTab = null;
+    setUiState({ activeTab: null });
     updateTabActive();
     clearSummaryContent();
     hideProgress();
@@ -78,7 +86,7 @@ function handleNavigation() {
   if (!isYouTubeWatchPage(location.href)) return;
   resetState();
   resetTranscript();
-  uiState.initialized = false;
+  setUiState({ initialized: false });
   if (safeInitFn) safeInitFn();
 }
 
@@ -112,7 +120,7 @@ function bindPageShowHandler() {
   window.addEventListener("pageshow", function (ev) {
     if (ev.persisted && isYouTubeWatchPage(location.href)) {
       log.log("BFCache から復元されました。再初期化します。");
-      uiState.initialized = false;
+      setUiState({ initialized: false });
       handleNavigation();
       // B-1: pagehide で chrome.storage.onChanged リスナーが解除されているため、
       // 復元時に applyButtonTitles を呼んでボタン表示とストレージ監視を再有効化する。
