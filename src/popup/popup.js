@@ -2,8 +2,11 @@
 //  popup.js — 字幕DL / 設定（ESM版）
 //  DOMContentLoaded を待たずとも <script type="module"> は defer 扱いのため
 //  DOM 構築後に実行される。共通のエラー表示ヘルパで重複コードを削減。
+//  Phase 4-7: chrome.tabs.sendMessage に 15 秒タイムアウトを追加。
+//  getActiveYouTubeTab を shared/utils.js の isYouTubeWatchPage に統一。
 // ============================================================
 import { createLogger } from "../shared/logger.js";
+import { isYouTubeWatchPage } from "../shared/utils.js";
 
 const log = createLogger("popup");
 
@@ -11,6 +14,9 @@ const dlBtn = document.getElementById("dlBtn");
 const statusText = document.getElementById("statusText");
 
 const RELOAD_HINT = "❌ ページを再読み込みしてからお試しください";
+// content script が無応答のときに DL ボタンが永遠に「取得中...」のまま
+// 残らないように、15 秒タイムアウトを設定。
+const DL_REQUEST_TIMEOUT_MS = 15000;
 
 // T2-D5: latestSummary の取得結果をメモ化。
 // popup 起動中は何度も storage.get を呼ぶとオーバーヘッドが大きいため、
@@ -33,7 +39,7 @@ function showError(msg) {
 async function getActiveYouTubeTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
-  if (!tab || !tab.url || !tab.url.includes("youtube.com/watch")) {
+  if (!tab || !isYouTubeWatchPage(tab.url || "")) {
     return null;
   }
   return tab;
@@ -55,6 +61,20 @@ async function updateUI() {
   }
 }
 
+// Promise にタイムアウトを付与するヘルパ。
+function withTimeout(promise, ms, onTimeout) {
+  let timer = null;
+  const timeout = new Promise(function (_, reject) {
+    timer = setTimeout(function () {
+      onTimeout && onTimeout();
+      reject(new Error("Timeout after " + ms + "ms"));
+    }, ms);
+  });
+  return Promise.race([promise, timeout]).finally(function () {
+    if (timer !== null) clearTimeout(timer);
+  });
+}
+
 // ===== 字幕ダウンロード（アクティブタブから字幕を取得して保存） =====
 dlBtn.addEventListener("click", async function () {
   statusText.textContent = "⏳ 字幕を取得中...";
@@ -69,8 +89,19 @@ dlBtn.addEventListener("click", async function () {
       return;
     }
 
-    // content script へ ysGetTranscript メッセージを送信
-    const resp = await chrome.tabs.sendMessage(tab.id, { action: "ysGetTranscript" });
+    // content script へ ysGetTranscript メッセージを送信（タイムアウト付き）
+    let resp;
+    try {
+      resp = await withTimeout(
+        chrome.tabs.sendMessage(tab.id, { action: "ysGetTranscript" }),
+        DL_REQUEST_TIMEOUT_MS
+      );
+    } catch (e) {
+      // タイムアウト or 「Receiving end does not exist」など
+      log.error("字幕DL メッセージ失敗:", e);
+      showError(RELOAD_HINT);
+      return;
+    }
     if (!resp) {
       showError(RELOAD_HINT);
       return;
@@ -92,9 +123,10 @@ dlBtn.addEventListener("click", async function () {
     const a = document.createElement("a");
     a.href = url;
 
-    // ファイル名に動画IDを含める（上書き防止）
+    // ファイル名に動画IDを含める（上書き防止）。
+    // 防御的にサニタイズして OS 依存の path メタ文字を除去。
     const videoIdMatch = tab.url.match(/[?&]v=([^&]+)/);
-    const videoId = videoIdMatch ? videoIdMatch[1] : "video";
+    const videoId = videoIdMatch ? videoIdMatch[1].replace(/[^A-Za-z0-9_-]/g, "_") : "video";
     a.download = "youtube_captions_" + videoId + ".txt";
     a.click();
     URL.revokeObjectURL(url);
