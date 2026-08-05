@@ -24,7 +24,11 @@ export const uiState = {
   lastInitTime: 0,
   // T1-U3: storage.onChanged リスナー参照（bindEvents 再呼び出し時・pagehide で removeListener）
   storageOnChangedListener: null,
-  storageOnChangedCleanupBound: false
+  storageOnChangedCleanupBound: false,
+  // N-1: 動画切替検出用。resetState() で現在の videoId と比較し、
+  // 変化した時のみ #ys-panel を display:none にする。同一URLの重複 emit
+  // や BFCache 復元では閉じない。
+  activeVideoId: null
 };
 
 /**
