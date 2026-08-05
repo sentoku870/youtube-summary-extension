@@ -1,23 +1,27 @@
 // ============================================================
 //  tabs-ui.js — タブUI更新・コンテンツ描画（純粋描画ロジック）
 //  Phase C-1: tabs.js からUI描画関数を分離
+//  Phase P1-D: tabs.js から applyButtonTitles も移行。
 // ============================================================
 import { uiState as S } from "../../shared/state.js";
-import { getEl } from "./panel.js";
+import { getEl, enableAllButtons } from "./panel.js";
+import { hideProgress } from "./ui-progress.js";
 import {
   clearSummaryContent,
   updateInfoLabel,
   hideChatArea,
+  setSummaryContent,
+  showChatArea
+} from "./ui-summary.js";
+import {
   hideRegenButton,
   hideCopyButton,
-  hideProgress,
-  setSummaryContent,
   showRegenButton,
   showCopyButton,
-  showChatArea,
-  appendChatMessage,
   focusChatInput
-} from "./ui.js";
+} from "./ui-buttons.js";
+import { appendChatMessage } from "./ui-chat.js";
+import { loadButtonTitle } from "../../infrastructure/storage-config.js";
 import { CHAT_HISTORY_SEED_LENGTH, TAB_IDS } from "../../shared/constants.js";
 
 // ===== タブUI更新（ドット表示） =====
@@ -82,4 +86,23 @@ export function renderTabContent(mode) {
     }
   }
   focusChatInput();
+}
+
+// ===== ボタンタイトル適用 =====
+// 全 3 ボタンを storage の btnTitle_* から取得し、未設定なら A/B/C にフォールバック。
+// 同じモジュール内の updateTabUI を最後に呼ぶことで、ドットの同期も保証する。
+export async function applyButtonTitles() {
+  const btnSummary = getEl("#ys-btn-summary");
+  const btnA = getEl("#ys-btn-customA");
+  const btnB = getEl("#ys-btn-customB");
+  const [titleS, titleA, titleB] = await Promise.all([
+    loadButtonTitle("summary"),
+    loadButtonTitle("customA"),
+    loadButtonTitle("customB")
+  ]);
+  if (btnSummary) btnSummary.textContent = titleS ? "📝 " + titleS : "📝 A";
+  if (btnA) btnA.textContent = titleA ? "📊 " + titleA : "📊 B";
+  if (btnB) btnB.textContent = titleB ? "💡 " + titleB : "💡 C";
+  enableAllButtons();
+  updateTabUI();
 }

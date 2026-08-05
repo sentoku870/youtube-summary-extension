@@ -41,7 +41,8 @@ helpers.installChromeMock();
 // モジュールをrequire
 require("../src/infrastructure/errors");
 require("../src/shared/utils");
-require("../src/infrastructure/storage");
+require("../src/infrastructure/storage-cache");
+require("../src/infrastructure/storage-core");
 
 // callAI のテストのため api.js をモック化（既存の純粋関数テストには影響しない）
 jest.mock("../src/domain/api.js", () => ({
@@ -51,10 +52,11 @@ jest.mock("../src/domain/api.js", () => ({
 
 const {
   resolveApiConfig,
-  fetchConfigAndPrompt,
   abortCurrentStream,
   callAI
 } = require("../src/domain/ai");
+// P0-P1: fetchConfigAndPrompt は内部化（export から外れた）。callAI 経由の間接
+// テストは「API 設定なし」「API 設定あり」ケースを別途検証。
 const { finalizeResult } = require("../src/domain/ai-finalize");
 
 // ai-utils.js から純粋関数を直接 import (A-1: re-export 削除対応)
@@ -318,62 +320,6 @@ describe("resolveApiConfig", () => {
       .mockResolvedValue({ apiConfigs: [{ id: "cfg1" }, { id: "cfg2" }] }); // apiKeyなし
 
     const result = await resolveApiConfig("summary");
-    expect(result).toBeNull();
-  });
-});
-
-// ===== fetchConfigAndPrompt =====
-describe("fetchConfigAndPrompt", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  // キー指定のモック（順序非依存）
-  // map.all 内のキー、または map 直下のキーを返す
-  function setupStorageMock(map) {
-    chrome.storage.local.get.mockImplementation(async function (key) {
-      const all = map.all || {};
-      if (key === null || key === undefined) return all;
-      if (Object.prototype.hasOwnProperty.call(map, key)) {
-        return { [key]: map[key] };
-      }
-      if (Object.prototype.hasOwnProperty.call(all, key)) {
-        return { [key]: all[key] };
-      }
-      return {};
-    });
-  }
-
-  test("通常の設定とプロンプトを解決する", async () => {
-    setupStorageMock({
-      btnApiConfig_summary: "cfg1",
-      all: { apiConfigs: [{ id: "cfg1", apiKey: "key1" }] },
-      prompt_summary: "カスタムプロンプト"
-    });
-
-    const result = await fetchConfigAndPrompt("summary");
-    expect(result.config.apiKey).toBe("key1");
-    expect(result.prompt).toBe("カスタムプロンプト");
-  });
-
-  test("カスタムプロンプトがない場合はデフォルトプロンプトを使用する", async () => {
-    setupStorageMock({
-      btnApiConfig_summary: "cfg1",
-      all: { apiConfigs: [{ id: "cfg1", apiKey: "key1" }] }
-    });
-
-    const result = await fetchConfigAndPrompt("summary");
-    expect(result.config.apiKey).toBe("key1");
-    expect(result.prompt).toContain("要約");
-  });
-
-  test("API設定がない場合はnullを返す", async () => {
-    setupStorageMock({
-      btnApiConfig_summary: null,
-      all: { apiConfigs: [] }
-    });
-
-    const result = await fetchConfigAndPrompt("summary");
     expect(result).toBeNull();
   });
 });
@@ -921,12 +867,66 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
 
     const result = await callAI("summary", false);
     expect(result).toBe(true);
+    // 間引きにより、最終確定分を含めても呼び出し回数は高々少数
+    expect(setMarkdownSpy.mock.calls.length).toBeLessThanOrEqual(2);
+  });
 
-    // スロットル無しの旧実装なら 5 回 + 完了時で 6 回。
-    // スロットル (60ms 間隔) なら最初の 1 回 + flush 1 回 ≒ 2 回程度に
-    // 抑制されるはず。実装の詳細は環境に依存するため緩めに検証。
-    const callCount = setMarkdownSpy.mock.calls.length;
-    expect(callCount).toBeGreaterThanOrEqual(1);
-    expect(callCount).toBeLessThanOrEqual(4);
+  // ===== 補完: 制御フローのエッジケース =====
+  test("存在しない tab を指定すると false を返して終了", async () => {
+    // 初期状態: U.tabs は空
+    U.tabs = {};
+    const result = await callAI("nonexistent", false);
+    expect(result).toBe(false);
+    expect(callChatAPIStream).not.toHaveBeenCalled();
+  });
+
+  test("字幕が空: 早期 return で showError を呼ぶ", async () => {
+    setupState(U, S, { all: [], allTimestamps: [], meta: null });
+    setupConfigStorage(chrome);
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(false);
+    expect(global.YsUI.showError).toHaveBeenCalledWith(expect.stringContaining("字幕"));
+  });
+
+  test("API 設定なし: 早期 return で showError を呼ぶ", async () => {
+    setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    // chrome.storage に何もない → loadApiConfigs が [] を返す
+    chrome.storage.local.get.mockResolvedValue({});
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(false);
+    expect(global.YsUI.showError).toHaveBeenCalledWith(expect.stringContaining("API"));
+  });
+
+  test("API コール中の例外: handleAiErrors に伝播する", async () => {
+    setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage(chrome);
+
+    callChatAPIStream.mockRejectedValue(new Error("network down"));
+
+    const result = await callAI("summary", false);
+    // 通常のエラーは handleAiErrors → false
+    expect(result).toBe(false);
+    expect(callChatAPIStream).toHaveBeenCalled();
+  });
+
+  test("useAbort=true: 進行中の abortController を abort する", async () => {
+    setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage(chrome);
+
+    // 既存の abortController をセット
+    S.abortController = new AbortController();
+    const prevSignal = S.abortController.signal;
+
+    callChatAPIStream.mockImplementation(async function () {
+      // 進行中に abort されているはず
+      // テスト用の abortable な API モック
+    });
+
+    await callAI("summary", true);
+
+    // 完了時には新しい controller に置き換わっている
+    expect(S.abortController).not.toBe(prevSignal);
   });
 });

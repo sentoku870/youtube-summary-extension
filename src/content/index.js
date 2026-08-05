@@ -4,7 +4,7 @@
 //  safeInit() と startNavigationDetection() を起動する。
 //
 //  役割:
-//    - setUiAdapter() で ui.js の各関数を domain/ports に橋渡し
+//    - setUiAdapter() で ui-* モジュール各関数を domain/ports に橋渡し
 //    - パネル生成 / 字幕プリロード / イベント登録のライフサイクル
 //    - SPA ナビゲーション検出は navigation.js に委譲
 // ============================================================
@@ -14,19 +14,14 @@ import { uiState, sessionState } from "../shared/state.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
 import { getEl, createPanel } from "./ui/panel.js";
 import { bindEvents } from "./ui/tabs-events.js";
+import { showError, hideProgress, showProgress, hideError } from "./ui/ui-progress.js";
 import {
-  showError,
-  hideProgress,
-  showProgress,
   setSummaryContent,
   clearSummaryContent,
   updateInfoLabel,
-  showChatArea,
-  focusChatInput,
-  showCopyButton,
-  showRegenButton,
-  hideError
-} from "./ui/ui.js";
+  showChatArea
+} from "./ui/ui-summary.js";
+import { focusChatInput, showCopyButton, showRegenButton } from "./ui/ui-buttons.js";
 import { updateTabUI } from "./ui/tabs.js";
 import { preloadTranscript } from "../domain/transcript.js";
 import { startNavigationDetection } from "./navigation.js";

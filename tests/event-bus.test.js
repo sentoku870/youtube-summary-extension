@@ -1,10 +1,11 @@
 // tests/event-bus.test.js — event-busの単体テスト
+// P0-P1: EVENTS シムを削除し、DOM_EVENTS / INTERNAL_EVENTS の責務分離を
+// コード上で明確化。
 const {
   on,
   off,
   emit,
   clearAll,
-  EVENTS,
   DOM_EVENTS,
   INTERNAL_EVENTS
 } = require("../src/shared/event-bus");
@@ -79,14 +80,6 @@ describe("event-bus", () => {
     expect(cb2).toHaveBeenCalled();
   });
 
-  test("EVENTS 定数が期待される値を持つ", () => {
-    expect(EVENTS.YT_NAVIGATE_FINISH).toBe("yt-navigate-finish");
-    expect(EVENTS.NAV_FINISH).toBe("nav:finish");
-    expect(EVENTS.TRANSCRIPT_READY).toBe("transcript-ready");
-    expect(EVENTS.TRANSCRIPT_FAILED).toBe("transcript-failed");
-    expect(EVENTS.TRANSCRIPT_RETRY).toBe("transcript-retry");
-  });
-
   test("DOM_EVENTS は生の DOM イベントのみを含む", () => {
     expect(DOM_EVENTS).toEqual({ YT_NAVIGATE_FINISH: "yt-navigate-finish" });
   });
@@ -96,13 +89,9 @@ describe("event-bus", () => {
     expect(INTERNAL_EVENTS.TRANSCRIPT_READY).toBe("transcript-ready");
     expect(INTERNAL_EVENTS.TRANSCRIPT_FAILED).toBe("transcript-failed");
     expect(INTERNAL_EVENTS.TRANSCRIPT_RETRY).toBe("transcript-retry");
+    expect(INTERNAL_EVENTS.SUMMARY_RETRY_CLICKED).toBe("summary:retry-clicked");
     // DOM_EVENTS 専用のキーは含まれない
     expect(INTERNAL_EVENTS.YT_NAVIGATE_FINISH).toBeUndefined();
-  });
-
-  test("EVENTS シムは DOM_EVENTS と INTERNAL_EVENTS の和集合", () => {
-    const merged = Object.assign({}, DOM_EVENTS, INTERNAL_EVENTS);
-    expect(EVENTS).toEqual(merged);
   });
 
   test("DOM_EVENTS と INTERNAL_EVENTS のキーは重複しない", () => {

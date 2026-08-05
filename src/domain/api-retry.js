@@ -16,14 +16,14 @@ const log = createLogger("api-retry");
 /**
  * HTTPステータスコードがリトライ対象か判定（429 および 5xx）
  */
-export function isRetryableHttpStatus(status) {
+function isRetryableHttpStatus(status) {
   return status === 429 || status >= 500;
 }
 
 /**
  * ネットワークエラーがリトライ対象か判定（AbortError は対象外）
  */
-export function isRetryableNetworkError(err) {
+function isRetryableNetworkError(err) {
   if (!err) return false;
   if (err instanceof DOMException && err.name === "AbortError") return false;
   return true;

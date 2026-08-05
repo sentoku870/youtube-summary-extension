@@ -1,7 +1,9 @@
 // tests/storage.test.js — ストレージ層の単体テスト
 const helpers = require("./__helpers__/index.cjs");
-const storage = require("../src/infrastructure/storage");
 const storageCore = require("../src/infrastructure/storage-core");
+const storageConfig = require("../src/infrastructure/storage-config");
+const storageCache = require("../src/infrastructure/storage-cache");
+const storage = Object.assign({}, storageCore, storageConfig, storageCache);
 
 // chrome.storage.local のモック（runtime.idも含めないと isExtensionContextValid() がfalseになる）
 helpers.installChromeMock();
@@ -314,6 +316,11 @@ describe("set", () => {
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
   });
+
+  test("'context invalidated'以外のエラーはそのまま throw", async () => {
+    chrome.storage.local.set.mockRejectedValue(new Error("network down"));
+    await expect(storage.set({ key1: "value1" })).rejects.toThrow("network down");
+  });
 });
 
 describe("remove", () => {
@@ -336,6 +343,19 @@ describe("remove", () => {
     } finally {
       chrome.runtime.id = origId;
     }
+  });
+
+  test("'context invalidated'エラー時は警告して処理をスキップ", async () => {
+    chrome.storage.local.remove.mockRejectedValue(new Error("Extension context invalidated."));
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    await storage.remove("myKey");
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  test("'context invalidated'以外のエラーはそのまま throw", async () => {
+    chrome.storage.local.remove.mockRejectedValue(new Error("quota exceeded"));
+    await expect(storage.remove("myKey")).rejects.toThrow("quota exceeded");
   });
 });
 
@@ -362,6 +382,11 @@ describe("getAll", () => {
     } finally {
       chrome.runtime.id = origId;
     }
+  });
+
+  test("'context invalidated'以外のエラーはそのまま throw", async () => {
+    chrome.storage.local.get.mockRejectedValue(new Error("connection refused"));
+    await expect(storage.getAll()).rejects.toThrow("connection refused");
   });
 });
 

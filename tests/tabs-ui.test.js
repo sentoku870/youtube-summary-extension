@@ -1,28 +1,39 @@
 // tests/tabs-ui.test.js — タブUI描画ロジックのテスト
+const helpers = require("./__helpers__/index.cjs");
 const { uiState: S } = require("../src/shared/state");
 
-// panel.js と ui.js をモック（重い依存チェーンを回避）
+// panel.js と ui-* をモック（重い依存チェーンを回避）
 jest.mock("../src/content/ui/panel.js", () => ({
   getEl: jest.fn()
 }));
-jest.mock("../src/content/ui/ui.js", () => ({
+jest.mock("../src/content/ui/ui-progress.js", () => ({
+  hideProgress: jest.fn()
+}));
+jest.mock("../src/content/ui/ui-summary.js", () => ({
   clearSummaryContent: jest.fn(),
   updateInfoLabel: jest.fn(),
   hideChatArea: jest.fn(),
+  setSummaryContent: jest.fn(),
+  showChatArea: jest.fn()
+}));
+jest.mock("../src/content/ui/ui-buttons.js", () => ({
   hideRegenButton: jest.fn(),
   hideCopyButton: jest.fn(),
-  hideProgress: jest.fn(),
-  setSummaryContent: jest.fn(),
   showRegenButton: jest.fn(),
   showCopyButton: jest.fn(),
-  showChatArea: jest.fn(),
-  appendChatMessage: jest.fn(),
   focusChatInput: jest.fn()
+}));
+jest.mock("../src/content/ui/ui-chat.js", () => ({
+  appendChatMessage: jest.fn()
 }));
 
 const { updateTabUI, updateTabActive, renderTabContent } = require("../src/content/ui/tabs-ui");
 const { getEl } = require("../src/content/ui/panel");
-const ui = require("../src/content/ui/ui");
+const uiSummary = require("../src/content/ui/ui-summary");
+const uiProgress = require("../src/content/ui/ui-progress");
+const uiButtons = require("../src/content/ui/ui-buttons");
+const uiChat = require("../src/content/ui/ui-chat");
+const ui = Object.assign({}, uiSummary, uiProgress, uiButtons, uiChat);
 
 describe("tabs-ui", () => {
   beforeEach(() => {
@@ -223,6 +234,57 @@ describe("tabs-ui", () => {
 
       expect(ui.appendChatMessage).toHaveBeenCalledTimes(1);
       expect(ui.appendChatMessage).toHaveBeenCalledWith("user", "質問", { editIndex: 4 });
+    });
+  });
+
+  // ===== applyButtonTitles =====
+  // applyButtonTitles の実体は tabs-ui.js 内にあるが、tabs-ui.js を
+  // モジュールモックしているため、applyButtonTitles 単体の検証は
+  // モジュールモックの対象外にしてこの describe ブロックでのみ実物を使う。
+  describe("applyButtonTitles", () => {
+    let savedEnableAllButtons;
+    let realTabsUi;
+
+    beforeAll(function () {
+      // 実モジュールを取得（モックで上書きされた require を避ける）
+      jest.isolateModules(function () {
+        realTabsUi = require("../src/content/ui/tabs-ui");
+      });
+    });
+
+    beforeEach(() => {
+      helpers.clearBody();
+      const root = document.createElement("div");
+      root.id = "yt-summary-root";
+      root.innerHTML =
+        '<button id="ys-btn-summary">A</button>' +
+        '<button id="ys-btn-customA">B</button>' +
+        '<button id="ys-btn-customB">C</button>';
+      document.body.appendChild(root);
+      const panel = require("../src/content/ui/panel");
+      savedEnableAllButtons = panel.enableAllButtons;
+      panel.enableAllButtons = jest.fn();
+      getEl.mockImplementation(function (id) {
+        return document.querySelector(id);
+      });
+    });
+
+    afterEach(() => {
+      const panel = require("../src/content/ui/panel");
+      panel.enableAllButtons = savedEnableAllButtons;
+    });
+
+    test("loadButtonTitle が null の場合は A/B/C フォールバック", async () => {
+      const storageConfig = require("../src/infrastructure/storage-config");
+      const spy = jest.spyOn(storageConfig, "loadButtonTitle").mockResolvedValue(null);
+
+      await realTabsUi.applyButtonTitles();
+
+      expect(getEl("#ys-btn-summary").textContent).toBe("📝 A");
+      expect(getEl("#ys-btn-customA").textContent).toBe("📊 B");
+      expect(getEl("#ys-btn-customB").textContent).toBe("💡 C");
+
+      spy.mockRestore();
     });
   });
 });

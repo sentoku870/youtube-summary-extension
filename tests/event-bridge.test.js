@@ -2,7 +2,7 @@
 // TRANSCRIPT_READY / TRANSCRIPT_FAILED / TRANSCRIPT_RETRY の各購読を検証。
 const { uiState: S } = require("../src/shared/state");
 const { emit } = require("../src/shared/event-bus");
-const { EVENTS } = require("../src/shared/event-bus");
+const { INTERNAL_EVENTS } = require("../src/shared/event-bus");
 
 // panel.js / tabs.js / transcript.js をモック（重いチェーン回避）
 jest.mock("../src/content/ui/panel.js", () => ({
@@ -10,15 +10,18 @@ jest.mock("../src/content/ui/panel.js", () => ({
   enableAllButtons: jest.fn()
 }));
 jest.mock("../src/content/ui/tabs.js", () => ({
-  applyButtonTitles: jest.fn(),
   switchTab: jest.fn()
+}));
+jest.mock("../src/content/ui/tabs-ui.js", () => ({
+  applyButtonTitles: jest.fn()
 }));
 jest.mock("../src/domain/transcript.js", () => ({
   retryTranscript: jest.fn()
 }));
 
 const { getEl, enableAllButtons } = require("../src/content/ui/panel");
-const { applyButtonTitles, switchTab } = require("../src/content/ui/tabs");
+const { switchTab } = require("../src/content/ui/tabs");
+const { applyButtonTitles } = require("../src/content/ui/tabs-ui");
 const { retryTranscript } = require("../src/domain/transcript");
 
 // event-bridge.js の import で on() が呼ばれる
@@ -38,7 +41,7 @@ describe("event-bridge", () => {
   // ここでは EVENTS の購読ハンドラが呼ばれているかを検証する。
 
   test("TRANSCRIPT_READY で applyButtonTitles が呼ばれる", () => {
-    emit(EVENTS.TRANSCRIPT_READY, { transcript: { all: ["x"] } });
+    emit(INTERNAL_EVENTS.TRANSCRIPT_READY, { transcript: { all: ["x"] } });
     expect(applyButtonTitles).toHaveBeenCalled();
   });
 
@@ -51,7 +54,7 @@ describe("event-bridge", () => {
       return null;
     });
 
-    emit(EVENTS.TRANSCRIPT_FAILED, { reason: "all-retries-exhausted" });
+    emit(INTERNAL_EVENTS.TRANSCRIPT_FAILED, { reason: "all-retries-exhausted" });
 
     expect(btn.textContent).toBe("⏳ 字幕取得失敗（再試行）");
     expect(btn.disabled).toBe(false);
@@ -70,7 +73,7 @@ describe("event-bridge", () => {
 
   test("TRANSCRIPT_FAILED: #ys-btn-summary が無い場合はスキップ", () => {
     getEl.mockReturnValue(null);
-    expect(() => emit(EVENTS.TRANSCRIPT_FAILED, {})).not.toThrow();
+    expect(() => emit(INTERNAL_EVENTS.TRANSCRIPT_FAILED, {})).not.toThrow();
   });
 
   test("TRANSCRIPT_RETRY: 「字幕取得中...」表示・disabled・onclick 解除", () => {
@@ -85,7 +88,7 @@ describe("event-bridge", () => {
       return null;
     });
 
-    emit(EVENTS.TRANSCRIPT_RETRY, {});
+    emit(INTERNAL_EVENTS.TRANSCRIPT_RETRY, {});
 
     expect(btn.textContent).toBe("⏳ 字幕取得中...");
     expect(btn.disabled).toBe(true);
@@ -96,32 +99,32 @@ describe("event-bridge", () => {
 
   test("TRANSCRIPT_RETRY: ボタンが無い場合はスキップ", () => {
     getEl.mockReturnValue(null);
-    expect(() => emit(EVENTS.TRANSCRIPT_RETRY, {})).not.toThrow();
+    expect(() => emit(INTERNAL_EVENTS.TRANSCRIPT_RETRY, {})).not.toThrow();
   });
 
   // ===== A-3: SUMMARY_RETRY_CLICKED =====
   describe("SUMMARY_RETRY_CLICKED", () => {
     test("activeTab があれば switchTab が呼ばれる", () => {
       S.activeTab = "summary";
-      emit(EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: "summary" });
+      emit(INTERNAL_EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: "summary" });
       expect(switchTab).toHaveBeenCalledWith("summary");
     });
 
     test("activeTab が null や未定義なら switchTab は呼ばれない", () => {
       S.activeTab = null;
-      emit(EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: null });
+      emit(INTERNAL_EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: null });
       expect(switchTab).not.toHaveBeenCalled();
     });
 
     test("payload がない場合は switchTab は呼ばれない", () => {
       S.activeTab = "summary";
-      emit(EVENTS.SUMMARY_RETRY_CLICKED);
+      emit(INTERNAL_EVENTS.SUMMARY_RETRY_CLICKED);
       expect(switchTab).not.toHaveBeenCalled();
     });
 
     test("payload.activeTab が falsy な値でも安全", () => {
       S.activeTab = "summary";
-      emit(EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: "" });
+      emit(INTERNAL_EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: "" });
       expect(switchTab).not.toHaveBeenCalled();
     });
   });

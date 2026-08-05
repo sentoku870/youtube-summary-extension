@@ -6,13 +6,12 @@ helpers.installChromeMock();
 const api = require("../src/domain/api");
 
 // UIモジュールをモック化
-jest.mock("../src/content/ui/ui.js", () => ({
+jest.mock("../src/content/ui/ui-chat.js", () => ({
   appendChatMessage: jest.fn(() => ({ div: null, body: null })),
   appendAssistantPlaceholder: jest.fn(() => ({ div: { dataset: {} }, body: {} })),
   updateChatMessageBody: jest.fn(),
   scrollContentToElement: jest.fn(),
-  clearChatHistory: jest.fn(),
-  hideProgress: jest.fn()
+  clearChatHistory: jest.fn()
 }));
 
 jest.mock("../src/content/ui/panel.js", () => ({
@@ -22,7 +21,7 @@ jest.mock("../src/content/ui/panel.js", () => ({
 // state は実物を使う（リセット可能）
 const { uiState, sessionState } = require("../src/shared/state");
 const panel = require("../src/content/ui/panel");
-const ui = require("../src/content/ui/ui");
+const ui = require("../src/content/ui/ui-chat");
 
 const {
   abortChatStream,

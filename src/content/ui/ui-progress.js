@@ -5,7 +5,7 @@
 // ============================================================
 import { uiState as S } from "../../shared/state.js";
 import { getEl } from "./panel.js";
-import { emit, EVENTS } from "../../shared/event-bus.js";
+import { emit, INTERNAL_EVENTS } from "../../shared/event-bus.js";
 import { createLogger } from "../../shared/logger.js";
 
 const log = createLogger("ui-progress");
@@ -54,8 +54,9 @@ export function showError(msg) {
   retryBtn.addEventListener("click", function () {
     el.style.display = "none";
     // A-3: ui.js → tabs.js の直接依存を event-bus 経由で代替し循環依存を解消。
-    // event-bridge.js / tabs.js が SUMMARY_RETRY_CLICKED を購読して switchTab を起動する。
-    emit(EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: S.activeTab });
+    // P0-P1: ui.js は削除済み。event-bridge.js / tabs.js が SUMMARY_RETRY_CLICKED を
+    // 購読して switchTab を起動する。
+    emit(INTERNAL_EVENTS.SUMMARY_RETRY_CLICKED, { activeTab: S.activeTab });
   });
   el.appendChild(retryBtn);
 }

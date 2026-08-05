@@ -18,8 +18,10 @@ jest.mock("../src/shared/logger.js", () => ({
     return { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
   }
 }));
-jest.mock("../src/content/ui/ui.js", () => ({
-  clearSummaryContent: jest.fn(),
+jest.mock("../src/content/ui/ui-summary.js", () => ({
+  clearSummaryContent: jest.fn()
+}));
+jest.mock("../src/content/ui/ui-progress.js", () => ({
   hideProgress: jest.fn()
 }));
 jest.mock("../src/content/ui/tabs.js", () => ({
@@ -311,6 +313,127 @@ describe("navigation", () => {
       const before = sessionState._transcriptGen;
       nav.resetTranscript();
       expect(sessionState._transcriptGen).toBe(before + 1);
+    });
+  });
+
+  // ===== handleNavigation → resetState =====
+  describe("動画切替時のリセット", () => {
+    test("panelEl があると #ys-panel を非表示にしてタブ状態をクリア", () => {
+      const onReinit = jest.fn();
+      nav.startNavigationDetection(onReinit);
+
+      // パネル要素を作る
+      const panel = document.createElement("div");
+      panel.id = "yt-summary-root";
+      const inner = document.createElement("div");
+      inner.id = "ys-panel";
+      panel.appendChild(inner);
+      document.body.appendChild(panel);
+      uiState.panelEl = panel;
+      uiState.activeTab = "summary";
+      uiState.tabs = {
+        summary: { generated: true, content: "old", chatHistory: [{ role: "user" }] },
+        customA: { generated: true, content: "x", chatHistory: [] },
+        customB: { generated: false, content: "", chatHistory: [] }
+      };
+
+      const { emit } = require("../src/shared/event-bus");
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=new" });
+
+      expect(uiState.activeTab).toBeNull();
+      expect(uiState.tabs.summary.generated).toBe(false);
+      expect(uiState.tabs.summary.content).toBe("");
+      expect(uiState.tabs.summary.chatHistory).toEqual([]);
+      // updateTabActive は tabs.js のモック経由
+      const tabs = require("../src/content/ui/tabs");
+      expect(tabs.updateTabActive).toHaveBeenCalled();
+    });
+
+    test("panelEl が無い場合は updateTabActive 等の DOM 操作をスキップ", () => {
+      const onReinit = jest.fn();
+      nav.startNavigationDetection(onReinit);
+      uiState.panelEl = null;
+
+      const { emit } = require("../src/shared/event-bus");
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=new" });
+
+      // エラーなく完了
+      expect(onReinit).toHaveBeenCalled();
+    });
+  });
+
+  // ===== フォールバックポーリング =====
+  describe("URL ポーリングフォールバック", () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test("hidden 状態のときはポーリングを開始しない", () => {
+      Object.defineProperty(document, "visibilityState", {
+        value: "hidden",
+        configurable: true,
+        writable: true
+      });
+      nav.startNavigationDetection(jest.fn());
+      // タイマ発火させてもエラーなく動作
+      expect(() => jest.advanceTimersByTime(10000)).not.toThrow();
+    });
+
+    test("URL が変わったら handleNavigation を発火", () => {
+      Object.defineProperty(document, "visibilityState", {
+        value: "visible",
+        configurable: true,
+        writable: true
+      });
+      const onReinit = jest.fn();
+      nav.startNavigationDetection(onReinit);
+      // 初期化直後は lastObservedUrl = current
+      // URL を変更
+      window.location.href = "https://www.youtube.com/watch?v=changed";
+      jest.advanceTimersByTime(10000);
+      expect(onReinit).toHaveBeenCalled();
+    });
+
+    test("5 分間 URL 変化なしで自動停止", () => {
+      Object.defineProperty(document, "visibilityState", {
+        value: "visible",
+        configurable: true,
+        writable: true
+      });
+      const onReinit = jest.fn();
+      nav.startNavigationDetection(onReinit);
+      onReinit.mockClear();
+
+      // 5 分 (= 300000ms) 経過でポーリング停止
+      jest.advanceTimersByTime(5 * 60 * 1000 + 10000);
+      // タイマが停止しているので、この時刻以降 onReinit は呼ばれない
+      // (=mock.calls.length は変わらない)
+      const currentCalls = onReinit.mock.calls.length;
+      jest.advanceTimersByTime(30000);
+      expect(onReinit.mock.calls.length).toBe(currentCalls);
+    });
+  });
+
+  // ===== BFCache 復元時の bindStorageListener エラーハンドリング =====
+  describe("BFCache 復元の例外処理", () => {
+    test("bindStorageListener が throw してもクラッシュしない", () => {
+      const onReinit = jest.fn();
+      nav.startNavigationDetection(onReinit);
+      mockBindStorageListener.mockImplementationOnce(function () {
+        throw new Error("context invalidated");
+      });
+
+      function makePageShowEvent(persisted) {
+        const ev = new Event("pageshow");
+        Object.defineProperty(ev, "persisted", { value: persisted, configurable: true });
+        return ev;
+      }
+
+      expect(() => window.dispatchEvent(makePageShowEvent(true))).not.toThrow();
     });
   });
 });

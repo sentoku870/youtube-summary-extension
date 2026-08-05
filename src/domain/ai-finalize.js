@@ -7,7 +7,7 @@
 //    - shared/state.js: uiState / sessionState
 //    - shared/utils.js: getCurrentVideoId
 //    - shared/constants.js: CHAT_HISTORY_SEED_LENGTH
-//    - infrastructure/storage.js: saveToStorage / saveSummaryCache
+//    - infrastructure/storage-cache.js: saveToStorage / saveSummaryCache
 //    - domain/ports.js: UI adapter
 // ============================================================
 import { uiState, sessionState } from "../shared/state.js";

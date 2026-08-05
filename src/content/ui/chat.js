@@ -1,7 +1,7 @@
 // ============================================================
 //  chat.js — チャット送信 / 編集 / クリア
 //  tabs.js から分離。sessionState 経由で状態にアクセスし、
-//  UI ヘルパは ui.js / panel.js へ委譲する。
+//  UI ヘルパは ui-chat.js / panel.js へ委譲する。
 // ============================================================
 import { uiState as S, sessionState } from "../../shared/state.js";
 import { getEl } from "./panel.js";
@@ -10,7 +10,7 @@ import {
   appendAssistantPlaceholder,
   updateChatMessageBody,
   scrollContentToElement
-} from "./ui.js";
+} from "./ui-chat.js";
 import { callChatAPIStream } from "../../domain/api.js";
 import { resolveApiConfig } from "../../domain/ai.js";
 import { YsAbortError, YsTimeoutError } from "../../infrastructure/errors.js";

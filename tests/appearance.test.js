@@ -1,5 +1,7 @@
 // tests/appearance.test.js — 表示設定（フォント/パネル高さ/テーマ）の DOM 反映
-// Phase A-2: storage.js が re-export ハブになったため、spy は元モジュール (storage-config) に対して行う。
+// Phase A-2: storage.js が re-export ハブだった頃の名残。P0-P1 で storage.js は
+// 削除され、storage-core / storage-config / storage-cache に分割済み。
+// spy は元モジュール (storage-config) に対して行う。
 const storageConfig = require("../src/infrastructure/storage-config");
 const { uiState: S } = require("../src/shared/state");
 
@@ -66,14 +68,17 @@ describe("appearance", () => {
       return root;
     }
 
-    function setMatchMedia(matches) {
+    function setMatchMedia(matches, opts) {
       Object.defineProperty(window, "matchMedia", {
         value: jest.fn().mockImplementation(function (query) {
           return {
             matches: matches,
             media: query,
             addListener: jest.fn(),
-            removeListener: jest.fn()
+            removeListener: jest.fn(),
+            addEventListener: (opts && opts.addEventListener) || jest.fn(),
+            removeEventListener: jest.fn(),
+            dispatchEvent: jest.fn()
           };
         }),
         configurable: true,
@@ -119,6 +124,87 @@ describe("appearance", () => {
       const root = makeRoot();
       await applyTheme();
       expect(root.getAttribute("data-theme")).toBe("dark");
+    });
+
+    test("matchMedia.addEventListener があれば change 監視を登録", async () => {
+      const addEventListener = jest.fn();
+      setMatchMedia(false, { addEventListener: addEventListener });
+      storage.loadThemeSetting.mockResolvedValueOnce("auto");
+      makeRoot();
+      await applyTheme();
+      expect(addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
+    });
+
+    test("change イベント発火時にキャッシュが無効化される", async () => {
+      // addEventListener に渡される関数を捕捉
+      let changeHandler = null;
+      const addEventListener = jest.fn(function (event, handler) {
+        if (event === "change") changeHandler = handler;
+      });
+      setMatchMedia(false, { addEventListener: addEventListener });
+      storage.loadThemeSetting.mockResolvedValueOnce("auto");
+      makeRoot();
+      await applyTheme();
+      // 1回目でキャッシュされる
+      expect(addEventListener).toHaveBeenCalled();
+      // change イベントを発火させるとキャッシュが無効化される
+      // （次回 applyTheme 呼び出しで addEventListener 呼び出しが 2 回目になる）
+      if (changeHandler) changeHandler();
+      await applyTheme();
+      expect(addEventListener).toHaveBeenCalledTimes(2);
+    });
+
+    test("matchMedia が null を返す場合は light 扱い", async () => {
+      Object.defineProperty(window, "matchMedia", {
+        value: jest.fn().mockReturnValue(null),
+        configurable: true,
+        writable: true
+      });
+      storage.loadThemeSetting.mockResolvedValueOnce("auto");
+      const root = makeRoot();
+      await applyTheme();
+      expect(root.getAttribute("data-theme")).toBe("light");
+    });
+
+    test("mq.addEventListener が無い関数でもクラッシュしない", async () => {
+      Object.defineProperty(window, "matchMedia", {
+        value: jest.fn().mockReturnValue({
+          matches: false,
+          media: "(prefers-color-scheme: dark)",
+          // addEventListener を意図的に欠落
+          addListener: jest.fn(),
+          removeListener: jest.fn()
+        }),
+        configurable: true,
+        writable: true
+      });
+      storage.loadThemeSetting.mockResolvedValueOnce("auto");
+      const root = makeRoot();
+      await applyTheme();
+      expect(root.getAttribute("data-theme")).toBe("light");
+    });
+
+    test("matchMedia が同一インスタンスを返す場合、2回目は addEventListener を呼ばない（キャッシュヒット）", async () => {
+      const addEventListener = jest.fn();
+      const sameInstance = {
+        matches: false,
+        media: "(prefers-color-scheme: dark)",
+        addEventListener: addEventListener,
+        removeEventListener: jest.fn(),
+        addListener: jest.fn(),
+        removeListener: jest.fn()
+      };
+      Object.defineProperty(window, "matchMedia", {
+        value: jest.fn().mockReturnValue(sameInstance),
+        configurable: true,
+        writable: true
+      });
+      storage.loadThemeSetting.mockResolvedValue("auto");
+      makeRoot();
+      await applyTheme();
+      await applyTheme();
+      // 1回目の addEventListener 呼び出しだけ発生する
+      expect(addEventListener).toHaveBeenCalledTimes(1);
     });
 
     test("theme='auto' + prefers-color-scheme: light → data-theme='light'", async () => {

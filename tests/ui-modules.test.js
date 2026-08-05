@@ -109,9 +109,9 @@ describe("ui-progress", () => {
       const { uiState } = require("../src/shared/state");
       uiState.activeTab = "summary";
       // event-bus リスナー
-      const { EVENTS, on } = require("../src/shared/event-bus");
+      const { INTERNAL_EVENTS, on } = require("../src/shared/event-bus");
       const listener = jest.fn();
-      on(EVENTS.SUMMARY_RETRY_CLICKED, listener);
+      on(INTERNAL_EVENTS.SUMMARY_RETRY_CLICKED, listener);
       showError("test");
       el.querySelector("#ys-errorRetryBtn").click();
       expect(listener).toHaveBeenCalledWith({ activeTab: "summary" });

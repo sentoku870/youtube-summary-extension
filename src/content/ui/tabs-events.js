@@ -17,7 +17,8 @@ import {
   handleChatHistoryClick
 } from "./chat.js";
 import { bindStorageListener } from "./storage-listener.js";
-import { switchTab, applyButtonTitles } from "./tabs.js";
+import { switchTab } from "./tabs.js";
+import { applyButtonTitles } from "./tabs-ui.js";
 
 const log = createLogger("tabs-events");
 
@@ -35,7 +36,8 @@ function copyContent() {
 
 // ===== 再生成 =====
 // bindEvents の regenBtn クリックからのみ呼ばれる。
-import { setSummaryRaw, disableRegenButton, enableRegenButton } from "./ui.js";
+import { setSummaryRaw } from "./ui-summary.js";
+import { disableRegenButton, enableRegenButton } from "./ui-buttons.js";
 import { updateTabUI } from "./tabs-ui.js";
 import { callAI, abortCurrentStream } from "../../domain/ai.js";
 

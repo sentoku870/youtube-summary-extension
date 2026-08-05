@@ -27,24 +27,41 @@ Object.defineProperty(navigator, "clipboard", {
 //  変数のみ参照可能)
 const mockAppendChatMessage = jest.fn();
 const mockAppendAssistantPlaceholder = jest.fn();
+const mockApplyButtonTitles = jest.fn().mockResolvedValue(undefined);
 
 jest.mock("../src/content/ui/panel.js", () => ({
   getEl: jest.fn(),
   enableAllButtons: jest.fn()
 }));
-jest.mock("../src/content/ui/ui.js", () => ({
+jest.mock("../src/content/ui/ui-summary.js", () => ({
   setSummaryRaw: jest.fn(),
+  clearSummaryContent: jest.fn(),
+  updateInfoLabel: jest.fn(),
+  hideChatArea: jest.fn(),
+  setSummaryContent: jest.fn(),
+  showChatArea: jest.fn()
+}));
+jest.mock("../src/content/ui/ui-buttons.js", () => ({
   disableRegenButton: jest.fn(),
   enableRegenButton: jest.fn(),
+  showRegenButton: jest.fn(),
+  hideRegenButton: jest.fn(),
+  showCopyButton: jest.fn(),
+  hideCopyButton: jest.fn(),
+  focusChatInput: jest.fn()
+}));
+jest.mock("../src/content/ui/ui-chat.js", () => ({
   appendChatMessage: mockAppendChatMessage,
   appendAssistantPlaceholder: mockAppendAssistantPlaceholder,
   updateChatMessageBody: jest.fn(),
-  scrollContentToElement: jest.fn()
+  scrollContentToElement: jest.fn(),
+  clearChatHistory: jest.fn()
 }));
 jest.mock("../src/content/ui/tabs-ui.js", () => ({
   updateTabUI: jest.fn(),
   updateTabActive: jest.fn(),
-  renderTabContent: jest.fn()
+  renderTabContent: jest.fn(),
+  applyButtonTitles: mockApplyButtonTitles
 }));
 jest.mock("../src/domain/ai.js", () => ({
   callAI: jest.fn().mockResolvedValue(true),
@@ -75,15 +92,37 @@ beforeAll(function () {
   mockAppendAssistantPlaceholder.mockReturnValue(fakeResult);
 });
 
+// applyButtonTitles 副作用を再現: 旧実装と同じく enableAllButtons 相当 +
+// ボタンラベルを A/B/C にリセットする。タブ切替 finally から呼ばれるので
+// DOM 要素に対して実際に書き込む必要がある。
+beforeEach(function () {
+  mockApplyButtonTitles.mockImplementation(function () {
+    const btnSummary = document.getElementById("ys-btn-summary");
+    const btnA = document.getElementById("ys-btn-customA");
+    const btnB = document.getElementById("ys-btn-customB");
+    const buttons = document.querySelectorAll(".ys-tab-row button");
+    buttons.forEach(function (b) {
+      b.disabled = false;
+    });
+    if (btnSummary) btnSummary.textContent = "📝 A";
+    if (btnA) btnA.textContent = "📊 B";
+    if (btnB) btnB.textContent = "💡 C";
+    return Promise.resolve();
+  });
+});
+
 const { uiState: S, sessionState } = require("../src/shared/state");
-const { getEl, enableAllButtons } = require("../src/content/ui/panel");
-const ui = require("../src/content/ui/ui");
+const { getEl } = require("../src/content/ui/panel");
+const uiButtons = require("../src/content/ui/ui-buttons");
 const tabsUi = require("../src/content/ui/tabs-ui");
 const ai = require("../src/domain/ai");
 const api = require("../src/domain/api");
-const storage = require("../src/infrastructure/storage");
+const storageCore = require("../src/infrastructure/storage-core");
+const storageConfig = require("../src/infrastructure/storage-config");
+const storageCache = require("../src/infrastructure/storage-cache");
+const storage = Object.assign({}, storageCore, storageConfig, storageCache);
 
-const { abortChatStream, switchTab, applyButtonTitles } = require("../src/content/ui/tabs");
+const { abortChatStream, switchTab } = require("../src/content/ui/tabs");
 
 // B-2: bindEvents は tabs-events.js から直接 import
 const { bindEvents } = require("../src/content/ui/tabs-events");
@@ -292,7 +331,10 @@ describe("tabs", () => {
       await flushPromises();
 
       expect(btn.disabled).toBe(false);
-      expect(enableAllButtons).toHaveBeenCalled();
+      // P1-D: enableAllButtons は applyButtonTitles 内の副作用。
+      // tabs-ui.js のモックが内部で enableAllButtons 相当の DOM 副作用を実行するため、
+      // 直接的な関数呼び出しではなくモックの呼び出し回数で検証する。
+      expect(tabsUi.applyButtonTitles).toHaveBeenCalled();
     });
 
     test("callAI 中は「処理中...」表示・disabled", async () => {
@@ -390,15 +432,15 @@ describe("tabs", () => {
       await flushPromises();
 
       // B の applyButtonTitles 呼び出し回数を記録
-      const callsAfterB = tabsUi.updateTabUI.mock.calls.length;
+      const callsAfterB = tabsUi.applyButtonTitles.mock.calls.length;
       // A の callAI を完了させ、A の finally を発火
       resolveA(false);
       await pA;
       await flushPromises();
 
       // A の finally は _switchGen 不一致で no-op のはず
-      // → updateTabUI 呼び出しが増えていないことを確認
-      expect(tabsUi.updateTabUI.mock.calls.length).toBe(callsAfterB);
+      // → applyButtonTitles 呼び出しが増えていないことを確認
+      expect(tabsUi.applyButtonTitles.mock.calls.length).toBe(callsAfterB);
     });
 
     // 回帰防止: tab.generated=true 切替時に scrollContentTop が呼ばれる
@@ -483,8 +525,8 @@ describe("tabs", () => {
       expect(btnB.textContent).toBe("📊 B");
     });
 
-    // 回帰防止: 古い A の finally は enableAllButtons を呼ばない（世代不一致で抜ける）
-    test("A→B連打: 古い A の finally は enableAllButtons を呼ばない", async () => {
+    // 回帰防止: 古い A の finally は applyButtonTitles を呼ばない（世代不一致で抜ける）
+    test("A→B連打: 古い A の finally は applyButtonTitles を呼ばない", async () => {
       const btnB = getEl("#ys-btn-customA");
       S.tabs.summary.generated = false;
       S.tabs.customA.generated = false;
@@ -496,7 +538,7 @@ describe("tabs", () => {
             resolveA = r;
           })
       );
-      // B の callAI は即完了（finally で applyButtonTitles → enableAllButtons が走る）
+      // B の callAI は即完了（finally で applyButtonTitles が呼ばれる）
       ai.callAI.mockResolvedValueOnce(true);
 
       const pA = switchTab("summary");
@@ -504,11 +546,11 @@ describe("tabs", () => {
       await pB;
       await flushPromises();
 
-      // B 完了時点で enableAllButtons が呼ばれているはず（B の finally から）
-      const countBeforeA = enableAllButtons.mock.calls.length;
+      // B 完了時点で applyButtonTitles が呼ばれているはず（B の finally から）
+      const countBeforeA = tabsUi.applyButtonTitles.mock.calls.length;
       expect(countBeforeA).toBeGreaterThanOrEqual(1);
 
-      // B の呼び出しで enableAllButtons されたので B は enabled
+      // B の呼び出しで applyButtonTitles されたので B は enabled
       expect(btnB.disabled).toBe(false);
 
       // A を後で完了させ、A の古い finally を発火させる
@@ -517,10 +559,10 @@ describe("tabs", () => {
       await flushPromises();
 
       // ★ A の古い finally は世代不一致 → 早期 return する。
-      // ★ したがって enableAllButtons は増えていないこと。
-      // ★ （仮にバグがあれば A の finally で enableAllButtons が
+      // ★ したがって applyButtonTitles は増えていないこと。
+      // ★ （仮にバグがあれば A の finally で applyButtonTitles が
       // ★   もう一度呼ばれ、textContent が "処理中..." に戻ってしまう）
-      const countAfterA = enableAllButtons.mock.calls.length;
+      const countAfterA = tabsUi.applyButtonTitles.mock.calls.length;
       expect(countAfterA).toBe(countBeforeA);
       expect(btnB.textContent).toBe("📊 B");
     });
@@ -604,34 +646,6 @@ describe("tabs", () => {
       // customA の content がキャッシュから復元される
       expect(S.tabs.customA.generated).toBe(true);
       expect(S.tabs.customA.content).toBe("B 要約 (customA キャッシュ)");
-    });
-  });
-
-  // ===== applyButtonTitles =====
-  describe("applyButtonTitles", () => {
-    test("各ボタンのラベルが正しく設定される", async () => {
-      storage.loadButtonTitle.mockImplementation(async function (btn) {
-        if (btn === "summary") return "要約カスタム";
-        if (btn === "customA") return "分析カスタム";
-        if (btn === "customB") return "考察カスタム";
-        return null;
-      });
-
-      await applyButtonTitles();
-
-      expect(getEl("#ys-btn-summary").textContent).toBe("📝 要約カスタム");
-      expect(getEl("#ys-btn-customA").textContent).toBe("📊 分析カスタム");
-      expect(getEl("#ys-btn-customB").textContent).toBe("💡 考察カスタム");
-      expect(enableAllButtons).toHaveBeenCalled();
-      expect(tabsUi.updateTabUI).toHaveBeenCalled();
-    });
-
-    test("loadButtonTitle が null の場合は A/B/C フォールバック", async () => {
-      storage.loadButtonTitle.mockResolvedValue(null);
-      await applyButtonTitles();
-      expect(getEl("#ys-btn-summary").textContent).toBe("📝 A");
-      expect(getEl("#ys-btn-customA").textContent).toBe("📊 B");
-      expect(getEl("#ys-btn-customB").textContent).toBe("💡 C");
     });
   });
 
@@ -803,7 +817,7 @@ describe("tabs", () => {
       regenBtn.click();
 
       // disableRegenButton が即座に呼ばれる
-      expect(ui.disableRegenButton).toHaveBeenCalled();
+      expect(uiButtons.disableRegenButton).toHaveBeenCalled();
     });
 
     test("copyBtn click で navigator.clipboard.writeText が呼ばれる", () => {
@@ -843,11 +857,10 @@ describe("tabs", () => {
       listener({ unrelated: {} });
 
       // タイマ発火前は何もされない
-      expect(tabsUi.updateTabUI).not.toHaveBeenCalled();
+      expect(tabsUi.applyButtonTitles).not.toHaveBeenCalled();
       jest.advanceTimersByTime(150);
-      // applyButtonTitles (async) 内の updateTabUI 呼び出しを flush
-      await flushPromises();
-      expect(tabsUi.updateTabUI).toHaveBeenCalled();
+      // タイマ発火後に applyButtonTitles が呼ばれる
+      expect(tabsUi.applyButtonTitles).toHaveBeenCalledTimes(1);
       jest.useRealTimers();
     });
 
@@ -898,7 +911,7 @@ describe("tabs", () => {
     test("保存済みキャッシュがある場合、switchTab が即時表示する (API コールなし)", async () => {
       // buildPanelDOM 後にキャッシュを返すモック
       buildPanelDOM();
-      const { loadSummaryCache } = require("../src/infrastructure/storage");
+      const { loadSummaryCache } = require("../src/infrastructure/storage-cache");
       loadSummaryCache.mockResolvedValue({
         content: "cached summary",
         modelLabel: "cached-model",
@@ -920,7 +933,7 @@ describe("tabs", () => {
 
     test("キャッシュヒット中に他タブが押されると破棄される", async () => {
       buildPanelDOM();
-      const { loadSummaryCache } = require("../src/infrastructure/storage");
+      const { loadSummaryCache } = require("../src/infrastructure/storage-cache");
       // キャッシュ取得を遅延させ、その間に他タブを踏むシミュレーション
       let resolveCache;
       loadSummaryCache.mockReturnValue(
@@ -943,7 +956,7 @@ describe("tabs", () => {
 
     test("saveSummaryCache 失敗時も動作は継続する（warn ログ）", async () => {
       buildPanelDOM();
-      const { saveSummaryCache } = require("../src/infrastructure/storage");
+      const { saveSummaryCache } = require("../src/infrastructure/storage-cache");
       // saveSummaryCache がモック関数でない場合の対応
       if (saveSummaryCache && typeof saveSummaryCache.mockRejectedValue === "function") {
         saveSummaryCache.mockRejectedValue(new Error("quota exceeded"));
@@ -1003,7 +1016,7 @@ describe("tabs", () => {
   describe("loadCachedSummary: 例外経路", () => {
     test("loadSummaryCache が throw しても null を返す", async () => {
       buildPanelDOM();
-      const { loadSummaryCache } = require("../src/infrastructure/storage");
+      const { loadSummaryCache } = require("../src/infrastructure/storage-cache");
       loadSummaryCache.mockRejectedValue(new Error("storage error"));
       // (getCurrentVideoId removed - unused)
       // 動画ページにいる

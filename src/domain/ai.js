@@ -68,8 +68,8 @@ export function showError(msg) {
   UI().showError(msg);
 }
 
-// ===== 字幕テキストのフォーマット解決（純粋関数） =====
-export function resolveTranscriptText(transcript) {
+// ===== 字幕テキストのフォーマット解決（純粋関数、内部ヘルパ） =====
+function resolveTranscriptText(transcript) {
   if (!transcript) return "";
   if (transcript.allTimestamps && transcript.allTimestamps.length > 0) {
     return formatTranscriptWithTimestamps(transcript.allTimestamps);
@@ -77,8 +77,8 @@ export function resolveTranscriptText(transcript) {
   return (transcript.all || []).join("\n");
 }
 
-// ===== API設定とプロンプトの解決 =====
-export async function fetchConfigAndPrompt(mode) {
+// ===== API設定とプロンプトの解決（内部ヘルパ） =====
+async function fetchConfigAndPrompt(mode) {
   const [config, customPrompt] = await Promise.all([
     resolveApiConfig(mode),
     loadCustomPrompt(mode)
@@ -129,14 +129,6 @@ async function processSingleStream(messages, config, signal, summaryTextEl, time
 }
 
 // ===== AI呼び出し（オーケストレーション） =====
-// 戻り値: true=成功, false=失敗または中断
-//
-// 構造:
-//   callAI(mode, useAbort)
-//     ├─ prepareContext(mode)  // 字幕取得・config/prompt 解決
-//     ├─ runSummary(ctx, signal)  // 単一 / Map-Reduce 振り分け
-//     ├─ finalizeResult(...)  // 結果確定と永続化（ai-finalize.js）
-//     └─ handleAiErrors(e)    // 例外分類（ai-errors.js）
 export async function callAI(mode, useAbort) {
   const tab = uiState.tabs[mode];
   if (!tab) return false;
@@ -222,6 +214,24 @@ async function prepareContext(mode) {
   };
 }
 
+// ===== 単一ストリーム要約ヘルパー =====
+// 単一チャンクで収まる場合と Map-Reduce 分割後にチャンクが 1 個になった場合の両方で使用。
+// processSingleStream は signal を見て中断を内部処理する。
+async function runSingleStream(config, prompt, baseUser, signal, summaryTextEl) {
+  const messages = [
+    { role: "system", content: prompt },
+    { role: "user", content: baseUser }
+  ];
+  const timeout = createTimeoutPromise();
+  let accumulated;
+  try {
+    accumulated = await processSingleStream(messages, config, signal, summaryTextEl, timeout);
+  } finally {
+    timeout.cancel();
+  }
+  return accumulated;
+}
+
 // ===== 要約実行（単一 or Map-Reduce 振り分け） =====
 // 戻り値: { accumulated, userMessage }
 //   accumulated === null は Map-Reduce 全チャンク失敗（呼び元でハンドリング）
@@ -236,39 +246,14 @@ async function runSummary(ctx, controller, signal, summaryTextEl) {
 
   const baseUser = metaContext + "以下のYouTube動画の字幕を処理してください:\n\n" + transcriptText;
 
-  if (estimatedTokens <= availableTokens) {
-    // --- 単一ストリーム処理 ---
-    const messages = [
-      { role: "system", content: prompt },
-      { role: "user", content: baseUser }
-    ];
-    // processSingleStream は signal を見て中断を内部処理する
-    const timeout = createTimeoutPromise();
-    let accumulated;
-    try {
-      accumulated = await processSingleStream(messages, config, signal, summaryTextEl, timeout);
-    } finally {
-      timeout.cancel();
-    }
-    return { accumulated: accumulated, userMessage: baseUser };
-  }
-
-  // T2-A3: チャンク分割結果が 1 個なら Map-Reduce を起動せず単一ストリームで処理。
-  // Map-Reduce は「分割→並列→統合」の 3 段で API コール数が チャンク+1 になるため、
+  // 単一チャンクで収まる、または分割後に 1 チャンクのみになる場合は単一ストリームで処理。
+  // T2-A3: Map-Reduce は「分割→並列→統合」の 3 段で API コール数が チャンク+1 になるため、
   // チャンク 1 個なら単一ストリームのほうが API コール・待ち時間ともに有利。
-  const chunks = splitIntoChunks(transcriptText, availableTokens);
+  const chunks = estimatedTokens <= availableTokens
+    ? [transcriptText]
+    : splitIntoChunks(transcriptText, availableTokens);
   if (chunks.length <= 1) {
-    const messages = [
-      { role: "system", content: prompt },
-      { role: "user", content: baseUser }
-    ];
-    const timeout = createTimeoutPromise();
-    let accumulated;
-    try {
-      accumulated = await processSingleStream(messages, config, signal, summaryTextEl, timeout);
-    } finally {
-      timeout.cancel();
-    }
+    const accumulated = await runSingleStream(config, prompt, baseUser, signal, summaryTextEl);
     return { accumulated: accumulated, userMessage: baseUser };
   }
 

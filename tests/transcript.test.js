@@ -22,13 +22,14 @@ jest.mock("../src/infrastructure/storage-config.js", function () {
 });
 
 // event-bus のモック（emit をスパイ）
+// P0-P1: EVENTS シムを削除。INTERNAL_EVENTS を直接 export する。
 const mockEmit = jest.fn();
 const mockOn = jest.fn();
 jest.mock("../src/shared/event-bus.js", function () {
   return {
     emit: mockEmit,
     on: mockOn,
-    EVENTS: {
+    INTERNAL_EVENTS: {
       TRANSCRIPT_READY: "TRANSCRIPT_READY",
       TRANSCRIPT_FAILED: "TRANSCRIPT_FAILED",
       TRANSCRIPT_RETRY: "TRANSCRIPT_RETRY"

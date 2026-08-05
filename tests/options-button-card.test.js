@@ -71,7 +71,7 @@ beforeEach(() => {
   initButtonCards = bc.initButtonCards;
   refreshButtonModelSelects = bc.refreshButtonModelSelects;
   flushAllSaves = bc.flushAllSaves;
-  set = require("../src/infrastructure/storage.js").set;
+  set = require("../src/infrastructure/storage-core.js").set;
 });
 
 describe("button-card", () => {

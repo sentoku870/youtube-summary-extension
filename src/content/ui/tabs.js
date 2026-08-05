@@ -1,14 +1,14 @@
 // ============================================================
 //  tabs.js — タブ状態管理 + 切替ロジック（ESM版）
 //  Phase B-2: bindEvents を tabs-events.js に分離。
-//  本モジュールは「タブ状態 + switchTab / applyButtonTitles」の薄層に専念し、
-//  DOM イベント登録は tabs-events.js、描画ヘルパは tabs-ui.js / ui.js に委譲する。
+//  Phase P1-D: applyButtonTitles を tabs-ui.js に分離。
+//  本モジュールは「タブ状態 + switchTab」の薄層に専念し、
+//  DOM イベント登録は tabs-events.js、描画ヘルパは tabs-ui.js に委譲する。
 // ============================================================
 import { uiState as S, sessionState } from "../../shared/state.js";
-import { getEl, enableAllButtons } from "./panel.js";
-import { updateTabUI, updateTabActive, renderTabContent } from "./tabs-ui.js";
+import { getEl } from "./panel.js";
+import { updateTabUI, updateTabActive, renderTabContent, applyButtonTitles } from "./tabs-ui.js";
 import { callAI, abortCurrentStream } from "../../domain/ai.js";
-import { loadButtonTitle } from "../../infrastructure/storage-config.js";
 import { loadSummaryCache } from "../../infrastructure/storage-cache.js";
 import { CHAT_HISTORY_SEED_LENGTH } from "../../shared/constants.js";
 import { createLogger } from "../../shared/logger.js";
@@ -136,22 +136,4 @@ function applyCachedSummary(tab, cached) {
 function scrollContentTop() {
   const area = getEl("#ys-content-area");
   if (area) area.scrollTop = 0;
-}
-
-// ===== ボタンタイトル適用 =====
-// 全 3 ボタンを storage の btnTitle_* から取得し、未設定なら A/B/C にフォールバック。
-export async function applyButtonTitles() {
-  const btnSummary = getEl("#ys-btn-summary");
-  const btnA = getEl("#ys-btn-customA");
-  const btnB = getEl("#ys-btn-customB");
-  const [titleS, titleA, titleB] = await Promise.all([
-    loadButtonTitle("summary"),
-    loadButtonTitle("customA"),
-    loadButtonTitle("customB")
-  ]);
-  if (btnSummary) btnSummary.textContent = titleS ? "📝 " + titleS : "📝 A";
-  if (btnA) btnA.textContent = titleA ? "📊 " + titleA : "📊 B";
-  if (btnB) btnB.textContent = titleB ? "💡 " + titleB : "💡 C";
-  enableAllButtons();
-  updateTabUI();
 }

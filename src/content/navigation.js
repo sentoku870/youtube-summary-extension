@@ -8,13 +8,15 @@
 //  UI 層 (event-bridge.js / message-handler.js) のテストからも
 //  startNavigationDetection() をモックなしで呼び出せる。
 // ============================================================
-import { EVENTS, emit, on } from "../shared/event-bus.js";
+import { DOM_EVENTS, INTERNAL_EVENTS, emit, on } from "../shared/event-bus.js";
 import { uiState, sessionState, resetSession } from "../shared/state.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
 import { createLogger } from "../shared/logger.js";
 import { abortCurrentStream } from "../domain/ai.js";
-import { applyButtonTitles, updateTabActive } from "./ui/tabs.js";
-import { clearSummaryContent, hideProgress } from "./ui/ui.js";
+import { updateTabActive } from "./ui/tabs.js";
+import { applyButtonTitles } from "./ui/tabs-ui.js";
+import { clearSummaryContent } from "./ui/ui-summary.js";
+import { hideProgress } from "./ui/ui-progress.js";
 import { bindStorageListener } from "./ui/storage-listener.js";
 import { abortChatStream } from "./ui/chat.js";
 import { TAB_IDS } from "../shared/constants.js";
@@ -141,20 +143,20 @@ function bindVisibilityHandler() {
 
 // ===== 内部用: スポーンイベントリスナーを束ねる =====
 function bindDomBridges() {
-  document.addEventListener(EVENTS.YT_NAVIGATE_FINISH, function () {
-    emit(EVENTS.NAV_FINISH, { url: location.href });
+  document.addEventListener(DOM_EVENTS.YT_NAVIGATE_FINISH, function () {
+    emit(INTERNAL_EVENTS.NAV_FINISH, { url: location.href });
   });
   document.addEventListener("yt-page-data-updated", function () {
-    emit(EVENTS.NAV_FINISH, { url: location.href });
+    emit(INTERNAL_EVENTS.NAV_FINISH, { url: location.href });
   });
   window.addEventListener("popstate", function () {
-    emit(EVENTS.NAV_FINISH, { url: location.href });
+    emit(INTERNAL_EVENTS.NAV_FINISH, { url: location.href });
   });
   window.addEventListener("hashchange", function () {
     if (/[#&]t=\d+/.test(location.hash)) return;
-    emit(EVENTS.NAV_FINISH, { url: location.href });
+    emit(INTERNAL_EVENTS.NAV_FINISH, { url: location.href });
   });
-  on(EVENTS.NAV_FINISH, function (payload) {
+  on(INTERNAL_EVENTS.NAV_FINISH, function (payload) {
     if (!payload || !payload.url || !isYouTubeWatchPage(payload.url)) return;
     // B-4: 同一 URL の短時間連発を 1 回の handleNavigation にまとめる。
     // 異なる URL の場合はガードを無視（通常の動画切替）。

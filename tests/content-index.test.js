@@ -90,4 +90,113 @@ describe("content/index.js — エントリポイント", () => {
     const arg = nav.startNavigationDetection.mock.calls[0][0];
     expect(typeof arg).toBe("function");
   });
+
+  // ===== safeInit ガード =====
+  describe("safeInit() 初期化ガード", () => {
+    // safeInit() はモジュール副作用では呼び出されない（DOMContentLoaded 的な経路がない）。
+    // startNavigationDetection に渡されたコールバック経由でテストする。
+    function getSafeInit() {
+      return nav.startNavigationDetection.mock.calls[0][0];
+    }
+
+    test("1 回目: createPanel + bindEvents が呼ばれる", async () => {
+      const safeInit = getSafeInit();
+      // 初期化ガードをリセット
+      const { uiState: uiStateRef } = require("../src/shared/state");
+      uiStateRef.initialized = false;
+      uiStateRef.lastInitTime = 0;
+      uiStateRef.panelEl = null;
+      uiStateRef.eventsBound = false;
+      // 副作用モジュールを取得
+      const panel = require("../src/content/ui/panel");
+      const tabsEvents = require("../src/content/ui/tabs-events");
+      panel.createPanel.mockClear();
+      tabsEvents.bindEvents.mockClear();
+
+      await safeInit();
+
+      expect(panel.createPanel).toHaveBeenCalledTimes(1);
+      expect(tabsEvents.bindEvents).toHaveBeenCalledTimes(1);
+    });
+
+    test("2 回目: uiState.initialized フラグで no-op", async () => {
+      const safeInit = getSafeInit();
+      const { uiState: uiStateRef } = require("../src/shared/state");
+      uiStateRef.initialized = true;
+      uiStateRef.lastInitTime = 0;
+      const panel = require("../src/content/ui/panel");
+      panel.createPanel.mockClear();
+
+      await safeInit();
+
+      expect(panel.createPanel).not.toHaveBeenCalled();
+    });
+
+    test("短時間再呼出: タイムスタンプガードで no-op", async () => {
+      const safeInit = getSafeInit();
+      const { uiState: uiStateRef } = require("../src/shared/state");
+      uiStateRef.initialized = false;
+      uiStateRef.lastInitTime = Date.now(); // 直前に初期化済み
+      const panel = require("../src/content/ui/panel");
+      panel.createPanel.mockClear();
+
+      await safeInit();
+
+      expect(panel.createPanel).not.toHaveBeenCalled();
+    });
+
+    test("createPanel が throw してもクラッシュしない", async () => {
+      const safeInit = getSafeInit();
+      const { uiState: uiStateRef } = require("../src/shared/state");
+      uiStateRef.initialized = false;
+      uiStateRef.lastInitTime = 0;
+      uiStateRef.panelEl = null;
+      const panel = require("../src/content/ui/panel");
+      panel.createPanel.mockImplementationOnce(function () {
+        throw new Error("boom");
+      });
+
+      // safeInit は throw せず Promise を返す（内部で catch される）
+      // 戻り値は throw 前段で false がセット済みなので何でもよい
+      await safeInit();
+      // クラッシュしなかったことだけ確認
+    });
+  });
+
+  // ===== preloadTranscript ライフサイクル =====
+  describe("transcript プリロード", () => {
+    test("未プリロードなら preloadTranscript を呼ぶ", async () => {
+      const safeInit = nav.startNavigationDetection.mock.calls[0][0];
+      const { uiState: uiStateRef, sessionState: sessionStateRef } = require("../src/shared/state");
+      uiStateRef.initialized = false;
+      uiStateRef.lastInitTime = 0;
+      uiStateRef.panelEl = null;
+      uiStateRef.eventsBound = false;
+      sessionStateRef.transcriptReady = false;
+      sessionStateRef.preloadedTranscript = null;
+      const transcript = require("../src/domain/transcript");
+      transcript.preloadTranscript.mockClear();
+
+      await safeInit();
+
+      expect(transcript.preloadTranscript).toHaveBeenCalled();
+    });
+
+    test("プリロード済みなら preloadTranscript を呼ばない", async () => {
+      const safeInit = nav.startNavigationDetection.mock.calls[0][0];
+      const { uiState: uiStateRef, sessionState: sessionStateRef } = require("../src/shared/state");
+      uiStateRef.initialized = false;
+      uiStateRef.lastInitTime = 0;
+      uiStateRef.panelEl = null;
+      uiStateRef.eventsBound = false;
+      sessionStateRef.transcriptReady = true;
+      sessionStateRef.preloadedTranscript = { all: ["x"] };
+      const transcript = require("../src/domain/transcript");
+      transcript.preloadTranscript.mockClear();
+
+      await safeInit();
+
+      expect(transcript.preloadTranscript).not.toHaveBeenCalled();
+    });
+  });
 });

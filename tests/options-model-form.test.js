@@ -74,7 +74,7 @@ beforeEach(() => {
   openFormForEdit = mf.openFormForEdit;
   setOnAfterSave = mf.setOnAfterSave;
   saveToast = require("../src/options/ui/toast.js").saveToast;
-  const storage = require("../src/infrastructure/storage.js");
+  const storage = require("../src/infrastructure/storage-core.js");
   set = storage.set;
   initForm();
 });

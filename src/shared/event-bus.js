@@ -1,6 +1,17 @@
 // ============================================================
 //  event-bus.js — 軽量なpub/subイベントバス（ESM）
 //  依存なし。UI/ドメイン層の疎結合な通信に使用。
+//
+//  イベント名は用途別に 2 種類:
+//    DOM_EVENTS      - 生の YouTube DOM イベント名文字列
+//                       (content script が受信する browser 標準 / YouTube カスタム)
+//    INTERNAL_EVENTS - event-bus 経由のイベント名
+//                       (UI 層・ドメイン層が購読する)
+//
+//  旧 EVENTS (両者のマージ) は P0-P1 で削除済み。
+//  呼び出し側は用途に応じて import を使い分ける:
+//    import { DOM_EVENTS } from ".../shared/event-bus.js";      // 例: navigation.js
+//    import { INTERNAL_EVENTS } from ".../shared/event-bus.js";  // 例: event-bridge.js
 // ============================================================
 import { createLogger } from "./logger.js";
 
@@ -64,9 +75,6 @@ export function clearAll() {
 }
 
 // ===== イベント名定数（タイポ防止） =====
-// DOM イベントと内部イベントを分離。
-// 注意: index.js は生の YouTube DOM イベントを受けて内部イベントに橋渡しする。
-// 後方互換: EVENTS は DOM_EVENTS と INTERNAL_EVENTS をマージしたシム。
 
 // 生の DOM イベント（content script が受信する browser 標準 / YouTube カスタム）
 export const DOM_EVENTS = {
@@ -79,10 +87,9 @@ export const INTERNAL_EVENTS = {
   TRANSCRIPT_READY: "transcript-ready",
   TRANSCRIPT_FAILED: "transcript-failed",
   TRANSCRIPT_RETRY: "transcript-retry",
-  // A-3: ui.js の showError 内 retry ボタンがクリックされたことを通知。
-  // ui.js → tabs.js の直接 import を event-bus 経由で代替し循環依存を解消。
+  // リトライ UI からの通知を受け取り、event-bridge.js が switchTab を起動する。
+  // ui.js (P0-P1 で削除) 当時は ui.js → tabs.js の直接 import を event-bus 経由で
+  // 代替し循環依存を解消していた。今は ui.js がないので循環依存の名残だが、
+  // 通知モデル自体は引き続き有効。
   SUMMARY_RETRY_CLICKED: "summary:retry-clicked"
 };
-
-// 既存コードが EVENTS.X で参照している場合のシム
-export const EVENTS = Object.assign({}, DOM_EVENTS, INTERNAL_EVENTS);
