@@ -249,9 +249,10 @@ async function runSummary(ctx, controller, signal, summaryTextEl) {
   // 単一チャンクで収まる、または分割後に 1 チャンクのみになる場合は単一ストリームで処理。
   // T2-A3: Map-Reduce は「分割→並列→統合」の 3 段で API コール数が チャンク+1 になるため、
   // チャンク 1 個なら単一ストリームのほうが API コール・待ち時間ともに有利。
-  const chunks = estimatedTokens <= availableTokens
-    ? [transcriptText]
-    : splitIntoChunks(transcriptText, availableTokens);
+  const chunks =
+    estimatedTokens <= availableTokens
+      ? [transcriptText]
+      : splitIntoChunks(transcriptText, availableTokens);
   if (chunks.length <= 1) {
     const accumulated = await runSingleStream(config, prompt, baseUser, signal, summaryTextEl);
     return { accumulated: accumulated, userMessage: baseUser };

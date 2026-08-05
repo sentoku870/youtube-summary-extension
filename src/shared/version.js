@@ -55,6 +55,7 @@ async function loadBuildInfo() {
 // info にオブジェクトを渡すと、その値を返す（実ファイル非依存）
 // 引数なし（または undefined 明示）で本番パスに戻る
 export function __setBuildInfoForTest(info) {
+  if (!globalThis.__DEV__) return;
   testOverride = info === undefined ? undefined : info;
 }
 

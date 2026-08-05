@@ -2,7 +2,7 @@
 const helpers = require("./__helpers__/index.cjs");
 helpers.installChromeMock();
 
-const { getVal, setVal } = require("../src/options/options-shared");
+const { getVal, setVal, el } = require("../src/options/options-shared");
 
 describe("options-shared", () => {
   beforeEach(() => {
@@ -67,6 +67,38 @@ describe("options-shared", () => {
       document.body.appendChild(input);
       setVal("test-input", undefined);
       expect(input.value).toBe("");
+    });
+  });
+
+  describe("el — DOM 生成ヘルパ", () => {
+    test("tag / className / text から要素を生成", () => {
+      const e = el("div", "my-class", "hello");
+      expect(e.tagName).toBe("DIV");
+      expect(e.className).toBe("my-class");
+      expect(e.textContent).toBe("hello");
+    });
+
+    test("className / text が null でも例外を投げない", () => {
+      const e = el("span");
+      expect(e.tagName).toBe("SPAN");
+      expect(e.className).toBe("");
+      expect(e.textContent).toBe("");
+    });
+
+    test("XSS 安全性: <script> 等のタグは textContent として扱う（実行されない）", () => {
+      const e = el("p", null, "<script>alert('xss')</script>");
+      // textContent は HTML として解釈されず、生の文字列として格納される
+      expect(e.textContent).toBe("<script>alert('xss')</script>");
+      expect(e.innerHTML).not.toContain("<script>");
+      // 実際に <script> 子要素として解釈されないことを確認
+      expect(e.querySelector("script")).toBeNull();
+      expect(e.children.length).toBe(0);
+    });
+
+    test("XSS 安全性: クォートや属性インジェクションも無効化", () => {
+      const e = el("a", null, '"><img src=x onerror=alert(1)>');
+      expect(e.textContent).toBe('"><img src=x onerror=alert(1)>');
+      expect(e.querySelector("img")).toBeNull();
     });
   });
 });

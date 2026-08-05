@@ -1,5 +1,7 @@
 // tests/options-button-card.test.js — ボタンカード自動保存（button-card.js）のテスト
 
+const helpers = require("./__helpers__");
+
 jest.mock("../src/options/ui/toast.js", () => ({
   saveToast: jest.fn()
 }));
@@ -58,7 +60,7 @@ function fireInput(el) {
 
 // ネストされた Promise チェーンを flush するヘルパ
 async function flushMicrotasks() {
-  for (let i = 0; i < 20; i++) await Promise.resolve();
+  await helpers.flushPromises();
 }
 
 beforeEach(() => {

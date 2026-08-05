@@ -179,11 +179,9 @@ describe("chat", () => {
     });
 
     test("tab.config がない場合は resolveApiConfig を呼ぶ", async () => {
-      // resolveApiConfig をモジュールキャッシュから差し替え
       const ai = require("../src/domain/ai");
-      const original = ai.resolveApiConfig;
-      ai.resolveApiConfig = jest
-        .fn()
+      const spy = jest
+        .spyOn(ai, "resolveApiConfig")
         .mockResolvedValue({ apiKey: "new", apiUrl: "u", apiModel: "m" });
       uiState.tabs.summary.config = null;
       api.callChatAPIStream.mockReset();
@@ -200,15 +198,15 @@ describe("chat", () => {
           expect.any(Function),
           expect.any(Object)
         );
+        expect(spy).toHaveBeenCalled();
       } finally {
-        ai.resolveApiConfig = original;
+        spy.mockRestore();
       }
     });
 
     test("resolveApiConfig が null の場合はプレースホルダーにエラー表示", async () => {
       const ai = require("../src/domain/ai");
-      const original = ai.resolveApiConfig;
-      ai.resolveApiConfig = jest.fn().mockResolvedValue(null);
+      const spy = jest.spyOn(ai, "resolveApiConfig").mockResolvedValue(null);
       uiState.tabs.summary.config = null;
       api.callChatAPIStream.mockReset();
       try {
@@ -218,7 +216,7 @@ describe("chat", () => {
           expect.stringMatching(/API設定がされていません/)
         );
       } finally {
-        ai.resolveApiConfig = original;
+        spy.mockRestore();
       }
     });
 

@@ -133,9 +133,9 @@ describe("redactSecrets", () => {
   });
 
   test("入れ子のオブジェクトも再帰 redaction", () => {
-    expect(
-      redactSecrets({ outer: { inner: { apiKey: "sk-12345678abcdef" } } })
-    ).toEqual({ outer: { inner: { apiKey: "[REDACTED]" } } });
+    expect(redactSecrets({ outer: { inner: { apiKey: "sk-12345678abcdef" } } })).toEqual({
+      outer: { inner: { apiKey: "[REDACTED]" } }
+    });
   });
 
   test("logger.log 経由で API キーがマスクされる", () => {

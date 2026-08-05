@@ -96,7 +96,9 @@ try {
 
 // C-5: テスト用: 登録済みリスナーを解除する。teardown で呼ぶと
 // グローバル chrome イベントにリスナーが残らない。
+// 本体はガードで prod では何もしないため、export 1 つ分のコストのみ。
 export function __unregisterMessageListenerForTest() {
+  if (!globalThis.__DEV__) return;
   try {
     chrome.runtime.onMessage.removeListener(onRuntimeMessage);
   } catch {

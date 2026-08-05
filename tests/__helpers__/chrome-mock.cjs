@@ -54,6 +54,9 @@ function createChromeMock(opts) {
 function installChromeMock(opts) {
   const mock = createChromeMock(opts);
   global.chrome = mock;
+  // src/ 内のガード（if (!globalThis.__DEV__) return;）をテスト側で
+  // 有効にする。Vite では NODE_ENV=production のとき false に置換される。
+  globalThis.__DEV__ = true;
   return mock;
 }
 

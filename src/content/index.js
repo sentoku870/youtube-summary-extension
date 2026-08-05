@@ -87,7 +87,7 @@ export function safeInit() {
 
 // 初期化を ytd-app の準備完了まで待つ
 // （ブラウザ再起動時のタブ復元でも取りこぼさない）
-function waitForYtdApp(callback) {
+export function waitForYtdApp(callback) {
   const app = document.querySelector("ytd-app");
   if (app) {
     callback();
@@ -101,11 +101,16 @@ function waitForYtdApp(callback) {
     }
   });
   obs.observe(document.documentElement, { childList: true, subtree: true });
+  return obs;
 }
 
-waitForYtdApp(function () {
-  if (isYouTubeWatchPage(location.href)) {
-    safeInit();
-  }
-  startNavigationDetection(safeInit);
-});
+// モジュールロード時の自動初期化。テスト環境では
+// globalThis.__TEST_NO_AUTO_INIT__ = true をセットすることで抑制できる。
+if (!globalThis.__TEST_NO_AUTO_INIT__) {
+  waitForYtdApp(function () {
+    if (isYouTubeWatchPage(location.href)) {
+      safeInit();
+    }
+    startNavigationDetection(safeInit);
+  });
+}

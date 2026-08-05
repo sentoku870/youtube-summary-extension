@@ -23,11 +23,22 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
+    "setupFiles": [
+      "<rootDir>/tests/jest.setup.cjs"
+    ],
     "transformIgnorePatterns": [
       "node_modules/(?!marked|dompurify)"
     ],
     "moduleNameMapper": {
       "\\.(css|less)$": "<rootDir>/tests/__mocks__/styleMock.js"
+    },
+    "coverageThreshold": {
+      "global": {
+        "branches": 75,
+        "functions": 85,
+        "lines": 88,
+        "statements": 88
+      }
     }
   },
   "devDependencies": {

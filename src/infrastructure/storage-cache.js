@@ -107,5 +107,6 @@ export async function clearSummaryCache(videoId, mode) {
 
 // テスト用: メモリキャッシュを全クリア
 export function __resetSummaryCacheMemory() {
+  if (!globalThis.__DEV__) return;
   summaryCacheMemory.clear();
 }

@@ -1,14 +1,7 @@
 // tests/event-bus.test.js — event-busの単体テスト
 // P0-P1: EVENTS シムを削除し、DOM_EVENTS / INTERNAL_EVENTS の責務分離を
 // コード上で明確化。
-const {
-  on,
-  off,
-  emit,
-  clearAll,
-  DOM_EVENTS,
-  INTERNAL_EVENTS
-} = require("../src/shared/event-bus");
+const { on, off, emit, clearAll, DOM_EVENTS, INTERNAL_EVENTS } = require("../src/shared/event-bus");
 
 beforeEach(() => {
   clearAll();

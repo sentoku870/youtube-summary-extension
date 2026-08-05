@@ -50,11 +50,7 @@ jest.mock("../src/domain/api.js", () => ({
   callChatAPINonStream: jest.fn()
 }));
 
-const {
-  resolveApiConfig,
-  abortCurrentStream,
-  callAI
-} = require("../src/domain/ai");
+const { resolveApiConfig, abortCurrentStream, callAI } = require("../src/domain/ai");
 // P0-P1: fetchConfigAndPrompt は内部化（export から外れた）。callAI 経由の間接
 // テストは「API 設定なし」「API 設定あり」ケースを別途検証。
 const { finalizeResult } = require("../src/domain/ai-finalize");

@@ -4,6 +4,11 @@
 
 const helpers = require("./__helpers__/index.cjs");
 
+// content/index.js の自動初期化副作用（waitForYtdApp → safeInit /
+// startNavigationDetection）を有効化する。jest.setup.cjs で
+// __TEST_NO_AUTO_INIT__ = true に設定されているので、ここでは解除する。
+delete globalThis.__TEST_NO_AUTO_INIT__;
+
 helpers.installChromeMock();
 helpers.setupYouTubeWatchDom();
 
@@ -197,6 +202,50 @@ describe("content/index.js — エントリポイント", () => {
       await safeInit();
 
       expect(transcript.preloadTranscript).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===== waitForYtdApp() 経路 =====
+  describe("waitForYtdApp()", () => {
+    // content/index.js のモジュールロード時副作用（waitForYtdApp）は
+    // ytd-app が既に存在するため MutationObserver 経路を通らない。
+    // ここでは index.js から export した waitForYtdApp を直接検証する。
+    beforeEach(() => {
+      // ytd-app を一旦除去（beforeAll で作られたものをクリア）
+      const existing = document.querySelector("ytd-app");
+      if (existing) existing.remove();
+      jest.resetModules();
+    });
+
+    test("ytd-app があれば即座に callback を呼ぶ", () => {
+      const idx = require("../src/content/index.js");
+      const app = document.createElement("ytd-app");
+      document.body.appendChild(app);
+      const cb = jest.fn();
+      const obs = idx.waitForYtdApp(cb);
+      expect(cb).toHaveBeenCalledTimes(1);
+      // ytd-app が存在したので MutationObserver は張られない（戻り値 undefined）
+      expect(obs).toBeUndefined();
+    });
+
+    test("ytd-app が無ければ MutationObserver を貼り、callback は後で呼ぶ", async () => {
+      const idx = require("../src/content/index.js");
+      const cb = jest.fn();
+      const obs = idx.waitForYtdApp(cb);
+      expect(cb).not.toHaveBeenCalled();
+      expect(obs).toBeDefined();
+      expect(typeof obs.disconnect).toBe("function");
+
+      // ytd-app を後から追加 → MutationObserver が microtask で発火して callback が呼ばれる
+      const app = document.createElement("ytd-app");
+      document.body.appendChild(app);
+      await helpers.flushPromises();
+      expect(cb).toHaveBeenCalledTimes(1);
+      // disconnect 済みなので以降の発火では呼ばれない
+      cb.mockClear();
+      document.body.appendChild(document.createElement("div"));
+      await helpers.flushPromises();
+      expect(cb).not.toHaveBeenCalled();
     });
   });
 });

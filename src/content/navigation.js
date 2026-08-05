@@ -192,7 +192,10 @@ export function startNavigationDetection(onReinit) {
 }
 
 // テスト用: 内部状態をリセット（ナビゲーションを停止し再初期化可能にする）
+// 本体冒頭のガードで prod ビルド時は即 return するため、
+// 実コストは export 1 つ分のコストのみ。
 export function __resetNavigationForTest() {
+  if (!globalThis.__DEV__) return;
   stopFallbackPolling();
   safeInitFn = null;
   lastObservedUrl = null;

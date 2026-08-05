@@ -1,5 +1,7 @@
 // tests/options-display.test.js — 表示設定タブ（options-display.js）のテスト
 
+const helpers = require("./__helpers__");
+
 jest.mock("../src/options/ui/toast.js", () => ({
   saveToast: jest.fn()
 }));
@@ -65,7 +67,7 @@ function buildOptionsDom() {
 }
 
 async function flushMicrotasks() {
-  for (let i = 0; i < 10; i++) await Promise.resolve();
+  await helpers.flushPromises();
 }
 
 beforeEach(() => {
@@ -320,7 +322,7 @@ describe("options-display", () => {
     test("initDisplayTab で version と buildDate が DOM に反映される", async () => {
       const od = setupVersion("2.5.0", "2026-06-23", "abc1234");
       od.initDisplayTab();
-      for (let i = 0; i < 10; i++) await Promise.resolve();
+      await flushMicrotasks();
       expect(document.getElementById("versionInfoVersion").textContent).toBe("v2.5.0");
       expect(document.getElementById("versionInfoBuildDate").textContent).toBe("2026-06-23");
     });
@@ -328,7 +330,7 @@ describe("options-display", () => {
     test("gitCommit がある場合 commit 行が表示される", async () => {
       const od = setupVersion("1.0.0", "2026-06-23", "deadbeef");
       od.initDisplayTab();
-      for (let i = 0; i < 10; i++) await Promise.resolve();
+      await flushMicrotasks();
       const commitRow = document.getElementById("versionInfoCommitRow");
       expect(commitRow.hidden).toBe(false);
       expect(document.getElementById("versionInfoCommit").textContent).toBe("deadbeef");
@@ -337,7 +339,7 @@ describe("options-display", () => {
     test("gitCommit が null の場合 commit 行が非表示", async () => {
       const od = setupVersion("1.0.0", "2026-06-23", null);
       od.initDisplayTab();
-      for (let i = 0; i < 10; i++) await Promise.resolve();
+      await flushMicrotasks();
       const commitRow = document.getElementById("versionInfoCommitRow");
       expect(commitRow.hidden).toBe(true);
     });
@@ -350,14 +352,14 @@ describe("options-display", () => {
       versionMod.__setBuildInfoForTest({ buildDate: "2026-06-23", gitCommit: null });
       const od = require("../src/options/options-display.js");
       od.initDisplayTab();
-      for (let i = 0; i < 10; i++) await Promise.resolve();
+      await flushMicrotasks();
       expect(document.getElementById("versionInfoVersion").textContent).toBe("vunknown");
     });
 
     test("v プレフィックス付きで version を表示", async () => {
       const od = setupVersion("3.1.4", "2026-12-31", null);
       od.initDisplayTab();
-      for (let i = 0; i < 10; i++) await Promise.resolve();
+      await flushMicrotasks();
       const verEl = document.getElementById("versionInfoVersion");
       expect(verEl.textContent.startsWith("v")).toBe(true);
       expect(verEl.textContent).toBe("v3.1.4");

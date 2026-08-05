@@ -44,10 +44,13 @@ export default defineConfig({
     // logger.js の本番ビルド判定:
     // globalThis.__LOG_LEVEL__ を "production" に置換することで
     // log() 呼び出しを本番ビルドで完全に出力停止する。
+    // globalThis.__DEV__ はテスト/開発ビルドでは true、本番では false。
+    // テスト専用 export はこのフラグで本体をスキップする。
     define: {
       "globalThis.__LOG_LEVEL__": JSON.stringify(
         process.env.NODE_ENV === "production" ? "production" : "development"
-      )
+      ),
+      "globalThis.__DEV__": JSON.stringify(process.env.NODE_ENV !== "production")
     }
   },
   server: {
