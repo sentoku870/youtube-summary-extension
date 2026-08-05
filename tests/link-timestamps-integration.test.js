@@ -3,7 +3,7 @@
 //
 // ※ ai-utils.test.js で個別の変換は検証済み。本ファイルは「クリックしたら
 //   シークする」というエンドツーエンドの挙動と、防御的なケースに焦点。
-const { linkTimestamps } = require("../src/domain/ai-utils");
+const { linkTimestamps } = require("../src/content/ui/timestamp-link");
 
 describe("linkTimestamps イベント委譲 (統合)", () => {
   let video;

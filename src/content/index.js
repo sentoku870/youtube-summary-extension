@@ -23,6 +23,8 @@ import {
 } from "./ui/ui-summary.js";
 import { focusChatInput, showCopyButton, showRegenButton } from "./ui/ui-buttons.js";
 import { updateTabUI } from "./ui/tabs.js";
+import { setMarkdown } from "./ui/markdown-render.js";
+import { linkTimestamps } from "./ui/timestamp-link.js";
 import { preloadTranscript } from "../domain/transcript.js";
 import { startNavigationDetection } from "./navigation.js";
 
@@ -49,7 +51,15 @@ setUiAdapter({
   getSummaryTextEl: function () {
     return getEl("#ys-summaryText");
   },
-  updateTabUI: updateTabUI
+  updateTabUI: updateTabUI,
+  renderSummaryChunk: function (text) {
+    const el = getEl("#ys-summaryText");
+    if (el) setMarkdown(el, text);
+  },
+  linkTimestampsIn: function () {
+    const el = getEl("#ys-summaryText");
+    if (el) linkTimestamps(el);
+  }
 });
 
 const MIN_INIT_INTERVAL_MS = 2000;

@@ -158,16 +158,3 @@ export function renderMarkdown(text) {
     return frag;
   }
 }
-
-export function setMarkdown(el, text) {
-  if (!el) return;
-  const origWhiteSpace = el.style.whiteSpace;
-  el.style.whiteSpace = "normal";
-  try {
-    el.innerHTML = "";
-    el.appendChild(renderMarkdown(text));
-  } finally {
-    // 例外発生時でも確実に元の whiteSpace へ復元
-    el.style.whiteSpace = origWhiteSpace;
-  }
-}

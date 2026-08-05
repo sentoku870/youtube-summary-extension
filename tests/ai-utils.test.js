@@ -1,10 +1,11 @@
 // tests/ai-utils.test.js — ai-utils.js 純粋関数の直接テスト
 // Phase D-1 で ai.js から分離した純粋関数をテスト。
 // ai.test.js の再エクスポート経由ではなく、ai-utils.js を直接 import してテストする。
+// linkTimestamps は src/content/ui/timestamp-link.js に移動したため、
+// tests/timestamp-link.test.js を参照。
 
 const {
   formatTranscriptWithTimestamps,
-  linkTimestamps,
   buildMetaContext,
   createTimeoutPromise
 } = require("../src/domain/ai-utils.js");
@@ -121,41 +122,5 @@ describe("ai-utils / createTimeoutPromise", () => {
     expect(settled).toBe(false);
     cancel();
     jest.useRealTimers();
-  });
-});
-
-// ===== linkTimestamps =====
-describe("ai-utils / linkTimestamps", () => {
-  test("null/undefinedの場合は何もしない", () => {
-    expect(() => linkTimestamps(null)).not.toThrow();
-    expect(() => linkTimestamps(undefined)).not.toThrow();
-  });
-
-  test("[MM:SS]形式をアンカー要素に変換する", () => {
-    document.body.innerHTML = '<div id="test">[01:30] テスト</div>';
-    const el = document.getElementById("test");
-    linkTimestamps(el);
-    const anchor = el.querySelector("a.ys-timestamp-link");
-    expect(anchor).not.toBeNull();
-    expect(anchor.textContent).toBe("[01:30]");
-    expect(anchor.getAttribute("data-seek")).toBe("90");
-  });
-
-  test("タイムスタンプがない場合は変換しない", () => {
-    document.body.innerHTML = '<div id="test">タイムスタンプなし</div>';
-    const el = document.getElementById("test");
-    linkTimestamps(el);
-    expect(el.querySelector("a")).toBeNull();
-    expect(el.textContent).toBe("タイムスタンプなし");
-  });
-
-  test("複数のタイムスタンプを変換する", () => {
-    document.body.innerHTML = '<div id="test">[00:10] A [02:00] B</div>';
-    const el = document.getElementById("test");
-    linkTimestamps(el);
-    const anchors = el.querySelectorAll("a.ys-timestamp-link");
-    expect(anchors.length).toBe(2);
-    expect(anchors[0].getAttribute("data-seek")).toBe("10");
-    expect(anchors[1].getAttribute("data-seek")).toBe("120");
   });
 });

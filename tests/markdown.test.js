@@ -1,11 +1,13 @@
 // tests/markdown.test.js — Markdown→HTML変換の単体テスト
+// setMarkdown は UI 層 (src/content/ui/markdown-render.js) に移動したため、
+// そちらから import する。
 const {
   sanitizeHTML,
   ALLOWED_TAGS,
   ALLOWED_ATTR,
-  renderMarkdown,
-  setMarkdown
+  renderMarkdown
 } = require("../src/domain/markdown.js");
+const { setMarkdown } = require("../src/content/ui/markdown-render.js");
 const { marked } = require("marked");
 
 describe("sanitizeHTML", () => {

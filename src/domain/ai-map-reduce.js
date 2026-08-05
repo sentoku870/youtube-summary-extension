@@ -2,14 +2,15 @@
 //  ai-map-reduce.js — Map-Reduce によるチャンク並列処理＋統合
 //  processMapReduce: チャンクを並列に要約し、最後に1つに統合する。
 //  MAX_CONCURRENCY 個のワーカーで並列実行、AbortSignal で中断可能。
+//  DOM 操作（Markdown 描画・タイムスタンプリンク化）は Port/Adapter
+//  経由で UI 層に委譲する。
 // ============================================================
 import { callChatAPIStream } from "./api.js";
-import { setMarkdown } from "./markdown.js";
 import { MAX_CONCURRENCY, CHUNK_MAX_ATTEMPTS } from "../shared/constants.js";
 import { getUiAdapter } from "./ports.js";
 import { processSingleChunk } from "./ai-chunk.js";
 import { createRafThrottle } from "../shared/raf-throttle.js";
-import { linkTimestamps } from "./ai-utils.js";
+import { YsAbortError } from "../infrastructure/errors.js";
 
 // ストリーミング描画のスロットル間隔。ai.js と揃える。
 const STREAM_THROTTLE_MS = 60;
@@ -102,7 +103,7 @@ export async function processMapReduce(
   }
 
   if (signal.aborted) {
-    throw new DOMException("AbortError", "AbortError");
+    throw new YsAbortError("Aborted before merge");
   }
 
   // 成功した結果を抽出
@@ -116,7 +117,7 @@ export async function processMapReduce(
 
   // チャンク要約は得られているが、タイムアウト/中断で merge には進めない
   if (signal.aborted) {
-    throw new DOMException("AbortError", "AbortError");
+    throw new YsAbortError("Aborted before merge");
   }
 
   // マージ用プロンプト構築
@@ -138,7 +139,7 @@ export async function processMapReduce(
   // 単一ストリームと同じくスロットル。長い統合結果で DOM が
   // O(n²) 再構築にならないようにする。
   const renderThrottled = createRafThrottle(function (text) {
-    if (summaryTextEl) setMarkdown(summaryTextEl, text || "");
+    if (summaryTextEl) ui.renderSummaryChunk(text || "");
   }, STREAM_THROTTLE_MS);
   try {
     const raceArgs = [
@@ -153,9 +154,7 @@ export async function processMapReduce(
           accumulated = fullText || accumulated;
           renderThrottled.flush(accumulated);
           // T3-S1: 最終確定時にタイムスタンプをアンカー化する。
-          // finalizeResult 側の setSummaryContent 二度描きを廃止したため
-          // こちらで担当する。
-          if (summaryTextEl) linkTimestamps(summaryTextEl);
+          if (summaryTextEl) ui.linkTimestampsIn();
         },
         signal
       )
@@ -167,7 +166,7 @@ export async function processMapReduce(
     throw e;
   }
   if (signal.aborted) {
-    throw new DOMException("AbortError", "AbortError");
+    throw new YsAbortError("Aborted during merge");
   }
   return accumulated;
 }

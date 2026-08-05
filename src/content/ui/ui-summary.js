@@ -4,8 +4,8 @@
 //  要約描画は markdown + タイムスタンプリンク委譲を含む。
 // ============================================================
 import { getEl } from "./panel.js";
-import { setMarkdown } from "../../domain/markdown.js";
-import { linkTimestamps } from "../../domain/ai-utils.js";
+import { setMarkdown } from "./markdown-render.js";
+import { linkTimestamps } from "./timestamp-link.js";
 
 // ===== 要約テキストエリア =====
 export function setSummaryContent(content) {

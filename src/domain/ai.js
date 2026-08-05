@@ -10,7 +10,6 @@
 import { getAvailableTokens, estimateTokens, splitIntoChunks } from "../shared/utils.js";
 import { callChatAPIStream } from "./api.js";
 import { uiState, sessionState } from "../shared/state.js";
-import { setMarkdown } from "./markdown.js";
 import { processMapReduce } from "./ai-map-reduce.js";
 import {
   loadBtnApiConfigId,
@@ -23,8 +22,7 @@ import { fetchTranscript } from "./transcript.js";
 import {
   formatTranscriptWithTimestamps,
   buildMetaContext,
-  createTimeoutPromise,
-  linkTimestamps
+  createTimeoutPromise
 } from "./ai-utils.js";
 import { getUiAdapter } from "./ports.js";
 import { finalizeResult } from "./ai-finalize.js";
@@ -89,13 +87,14 @@ async function fetchConfigAndPrompt(mode) {
 }
 
 // ===== 単一ストリーム要約（トークン収まる場合） =====
-// チャンク到着ごと setMarkdown を呼ぶと、長文で marked + DOMPurify + innerHTML
+// チャンク到着ごと renderSummaryChunk を呼ぶと、長文で marked + DOMPurify + innerHTML
 // 再構築が O(n²) 化するため、createRafThrottle で 1 フレームに 1 回まで間引く。
 // 完了時 flush() を呼んで保留中の最終描画を必ず反映する。
 async function processSingleStream(messages, config, signal, summaryTextEl, timeoutPromise) {
   let accumulated = "";
+  const ui = UI();
   const renderThrottled = createRafThrottle(function (text) {
-    if (summaryTextEl) setMarkdown(summaryTextEl, text || "");
+    if (summaryTextEl) ui.renderSummaryChunk(text || "");
   }, STREAM_THROTTLE_MS);
   try {
     await Promise.race([
@@ -112,9 +111,8 @@ async function processSingleStream(messages, config, signal, summaryTextEl, time
           renderThrottled.flush(accumulated);
           // T3-S1: タイムスタンプリンクは最終確定時にだけ走らせる。
           // ストリーミング中は raw [MM:SS] のまま表示し、完了時に
-          // アンカーへ置換する。旧 finalizeResult での setSummaryContent
-          // 二度描きを廃止したため、ここで linkTimestamps を直接呼ぶ。
-          if (summaryTextEl) linkTimestamps(summaryTextEl);
+          // アンカーへ置換する。
+          if (summaryTextEl) ui.linkTimestampsIn();
         },
         signal
       ),

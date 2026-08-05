@@ -49,6 +49,8 @@ function createNoopAdapter() {
     getSummaryTextEl: function () {
       return null;
     },
-    updateTabUI: function () {}
+    updateTabUI: function () {},
+    renderSummaryChunk: function () {},
+    linkTimestampsIn: function () {}
   };
 }

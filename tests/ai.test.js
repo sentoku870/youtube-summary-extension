@@ -793,11 +793,11 @@ describe("callAI", () => {
 
 // ===== T3-S1: ストリーミング描画のスロットルと linkTimestamps 確定 =====
 describe("callAI: ストリーミング描画のスロットルと linkTimestamps 確定", () => {
-  // 別 describe で setMarkdown / linkTimestamps をモックするため、
-  // 先に require していた ai.js バインドをリセットする必要がある。
-  // ここでは setMarkdown / linkTimestamps のみ差し替える。
-  let setMarkdownSpy;
-  let linkTimestampsSpy;
+  // Phase 2-A: ストリーミング描画・タイムスタンプリンクは Port/Adapter 経由で
+  // UI 層に委譲される（renderSummaryChunk / linkTimestampsIn）。
+  // ここでは ports のアダプタを spy で差し替える。
+  let renderSummaryChunkSpy;
+  let linkTimestampsInSpy;
   let originalGetSummaryTextEl;
 
   beforeEach(() => {
@@ -808,12 +808,10 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
     chrome.storage.local.set.mockReset();
     chrome.storage.local.remove.mockReset();
 
-    // ai.js は同モジュールを1度だけロードするため、spy は require 後に
-    // プロパティを差し替える方式で注入する。
-    const markdownMod = require("../src/domain/markdown");
-    const aiUtilsMod = require("../src/domain/ai-utils");
-    setMarkdownSpy = jest.spyOn(markdownMod, "setMarkdown").mockImplementation(function () {});
-    linkTimestampsSpy = jest.spyOn(aiUtilsMod, "linkTimestamps").mockImplementation(function () {});
+    const ports = require("../src/domain/ports");
+    const ui = ports.getUiAdapter();
+    renderSummaryChunkSpy = jest.spyOn(ui, "renderSummaryChunk").mockImplementation(function () {});
+    linkTimestampsInSpy = jest.spyOn(ui, "linkTimestampsIn").mockImplementation(function () {});
 
     // summaryTextEl として実 DOM を返すように差し替え
     originalGetSummaryTextEl = global.YsPanel.getEl;
@@ -825,12 +823,12 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
   });
 
   afterEach(() => {
-    setMarkdownSpy.mockRestore();
-    linkTimestampsSpy.mockRestore();
+    renderSummaryChunkSpy.mockRestore();
+    linkTimestampsInSpy.mockRestore();
     global.YsPanel.getEl = originalGetSummaryTextEl;
   });
 
-  test("onDone 時に linkTimestamps が summaryTextEl に対して呼ばれる", async () => {
+  test("onDone 時に linkTimestampsIn が呼ばれる", async () => {
     setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
     setupConfigStorage(chrome);
 
@@ -843,12 +841,10 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
     expect(result).toBe(true);
 
     // T3-S1: 最終確定時にタイムスタンプがアンカー化される
-    expect(linkTimestampsSpy).toHaveBeenCalled();
-    const arg = linkTimestampsSpy.mock.calls[0][0];
-    expect(arg.id).toBe("ys-summaryText");
+    expect(linkTimestampsInSpy).toHaveBeenCalled();
   });
 
-  test("連続チャンクでも setMarkdown の呼び出しは間引かれる（スロットル動作）", async () => {
+  test("連続チャンクでも renderSummaryChunk の呼び出しは間引かれる（スロットル動作）", async () => {
     setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
     setupConfigStorage(chrome);
 
@@ -864,7 +860,7 @@ describe("callAI: ストリーミング描画のスロットルと linkTimestamp
     const result = await callAI("summary", false);
     expect(result).toBe(true);
     // 間引きにより、最終確定分を含めても呼び出し回数は高々少数
-    expect(setMarkdownSpy.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(renderSummaryChunkSpy.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
   // ===== 補完: 制御フローのエッジケース =====

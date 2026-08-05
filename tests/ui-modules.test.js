@@ -10,14 +10,14 @@ jest.mock("../src/content/ui/panel.js", () => ({
   getEl: jest.fn()
 }));
 
-// markdown.js もモック化（setMarkdown が必要なため）
-jest.mock("../src/domain/markdown.js", () => ({
+// markdown-render.js もモック化（Phase 2-A で setMarkdown は UI 層へ移動）
+jest.mock("../src/content/ui/markdown-render.js", () => ({
   setMarkdown: jest.fn((el, text) => {
     if (el) el.textContent = text;
   })
 }));
 
-jest.mock("../src/domain/ai-utils.js", () => ({
+jest.mock("../src/content/ui/timestamp-link.js", () => ({
   linkTimestamps: jest.fn()
 }));
 

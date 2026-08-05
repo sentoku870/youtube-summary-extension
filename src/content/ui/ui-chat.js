@@ -4,7 +4,7 @@
 //  スクロール制御（content-area 内）を担当。
 // ============================================================
 import { getEl } from "./panel.js";
-import { setMarkdown } from "../../domain/markdown.js";
+import { setMarkdown } from "./markdown-render.js";
 
 // ===== チャット履歴 =====
 // opts.editIndex (number) を渡すと role=user メッセージに編集ボタンを付与。
