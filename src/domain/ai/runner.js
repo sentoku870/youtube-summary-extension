@@ -32,33 +32,31 @@ export async function processSingleStream(messages, config, signal, summaryTextE
   const renderThrottled = createRafThrottle(function (text) {
     if (summaryTextEl) ui.renderSummaryChunk(text || "");
   }, STREAM_THROTTLE_MS);
-  try {
-    await Promise.race([
-      callChatAPIStream(
-        messages,
-        config,
-        function (chunk) {
-          accumulated = chunk;
-          renderThrottled(accumulated);
-        },
-        function (fullText) {
-          accumulated = fullText || accumulated;
-          // 完了時はスロットルを待たず即時1回確定描画する
-          renderThrottled.flush(accumulated);
-          // T3-S1: タイムスタンプリンクは最終確定時にだけ走らせる。
-          // ストリーミング中は raw [MM:SS] のまま表示し、完了時に
-          // アンカーへ置換する。
-          if (summaryTextEl) ui.linkTimestampsIn();
-        },
-        signal
-      ),
-      timeoutPromise.promise
-    ]);
-  } catch (e) {
-    // エラー/中断時も保留中の描画を破棄して空フラッシュする
-    renderThrottled.flush("");
-    throw e;
-  }
+  // N-2: abort 時も DOM を空フラッシュしない（旧実装では catch 内で
+  // renderThrottled.flush("") を呼んでいた）。新 stream の初チャンクで
+  // 上書きされるまで旧内容を保持し、ユーザーの「回答が消えた」感覚を解消。
+  // API エラー時のクリアは handleAiErrors() 側の責務。
+  await Promise.race([
+    callChatAPIStream(
+      messages,
+      config,
+      function (chunk) {
+        accumulated = chunk;
+        renderThrottled(accumulated);
+      },
+      function (fullText) {
+        accumulated = fullText || accumulated;
+        // 完了時はスロットルを待たず即時1回確定描画する
+        renderThrottled.flush(accumulated);
+        // T3-S1: タイムスタンプリンクは最終確定時にだけ走らせる。
+        // ストリーミング中は raw [MM:SS] のまま表示し、完了時に
+        // アンカーへ置換する。
+        if (summaryTextEl) ui.linkTimestampsIn();
+      },
+      signal
+    ),
+    timeoutPromise.promise
+  ]);
   return accumulated;
 }
 
