@@ -18,7 +18,7 @@ import {
 } from "../shared/state.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
 import { createLogger } from "../shared/logger.js";
-import { abortCurrentStream } from "../domain/ai.js";
+import { abortCurrentStream } from "../domain/ai/index.js";
 import { updateTabActive } from "./ui/tabs.js";
 import { applyButtonTitles } from "./ui/tabs-ui.js";
 import { clearSummaryContent } from "./ui/ui-summary.js";

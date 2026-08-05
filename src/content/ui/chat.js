@@ -12,7 +12,7 @@ import {
   scrollContentToElement
 } from "./ui-chat.js";
 import { callChatAPIStream } from "../../domain/api.js";
-import { resolveApiConfig } from "../../domain/ai.js";
+import { resolveApiConfig } from "../../domain/ai/context.js";
 import { YsAbortError, YsTimeoutError } from "../../infrastructure/errors.js";
 import { createRafThrottle } from "../../shared/raf-throttle.js";
 import { linkAbortSignal } from "../../shared/abort-chain.js";

@@ -179,9 +179,9 @@ describe("chat", () => {
     });
 
     test("tab.config がない場合は resolveApiConfig を呼ぶ", async () => {
-      const ai = require("../src/domain/ai");
+      const aiContext = require("../src/domain/ai/context.js");
       const spy = jest
-        .spyOn(ai, "resolveApiConfig")
+        .spyOn(aiContext, "resolveApiConfig")
         .mockResolvedValue({ apiKey: "new", apiUrl: "u", apiModel: "m" });
       uiState.tabs.summary.config = null;
       api.callChatAPIStream.mockReset();
@@ -205,8 +205,8 @@ describe("chat", () => {
     });
 
     test("resolveApiConfig が null の場合はプレースホルダーにエラー表示", async () => {
-      const ai = require("../src/domain/ai");
-      const spy = jest.spyOn(ai, "resolveApiConfig").mockResolvedValue(null);
+      const aiContext = require("../src/domain/ai/context.js");
+      const spy = jest.spyOn(aiContext, "resolveApiConfig").mockResolvedValue(null);
       uiState.tabs.summary.config = null;
       api.callChatAPIStream.mockReset();
       try {
