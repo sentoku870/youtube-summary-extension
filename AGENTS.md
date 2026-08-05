@@ -14,22 +14,22 @@ Compact guidance for OpenCode sessions working in this repo. Verify against the 
 
 ### CI / GitHub Actions
 
-- `.github/workflows/ci.yml` が Node 20.20.2 固定で lint / format:check / test --ci / build / dist スモークを並列実行する。
+- `.github/workflows/ci.yml` が Node 22.23.0 固定で lint / format:check / test --ci / build / dist スモークを並列実行する。
 - ブランチ保護: master への直接 push / pull request のマージ時に CI 通過を要求。
 
 ## Node version
 
-- **必須**: Node.js **>= 20.19.0**（Vite 8 の要件。`package.json` の `engines` で指定）
-- **`.nvmrc`** で プロジェクトルートのバージョンを `20.20.2` に固定。
+- **必須**: Node.js **>= 22.0.0**（Node 22 LTS / Jod 採用。`package.json` の `engines` で指定）
+- **`.nvmrc`** で プロジェクトルートのバージョンを `22.23.0` に固定。
 - 開発環境のセットアップ:
   ```bash
-  nvm use            # .nvmrc を読んで自動で v20.20.2 に切替
-  node --version     # v20.20.2 を確認
+  nvm use            # .nvmrc を読んで自動で v22.23.0 に切替
+  node --version     # v22.23.0 を確認
   ```
 - 「`npm` が古い Node を掴んでしまう」問題（PATH の順序で `/usr/bin/node` が先）の対策:
   - nvm を使う場合、シェルの `~/.bashrc` / `~/.zshrc` で `nvm.sh` を source する行が `/usr/bin` より**前**にあることを確認
-  - ワンライナー: `export PATH="$HOME/.nvm/versions/node/v20.20.2/bin:$PATH"`
-  - 確認: `which node` → `~/.nvm/versions/node/v20.20.2/bin/node` を指していれば OK
+  - ワンライナー: `export PATH="$HOME/.nvm/versions/node/v22.23.0/bin:$PATH"`
+  - 確認: `which node` → `~/.nvm/versions/node/v22.23.0/bin/node` を指していれば OK
 - 別バージョン管理ツールを使う場合は `.nvmrc` と同等の固定ファイル（`.tool-versions` for asdf, `volta` フィールド in package.json など）を各自追加。
 
 ## Versioning
