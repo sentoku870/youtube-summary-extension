@@ -1006,6 +1006,38 @@ describe("tabs", () => {
       expect(S.tabs.summary.content).toBe("");
       expect(S.tabs.summary.chatHistory.length).toBe(0);
     });
+
+    // ★ 回帰防止: 再生成ボタン押下時にチャット履歴 DOM (#ys-chatHistory) も
+    //   クリアされること。state だけクリアして DOM に古い Q&A が残ると、
+    //   動画切替時と同じリーク (B A A 形式) が発生する。
+    test("regenBtn click で #ys-chatHistory が空になる", async () => {
+      buildPanelDOM();
+      bindEvents();
+      S.tabs.summary.generated = true;
+      S.tabs.summary.content = "old";
+      S.tabs.summary.chatHistory = [{ role: "user", content: "古い質問" }];
+      S.activeTab = "summary";
+
+      // 古い Q&A が DOM に残っている状態を再現
+      const historyEl = getEl("#ys-chatHistory");
+      const oldMsg = document.createElement("div");
+      oldMsg.className = "chat-msg user";
+      oldMsg.textContent = "古い質問";
+      historyEl.appendChild(oldMsg);
+      // 入力欄にも古いテキスト
+      const chatInput = getEl("#ys-chatInput");
+      chatInput.value = "古い入力";
+
+      const { callAI } = require("../src/domain/ai");
+      const regenBtn = document.getElementById("ys-regenBtn");
+      regenBtn.click();
+      await flushPromises();
+
+      // ★ DOM が空になっている
+      expect(historyEl.innerHTML).toBe("");
+      expect(historyEl.children.length).toBe(0);
+      expect(chatInput.value).toBe("");
+    });
   });
 
   describe("loadCachedSummary: 例外経路", () => {

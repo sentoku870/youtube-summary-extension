@@ -28,6 +28,7 @@ const {
   onChatSend,
   handleEditUserMessage,
   clearChatHistory,
+  resetChatHistoryDom,
   handleChatInputResize,
   shouldSubmitOnKey,
   handleChatHistoryClick
@@ -359,6 +360,72 @@ describe("chat", () => {
     test("getEl が null の場合はクラッシュしない", () => {
       panel.getEl.mockReturnValue(null);
       expect(() => clearChatHistory()).not.toThrow();
+    });
+  });
+
+  describe("resetChatHistoryDom", () => {
+    let inputEl;
+    let historyEl;
+
+    beforeEach(() => {
+      inputEl = document.createElement("textarea");
+      inputEl.id = "ys-chatInput";
+      inputEl.value = "書きかけ";
+      document.body.appendChild(inputEl);
+
+      historyEl = document.createElement("div");
+      historyEl.id = "ys-chatHistory";
+      // 古い Q&A が残っている状態を再現
+      const oldMsg = document.createElement("div");
+      oldMsg.className = "chat-msg user";
+      oldMsg.textContent = "動画A の古い質問";
+      historyEl.appendChild(oldMsg);
+      document.body.appendChild(historyEl);
+
+      panel.getEl.mockImplementation(function (sel) {
+        if (sel === "#ys-chatHistory") return historyEl;
+        if (sel === "#ys-chatInput") return inputEl;
+        return null;
+      });
+    });
+
+    test("#ys-chatHistory の中身を空にする", () => {
+      expect(historyEl.children.length).toBe(1);
+      resetChatHistoryDom();
+      expect(historyEl.innerHTML).toBe("");
+      expect(historyEl.children.length).toBe(0);
+    });
+
+    test("#ys-chatInput の値をクリアして高さをリセット", () => {
+      inputEl.value = "古い入力";
+      resetChatHistoryDom();
+      expect(inputEl.value).toBe("");
+      // 高さが "100px" のような古い値でないこと（= 再計算された）
+      expect(inputEl.style.height).not.toBe("100px");
+    });
+
+    test("state (chatHistory) は変更しない", () => {
+      const lenBefore = uiState.tabs.summary.chatHistory.length;
+      resetChatHistoryDom();
+      expect(uiState.tabs.summary.chatHistory.length).toBe(lenBefore);
+    });
+
+    test("getEl が null の場合はクラッシュしない", () => {
+      panel.getEl.mockReturnValue(null);
+      expect(() => resetChatHistoryDom()).not.toThrow();
+    });
+
+    test("DOM 要素が取得できない（getEl 個別 null）でも例外を投げない", () => {
+      panel.getEl.mockImplementation(function (sel) {
+        if (sel === "#ys-chatHistory") return null;
+        return inputEl;
+      });
+      expect(() => resetChatHistoryDom()).not.toThrow();
+      panel.getEl.mockImplementation(function (sel) {
+        if (sel === "#ys-chatInput") return null;
+        return historyEl;
+      });
+      expect(() => resetChatHistoryDom()).not.toThrow();
     });
   });
 

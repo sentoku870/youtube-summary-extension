@@ -35,8 +35,10 @@ jest.mock("../src/content/ui/storage-listener.js", () => ({
 }));
 
 const mockAbortChatStream = jest.fn();
+const mockResetChatHistoryDom = jest.fn();
 jest.mock("../src/content/ui/chat.js", () => ({
-  abortChatStream: mockAbortChatStream
+  abortChatStream: mockAbortChatStream,
+  resetChatHistoryDom: mockResetChatHistoryDom
 }));
 
 // location をスタブ化
@@ -58,6 +60,7 @@ describe("navigation", () => {
     jest.clearAllMocks();
     mockBindStorageListener.mockClear();
     mockAbortChatStream.mockClear();
+    mockResetChatHistoryDom.mockClear();
   });
 
   afterEach(() => {
@@ -347,6 +350,11 @@ describe("navigation", () => {
       // updateTabActive は tabs.js のモック経由
       const tabs = require("../src/content/ui/tabs");
       expect(tabs.updateTabActive).toHaveBeenCalled();
+      // ★ チャット履歴 DOM (#ys-chatHistory) もクリアされる
+      //   state だけクリアして DOM が残ると、別動画に切替後も古い Q&A が
+      //   見えてしまうリークになっていた (chat.js:resetChatHistoryDom を
+      //   経由する)。
+      expect(mockResetChatHistoryDom).toHaveBeenCalled();
     });
 
     test("panelEl が無い場合は updateTabActive 等の DOM 操作をスキップ", () => {
