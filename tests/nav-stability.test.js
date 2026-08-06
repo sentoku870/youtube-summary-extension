@@ -35,7 +35,8 @@ jest.mock("../src/content/ui/storage-listener.js", () => ({
   bindStorageListener: jest.fn()
 }));
 jest.mock("../src/content/ui/chat.js", () => ({
-  abortChatStream: jest.fn()
+  abortChatStream: jest.fn(),
+  resetChatHistoryDom: jest.fn()
 }));
 
 // location スタブ

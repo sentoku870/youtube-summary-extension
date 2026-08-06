@@ -15,7 +15,7 @@ import { abortCurrentStream } from "../../domain/ai/orchestrator.js";
 import { updateTabActive } from "../ui/tabs.js";
 import { clearSummaryContent } from "../ui/ui-summary.js";
 import { hideProgress } from "../ui/ui-progress.js";
-import { abortChatStream } from "../ui/chat.js";
+import { abortChatStream, resetChatHistoryDom } from "../ui/chat.js";
 import { TAB_IDS } from "../../shared/constants.js";
 
 let safeInitFn = null;
@@ -67,6 +67,10 @@ function resetState() {
     setUiState({ activeTab: null, activeVideoId: currentVideoId || null });
     updateTabActive();
     clearSummaryContent();
+    // state の tab.chatHistory = [] と並べて DOM 側のチャット履歴表示もクリア。
+    // 旧実装は state だけ消して DOM に古い Q&A が残っていたため、動画切替後に
+    // 前の動画の質問/回答が見えてしまうリークがあった。
+    resetChatHistoryDom();
     hideProgress();
   }
 }

@@ -13,6 +13,7 @@ import {
   abortChatStream,
   clearChatHistory,
   handleChatInputResize,
+  resetChatHistoryDom,
   shouldSubmitOnKey,
   handleChatHistoryClick
 } from "./chat.js";
@@ -53,6 +54,10 @@ async function regenerate() {
   tab.generated = false;
   tab.content = "";
   tab.chatHistory = [];
+
+  // state と DOM の両方を空にする。state だけだと古い Q&A が
+  // 画面上に残って見えてしまう。
+  resetChatHistoryDom();
 
   setSummaryRaw("⏳ 再生成中...");
   disableRegenButton();

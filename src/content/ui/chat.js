@@ -245,6 +245,22 @@ export function clearChatHistory() {
   }
 }
 
+// ===== チャット履歴 DOM の強制クリア =====
+// state (tab.chatHistory) は触らず、表示 (#ys-chatHistory / #ys-chatInput) だけを
+// 空にする。動画切替時 (resetter.js) や再生成 (tabs-events.js) など、
+// 呼び出し側で state を [] にした後に DOM の追い出し漏れを防ぐ目的で使う。
+// chatHistory を空にせず DOM だけクリアする設計: state と DOM の不整合を
+// 避けるため、必ず呼び出し側で tab.chatHistory = [] を先に実行すること。
+export function resetChatHistoryDom() {
+  const hist = getEl("#ys-chatHistory");
+  if (hist) hist.innerHTML = "";
+  const chatInput = getEl("#ys-chatInput");
+  if (chatInput) {
+    chatInput.value = "";
+    resetChatInputHeight(chatInput);
+  }
+}
+
 // 入力欄の input イベントで高さを再計算する（bindEvents から addEventListener する用）
 export function handleChatInputResize(el) {
   resetChatInputHeight(el);
