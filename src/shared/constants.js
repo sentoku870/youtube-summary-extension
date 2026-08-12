@@ -13,9 +13,11 @@ export const API_RETRY_NET_BASE_WAIT_MS = 1000; // ネットワークエラー�
 // ===== 全体処理タイムアウト =====
 export const GLOBAL_TIMEOUT_MS = 180000; // 字幕取得〜要約完了の全体タイムアウト
 
-// ===== Map-Reduce 並列処理 =====
+// ===== Map-Reduce 並列処理（フォールバック専用） =====
+// enableChunking フラグが true の場合のみ使用。デフォルトでは単一ストリーム経路で動作。
 export const MAX_CONCURRENCY = 5; // チャンク並列ワーカー上限
 export const CHUNK_MAX_ATTEMPTS = 2; // チャンクごとの最大試行回数
+export const CHUNKING_ENABLED_DEFAULT = false; // 詳細設定の初期値
 
 // ===== トークン計算 =====
 export const CONTEXT_WINDOW_USABLE_RATIO = 0.8; // 入力に使えるコンテキスト比

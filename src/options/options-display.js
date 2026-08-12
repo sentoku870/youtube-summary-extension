@@ -124,11 +124,13 @@ function collectDisplayPayload() {
   const fontSize = document.getElementById("fontSize");
   const panelHeight = document.getElementById("panelHeight");
   const subtitleLang = document.getElementById("subtitleLang");
+  const enableChunking = document.getElementById("enableChunking");
   const payload = {};
   if (theme) payload[K.THEME] = theme.value;
   if (fontSize) payload[K.FONT_SIZE] = fontSize.value;
   if (panelHeight) payload[K.PANEL_HEIGHT] = panelHeight.value;
   if (subtitleLang) payload[K.SUBTITLE_LANG] = subtitleLang.value;
+  if (enableChunking) payload[K.ENABLE_CHUNKING] = !!enableChunking.checked;
   return payload;
 }
 
@@ -208,6 +210,8 @@ export function initDisplayTab() {
   }
   const subtitleLang = document.getElementById("subtitleLang");
   if (subtitleLang) subtitleLang.addEventListener("change", scheduleSave);
+  const enableChunking = document.getElementById("enableChunking");
+  if (enableChunking) enableChunking.addEventListener("change", scheduleSave);
 }
 
 export async function flushDisplaySaves() {

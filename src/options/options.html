@@ -201,6 +201,20 @@
 
       <hr />
 
+      <h2>🛠 詳細設定</h2>
+      <div class="field">
+        <label class="checkbox-label">
+          <input type="checkbox" id="enableChunking" />
+          長い字幕をチャンク分割して要約する（ベータ版）
+        </label>
+        <div class="note">
+          有効にすると、字幕がモデルのコンテキスト上限を超える場合に Map-Reduce
+          で分割→並列→統合処理を行います。通常は単一リクエストのほうが安定します。
+        </div>
+      </div>
+
+      <hr />
+
       <h2>ℹ️ バージョン情報</h2>
       <div class="version-info" id="versionInfo">
         <div class="version-info-row">

@@ -111,6 +111,10 @@ async function loadInitialSettings() {
     const subtitleLang = document.getElementById("subtitleLang");
     if (subtitleLang) subtitleLang.value = result[K.SUBTITLE_LANG];
   }
+  if (result[K.ENABLE_CHUNKING] != null) {
+    const enableChunking = document.getElementById("enableChunking");
+    if (enableChunking) enableChunking.checked = !!result[K.ENABLE_CHUNKING];
+  }
 
   // バージョン情報（フッター）
   const verEl = document.getElementById("appVersion");

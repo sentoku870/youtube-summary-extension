@@ -17,6 +17,7 @@ export const K = {
   FONT_SIZE: "fontSize",
   PANEL_HEIGHT: "panelHeight",
   THEME: "theme",
+  ENABLE_CHUNKING: "enableChunking",
   LATEST_SUMMARY: "latestSummary",
   LATEST_CAPTIONS: "latestCaptions"
 };

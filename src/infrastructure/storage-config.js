@@ -61,3 +61,11 @@ export async function loadPanelHeight() {
 export async function loadThemeSetting() {
   return (await get(K.THEME)) || "auto";
 }
+
+// ===== 詳細設定 =====
+// enableChunking: 長尺字幕をチャンク分割して Map-Reduce 要約する。
+// デフォルト false。true のときのみ src/domain/ai/runner.js がフォールバック経路を使う。
+export async function loadEnableChunking() {
+  const v = await get(K.ENABLE_CHUNKING);
+  return v === true || v === "true";
+}

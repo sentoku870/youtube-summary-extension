@@ -81,10 +81,11 @@ Layered Chrome extension (content script does the real work):
   - `src/domain/ai.js` — 後方互換ファサード。実体は `src/domain/ai/`:
     - `src/domain/ai/orchestrator.js` — 公開 API（callAI, abortCurrentStream, showError, prepareContext）。
     - `src/domain/ai/context.js` — 純粋関数 + 設定解決（resolveApiConfig, resolveTranscriptText, fetchConfigAndPrompt）。
-    - `src/domain/ai/runner.js` — ストリーミング実行（processSingleStream, runSingleStream, runSummary, STREAM_THROTTLE_MS）。
+    - `src/domain/ai/runner.js` — 単一ストリーム要約（既定）+ Map-Reduce フォールバック。詳細設定の `enableChunking`（chrome.storage K.ENABLE_CHUNKING、デフォルト false）が true の場合のみ Map-Reduce 経路を使う。`processSingleStream`, `runSingleStream`, `runSummary`, `STREAM_THROTTLE_MS` を export。
   - `src/domain/ai-utils.js` — 純粋関数のみ（formatTranscriptWithTimestamps, buildMetaContext, createTimeoutPromise）。DOM 操作の `linkTimestamps` は `src/content/ui/timestamp-link.js` に移動済み。
   - `src/domain/markdown.js` — `renderMarkdown` / `sanitizeHTML`（DOM 依存の `setMarkdown` は `src/content/ui/markdown-render.js` に移動済み）。
-  - `src/domain/ai-finalize.js`, `ai-errors.js`, `ai-chunk.js`, `ai-map-reduce.js` — 役割別分割。
+  - `src/domain/ai-finalize.js`, `ai-errors.js` — 役割別分割。
+  - `src/domain/ai-chunk.js`, `ai-map-reduce.js` — Map-Reduce フォールバック経路（`enableChunking=true` 時のみ実行）。`MAX_CONCURRENCY` / `CHUNK_MAX_ATTEMPTS` 定数はこの経路専用。
   - `src/domain/transcript.js` — 字幕プリロード/リトライ。
   - `src/domain/transcript-fetcher/` — youtube-transcript v1.3.1 移植を機能別ファイルに分割（Phase 2-C）:
     - `index.js`（公開ファサード）/ `video-id.js` / `meta.js` / `parser.js` / `captions.js` / `inner-tube.js` / `player-captions.js`。
