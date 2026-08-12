@@ -403,7 +403,7 @@ describe("callAI", () => {
       all: ["あ".repeat(2000)], // 約4000トークン > 2457
       allTimestamps: []
     });
-    setupConfigStorage(chrome);
+    setupConfigStorage(chrome, { enableChunking: true });
 
     // 各チャンク要約を返す
     callChatAPINonStream.mockResolvedValue("チャンク要約");
@@ -423,6 +423,86 @@ describe("callAI", () => {
     const tab = U.tabs.summary;
     expect(tab.generated).toBe(true);
     expect(tab.content).toBe("統合された要約");
+  });
+
+  // ===== 単一経路（既定）: enableChunking=false =====
+  test("既定 (enableChunking=false): 字幕が上限超過なら showError + false で停止", async () => {
+    // gpt-4 (available=2457) を超える長さ
+    setupState(U, S, {
+      all: ["あ".repeat(2000)], // 約4000トークン > 2457
+      allTimestamps: []
+    });
+    // enableChunking は未設定（既定 false）
+    setupConfigStorage(chrome);
+
+    // Non-stream API は呼ばれない（分割しないため）
+    // Stream API も呼ばれない（早期 return のため）
+    const result = await callAI("summary", false);
+
+    expect(result).toBe(false);
+    // callChatAPINonStream / callChatAPIStream はどちらも呼ばれない
+    expect(callChatAPINonStream).not.toHaveBeenCalled();
+    expect(callChatAPIStream).not.toHaveBeenCalled();
+    // showError に上限超過メッセージが含まれる
+    const errorCalls = YsUI.showError.mock.calls.map(function (c) {
+      return c[0];
+    });
+    expect(
+      errorCalls.some(function (m) {
+        return typeof m === "string" && m.includes("字幕が長すぎる");
+      })
+    ).toBe(true);
+    // タブ状態は更新されない
+    expect(U.tabs.summary.generated).toBe(false);
+  });
+
+  test("既定 (enableChunking=false): 字幕が収まれば単一ストリーム経路を使う", async () => {
+    // 短い字幕（gpt-4 なら available=2457、十分小さい）
+    setupState(U, S, {
+      all: ["あ".repeat(500)], // 約1000トークン < 2457
+      allTimestamps: []
+    });
+    // enableChunking は未設定（既定 false）
+    setupConfigStorage(chrome);
+
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
+      onChunk("途中");
+      onDone("最終的な要約");
+    });
+
+    const result = await callAI("summary", false);
+
+    expect(result).toBe(true);
+    // Non-stream は呼ばれない（分割しないため）
+    expect(callChatAPINonStream).not.toHaveBeenCalled();
+    // Stream は呼ばれる（単一経路）
+    expect(callChatAPIStream).toHaveBeenCalled();
+    // showError は呼ばれない
+    expect(YsUI.showError).not.toHaveBeenCalled();
+    // タブ状態は更新される
+    expect(U.tabs.summary.generated).toBe(true);
+    expect(U.tabs.summary.content).toBe("最終的な要約");
+  });
+
+  test("明示的に enableChunking=true: 字幕が収まる場合は単一ストリーム経路を使う", async () => {
+    // 短い字幕（分割不要）
+    setupState(U, S, {
+      all: ["あ".repeat(500)],
+      allTimestamps: []
+    });
+    setupConfigStorage(chrome, { enableChunking: true });
+
+    callChatAPIStream.mockImplementation(async function (messages, config, onChunk, onDone) {
+      onDone("最終的な要約");
+    });
+
+    const result = await callAI("summary", false);
+
+    expect(result).toBe(true);
+    // 1 チャンクしかないので単一ストリーム経路（最適化ルール: chunks.length <= 1）
+    expect(callChatAPINonStream).not.toHaveBeenCalled();
+    expect(callChatAPIStream).toHaveBeenCalled();
+    expect(U.tabs.summary.content).toBe("最終的な要約");
   });
 
   test("字幕が空の場合はshowErrorでfalseを返す", async () => {
@@ -541,7 +621,7 @@ describe("callAI", () => {
       all: ["あ".repeat(2000)], // 約4000トークン
       allTimestamps: []
     });
-    setupConfigStorage(chrome);
+    setupConfigStorage(chrome, { enableChunking: true });
 
     // すべてのチャンク要約が null (processSingleChunk が maxAttempts 到達で失敗)
     callChatAPINonStream.mockResolvedValue(null);
@@ -564,7 +644,7 @@ describe("callAI", () => {
       all: ["あ".repeat(2000)],
       allTimestamps: []
     });
-    setupConfigStorage(chrome);
+    setupConfigStorage(chrome, { enableChunking: true });
     callChatAPINonStream.mockResolvedValue(null);
     callChatAPIStream.mockImplementation(async function () {
       throw new Error("should not be called");
@@ -596,7 +676,7 @@ describe("callAI", () => {
       all: ["あ".repeat(3000)], // 大容量
       allTimestamps: []
     });
-    setupConfigStorage(chrome);
+    setupConfigStorage(chrome, { enableChunking: true });
 
     // 最初のリトライで成功 → リトライはスキップされる
     callChatAPINonStream.mockResolvedValue("部分要約");
@@ -621,10 +701,11 @@ describe("callAI", () => {
       all: ["あ".repeat(3000)], // 大容量 → Map-Reduce
       allTimestamps: []
     });
-    setupConfigStorage(chrome);
+    setupConfigStorage(chrome, { enableChunking: true });
 
     // chunk 処理は永続に pending（abort 待ち）
     let chunkAbortObserved = false;
+    let chunkHandlerRegistered = false;
     callChatAPINonStream.mockImplementation(async function (_m, _c, signal) {
       return new Promise(function (_resolve, reject) {
         if (signal) {
@@ -637,6 +718,7 @@ describe("callAI", () => {
             },
             { once: true }
           );
+          chunkHandlerRegistered = true;
         }
       });
     });
@@ -645,14 +727,21 @@ describe("callAI", () => {
       throw new Error("should not be called");
     });
 
-    // callAI 内で controller が作られるまで非同期 tick を回す
+    // callAI 開始
     const p = callAI("summary", false);
-    for (let i = 0; i < 50; i++) {
+    // controller ができるまで非同期 tick を回す
+    for (let i = 0; i < 50 && !S.abortController; i++) {
       await Promise.resolve();
-      if (S.abortController) break;
     }
     const ac = S.abortController;
     expect(ac).toBeDefined();
+
+    // chunk の abort リスナーが登録されるまで追加で tick を回す
+    // (runSummary 内の await loadEnableChunking() + processMapReduce の起動完了待ち)
+    for (let i = 0; i < 100 && !chunkHandlerRegistered; i++) {
+      await Promise.resolve();
+    }
+    expect(chunkHandlerRegistered).toBe(true);
 
     // controller を abort して chunk を解放
     ac.abort();
