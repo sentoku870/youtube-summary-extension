@@ -111,6 +111,14 @@ describe("chat", () => {
       expect(api.callChatAPIStream).not.toHaveBeenCalled();
     });
 
+    test("isRegenerating 中は早期 return（誤メッセージ混入防止）", async () => {
+      sessionState.isRegenerating = true;
+      await onChatSend();
+      // API は呼ばれさず、エラーメッセージも DOM に追加されない。
+      expect(api.callChatAPIStream).not.toHaveBeenCalled();
+      expect(ui.appendChatMessage).not.toHaveBeenCalled();
+    });
+
     test("空テキストでは送信しない", async () => {
       inputEl.value = "   ";
       await onChatSend();
@@ -426,6 +434,15 @@ describe("chat", () => {
         return historyEl;
       });
       expect(() => resetChatHistoryDom()).not.toThrow();
+    });
+
+    // 回帰防止: チャット送信中 (input.readOnly=true) に再生成が走ると、
+    // マイクロタスク順不同で readOnly が残ってしまう可能性があるため,
+    // resetChatHistoryDom で明示的に false に戻す。
+    test("input.readOnly が true でも false に戻す", () => {
+      inputEl.readOnly = true;
+      resetChatHistoryDom();
+      expect(inputEl.readOnly).toBe(false);
     });
   });
 

@@ -88,16 +88,32 @@ export async function prepareContext(mode) {
  * 3. 単一 or Map-Reduce 振り分け
  * 4. 結果確定（finalizeResult）
  * いずれの経路でも controller の解放を finally で保証する。
+ *
+ * @param {string} mode - タブ ID (summary / customA / customB)
+ * @param {boolean} [useAbort] - 既存 AI 呼び出しを中断してから新規開始するか
+ * @param {object} [options]
+ * @param {boolean} [options.isRegenerate] - 再生成経路。
+ *   true の場合、ui.clearSummaryContent() をスキップして旧内容を保持し、
+ *   新ストリームの初チャンク到着まで「旧回答 → 新回答」の自然遷移にする
+ *   (NOTES.md シナリオ 3 仕様)。
+ *   callAI 入口での明示クリアは行わず、handleAiErrors() のエラー時クリアに
+ *   委ねる。
  */
-export async function callAI(mode, useAbort) {
+export async function callAI(mode, useAbort, options) {
   const tab = uiState.tabs[mode];
   if (!tab) return false;
 
   if (useAbort) abortCurrentStream();
 
+  const isRegenerate = !!(options && options.isRegenerate);
+
   const ui = UI();
   ui.hideError();
-  ui.clearSummaryContent();
+  if (!isRegenerate) {
+    // 通常経路: 旧内容を即座にクリアして新規生成の余白を作る。
+    // 再生成経路ではクリアせず、旧内容の末尾から新チャンクで上書きさせる。
+    ui.clearSummaryContent();
+  }
   ui.hideProgress();
   const summaryTextEl = ui.getSummaryTextEl();
 

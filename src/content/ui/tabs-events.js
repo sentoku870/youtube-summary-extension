@@ -4,7 +4,7 @@
 //  タブボタン click / チャット送信 / 編集 / 再生成 / コピー / storage.onChanged
 //  のDOM イベント登録を一元化し、tabs.js を「状態 + ロジック」の薄層にする。
 // ============================================================
-import { uiState as S } from "../../shared/state.js";
+import { uiState as S, setSessionState } from "../../shared/state.js";
 import { getEl } from "./panel.js";
 import { TAB_IDS } from "../../shared/constants.js";
 import { createLogger } from "../../shared/logger.js";
@@ -38,9 +38,30 @@ function copyContent() {
 // ===== 再生成 =====
 // bindEvents の regenBtn クリックからのみ呼ばれる。
 import { setSummaryRaw } from "./ui-summary.js";
-import { disableRegenButton, enableRegenButton } from "./ui-buttons.js";
+import {
+  disableRegenButton,
+  enableRegenButton,
+  hideRegenButton,
+  hideCopyButton
+} from "./ui-buttons.js";
+import { updateInfoLabel, hideChatArea } from "./ui-summary.js";
 import { updateTabUI } from "./tabs-ui.js";
 import { callAI, abortCurrentStream } from "../../domain/ai.js";
+
+/**
+ * 再生成失敗時に UI を初期状態に戻す。
+ * handleAiErrors がエラー表示と要約領域クリアを担うが、copy ボタンや
+ * 旧 infoLabel は触らないため、ここでまとめて隠す。
+ * @param {string} mode
+ */
+function resetUiOnRegenerateFailure(mode) {
+  if (S.activeTab === mode) {
+    hideCopyButton();
+    hideChatArea();
+    updateInfoLabel("");
+    hideRegenButton();
+  }
+}
 
 async function regenerate() {
   const mode = S.activeTab;
@@ -59,12 +80,31 @@ async function regenerate() {
   // 画面上に残って見えてしまう。
   resetChatHistoryDom();
 
+  // 旧回答は保持し、新チャンクで上書きさせる (NOTES.md シナリオ 3)。
+  // 「⏳ 再生成中...」を直前のセルで表示してユーザーに進捗を伝える。
   setSummaryRaw("⏳ 再生成中...");
   disableRegenButton();
 
+  // 再生成中フラグを立てる。チャット送信をブロックし
+  // 「先に要約を生成してください」誤メッセージの混入を防ぐ。
+  setSessionState({ isRegenerating: true });
+
   try {
-    await callAI(mode, false);
+    // callAI に { isRegenerate: true } を渡し、入口の clearSummaryContent を
+    // スキップさせる。旧回答は新チャンク到着までそのまま残る。
+    const ok = await callAI(mode, false, { isRegenerate: true });
+    if (!ok) {
+      // 中断 / API エラー / 上限超過など。最終的なエラー表示は
+      // handleAiErrors が行う。ここでは UI の整合性確保のみ。
+      resetUiOnRegenerateFailure(mode);
+    }
+  } catch (e) {
+    // callAI 自体は try/catch で全エラーを吸収して false を返す設計だが、
+    // 念のため保険としてここでも UI を初期化する。
+    log.error("regenerate failed unexpectedly:", e);
+    resetUiOnRegenerateFailure(mode);
   } finally {
+    setSessionState({ isRegenerating: false });
     enableRegenButton();
     updateTabUI();
   }

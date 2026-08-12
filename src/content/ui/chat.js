@@ -61,6 +61,10 @@ function resetChatInputHeight(el) {
  */
 function prepareChatTurn() {
   if (sessionState.chatBusy) return null;
+  // 再生成中はチャット送信をブロックする。「先に要約・分析を生成して
+  // ください」の誤メッセージを DOM に残し state と不整合になる問題を
+  // 防ぐ (regenerate() の finally で false に戻る)。
+  if (sessionState.isRegenerating) return null;
   const input = getEl("#ys-chatInput");
   const text = input ? input.value.trim() : "";
   if (!text) return null;
@@ -251,12 +255,17 @@ export function clearChatHistory() {
 // 呼び出し側で state を [] にした後に DOM の追い出し漏れを防ぐ目的で使う。
 // chatHistory を空にせず DOM だけクリアする設計: state と DOM の不整合を
 // 避けるため、必ず呼び出し側で tab.chatHistory = [] を先に実行すること。
+//
+// チャット入力欄の readOnly も解除する。チャット送信中 (input.readOnly=true)
+// に再生成が走るとマイクロタスク順不同で readOnly が残ってしまう可能性がある
+// ため、ここで明示的に false に戻す。
 export function resetChatHistoryDom() {
   const hist = getEl("#ys-chatHistory");
   if (hist) hist.innerHTML = "";
   const chatInput = getEl("#ys-chatInput");
   if (chatInput) {
     chatInput.value = "";
+    chatInput.readOnly = false;
     resetChatInputHeight(chatInput);
   }
 }

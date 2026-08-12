@@ -62,7 +62,11 @@ export function createInitialSessionState() {
     chatBusy: false,
     // タブ切替世代カウンタ。switchTab() 入口でインクリメントし、
     // 古い呼び出しの finally が他タブのボタン状態を巻き込むのを防ぐ。
-    _switchGen: 0
+    _switchGen: 0,
+    // 再生成中フラグ。regenerate() の入口で true、finally で false に戻す。
+    // chat.js の prepareChatTurn から参照され、再生成中のチャット送信を
+    // ブロックして「先に要約を生成してください」誤メッセージの混入を防ぐ。
+    isRegenerating: false
   };
 }
 
