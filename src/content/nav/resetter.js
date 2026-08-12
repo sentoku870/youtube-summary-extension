@@ -17,6 +17,9 @@ import { clearSummaryContent } from "../ui/ui-summary.js";
 import { hideProgress } from "../ui/ui-progress.js";
 import { abortChatStream, resetChatHistoryDom } from "../ui/chat.js";
 import { TAB_IDS } from "../../shared/constants.js";
+import { createLogger } from "../../shared/logger.js";
+
+const log = createLogger("nav/resetter");
 
 let safeInitFn = null;
 
@@ -37,12 +40,17 @@ export function resetTranscript() {
 
 // ===== 動画切替時のフルリセット =====
 function resetState() {
-  // N-1: 動画ID変化時のみ #ys-panel を閉じる。
-  // 同一 URL の重複 emit / BFCache 復元 / ポーリングで再発火しても
-  // パネルは閉じない（ユーザーの UI 状態を保持）。
-  // activeVideoId 未設定時の初回は安全のため閉じる（古い動作互換）。
+  // N-1: 動画ID変化時のみリセットする。
+  // 同一 URL の重複 emit / BFCache 復元 / ポーリング・yt-page-data-updated で
+  // 再発火しても、activeVideoId が同じならユーザーの作業状態 (要約・タブ・
+  // アクティブ表示・チャット履歴) を一切消さない。
+  // activeVideoId 未設定時の初回のみリセットを許可 (古い動作互換)。
   const currentVideoId = getCurrentVideoId();
   const videoIdChanged = currentVideoId && uiState.activeVideoId !== currentVideoId;
+  if (!videoIdChanged && uiState.activeVideoId !== null) {
+    log.log("resetState: skip (same videoId re-emit, preserving user state)");
+    return;
+  }
 
   abortCurrentStream();
   // B-3: 進行中のチャット応答も中断してから session を破棄する。

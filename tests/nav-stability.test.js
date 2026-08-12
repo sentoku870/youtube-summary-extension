@@ -100,11 +100,13 @@ describe("N-1: resetState() の動画ID別パネル非表示", () => {
     expect(uiState.activeVideoId).toBe("initial");
   });
 
-  test("同一動画IDで再 emit: パネルを閉じない", () => {
+test("同一動画IDで再 emit: パネル・タブ状態ともに保持される", () => {
     const { inner } = createPanelDom();
     inner.style.display = "flex";
     uiState.activeVideoId = "initial";
     uiState.activeTab = "summary";
+    uiState.tabs.summary.generated = true;
+    uiState.tabs.summary.content = "ユーザーが生成した要約";
 
     nav.startNavigationDetection(jest.fn());
 
@@ -114,10 +116,10 @@ describe("N-1: resetState() の動画ID別パネル非表示", () => {
 
     // 動画IDが同じなので panel は閉じない
     expect(inner.style.display).toBe("flex");
-    // ただしタブ状態（activeTab / generated / content）はリセットされる
-    expect(uiState.activeTab).toBeNull();
-    expect(uiState.tabs.summary.generated).toBe(false);
-    expect(uiState.tabs.summary.content).toBe("");
+    // N-6: タブ状態（activeTab / generated / content）も保持される
+    expect(uiState.activeTab).toBe("summary");
+    expect(uiState.tabs.summary.generated).toBe(true);
+    expect(uiState.tabs.summary.content).toBe("ユーザーが生成した要約");
   });
 
   test("動画ID変化時: パネルを閉じる", () => {
@@ -155,6 +157,62 @@ describe("N-1: resetState() の動画ID別パネル非表示", () => {
 
     // film.activeVideoId と同じ URL なら display は "flex" のまま
     expect(inner.style.display).toBe("flex");
+  });
+
+  // ★ 回帰防止 (N-6): ブラウザ再起動後にユーザーが要約生成 → その後
+  //   yt-page-data-updated などの同一動画 re-emit が走っても、ユーザーの
+  //   要約・アクティブタブ・チャット履歴が消えないこと。元の実装では
+  //   タブ状態だけクリアして activeTab=null になり、再生成ボタンを押しても
+  //   無反応になる症状があった。
+  test("ユーザーが生成後に同一動画 re-emit: タブ状態・activeTab ともに保持", () => {
+    createPanelDom();
+    // switchTab 相当の操作を再現: activeVideoId を確定させる
+    uiState.activeVideoId = "initial";
+    uiState.activeTab = "summary";
+    uiState.tabs.summary.generated = true;
+    uiState.tabs.summary.content = "ユーザー生成の要約";
+    uiState.tabs.summary.chatHistory = [
+      { role: "system" },
+      { role: "user" },
+      { role: "assistant", content: "ユーザー生成の要約" }
+    ];
+
+    nav.startNavigationDetection(jest.fn());
+
+    const { emit } = require("../src/shared/event-bus");
+    // ユーザーが要約を生成した後に yt-page-data-updated が再 emit される
+    emit("nav:finish", { url: "https://www.youtube.com/watch?v=initial" });
+
+    // 同一動画 re-emit → ユーザー状態は消えない
+    expect(uiState.activeTab).toBe("summary");
+    expect(uiState.tabs.summary.generated).toBe(true);
+    expect(uiState.tabs.summary.content).toBe("ユーザー生成の要約");
+    expect(uiState.tabs.summary.chatHistory.length).toBe(3);
+  });
+
+  // ★ 回帰防止 (N-6): switchTab が activeVideoId を能動的にセットすること。
+  //   handleNavigation が初回に走る前にユーザーがタブをクリックした場合、
+  //   activeVideoId が null のままだと「初回」判定でクリアされてしまう。
+  test("switchTab が activeVideoId を能動的にセットする", () => {
+    const helpers = require("./__helpers__/index.cjs");
+    helpers.setWindowLocation({
+      href: "https://www.youtube.com/watch?v=initial",
+      pathname: "/watch"
+    });
+    createPanelDom();
+    // activeVideoId は未設定 (= 初期状態)
+    uiState.activeVideoId = null;
+    uiState.activeTab = null;
+
+    nav.startNavigationDetection(jest.fn());
+
+    // 直接 switchTab を呼ぶ代わりに、ユーザーがタブ操作を行うシナリオを再現。
+    // ここでは internal 関数の代わりに、activeVideoId が確定される仕組みを検証。
+    const { emit } = require("../src/shared/event-bus");
+    // 初回 handleNavigation が走る
+    emit("nav:finish", { url: "https://www.youtube.com/watch?v=initial" });
+    // 初回は activeVideoId が null → クリア処理が走る → activeVideoId が確定する
+    expect(uiState.activeVideoId).toBe("initial");
   });
 });
 

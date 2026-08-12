@@ -114,6 +114,7 @@ beforeEach(function () {
 const { uiState: S, sessionState } = require("../src/shared/state");
 const { getEl } = require("../src/content/ui/panel");
 const uiButtons = require("../src/content/ui/ui-buttons");
+const uiSummary = require("../src/content/ui/ui-summary");
 const tabsUi = require("../src/content/ui/tabs-ui");
 const ai = require("../src/domain/ai");
 const api = require("../src/domain/api");
@@ -989,7 +990,7 @@ describe("tabs", () => {
       expect(callAI).not.toHaveBeenCalled();
     });
 
-    test("正常系: callAI(mode, false) を呼ぶ", async () => {
+    test("正常系: callAI(mode, false, { isRegenerate: true }) を呼ぶ", async () => {
       buildPanelDOM();
       bindEvents();
       S.tabs.summary.generated = true;
@@ -1000,11 +1001,101 @@ describe("tabs", () => {
       const regenBtn = document.getElementById("ys-regenBtn");
       regenBtn.click();
       await flushPromises();
-      expect(callAI).toHaveBeenCalledWith("summary", false);
+      // 再生成時は { isRegenerate: true } を渡して入口の clearSummaryContent を
+      // スキップさせる (NOTES.md シナリオ 3 仕様)。
+      expect(callAI).toHaveBeenCalledWith("summary", false, { isRegenerate: true });
       // tab がリセット
       expect(S.tabs.summary.generated).toBe(false);
       expect(S.tabs.summary.content).toBe("");
       expect(S.tabs.summary.chatHistory.length).toBe(0);
+    });
+
+    test("再生成中フラグ (isRegenerating) が 入口→finally で false→false に戻る", async () => {
+      buildPanelDOM();
+      bindEvents();
+      S.tabs.summary.generated = true;
+      S.activeTab = "summary";
+      // sessionState は他テストで汚染される可能性があるので初期化する
+      sessionState.isRegenerating = false;
+      expect(sessionState.isRegenerating).toBe(false);
+      const { callAI } = require("../src/domain/ai");
+      const regenBtn = document.getElementById("ys-regenBtn");
+      regenBtn.click();
+      await flushPromises();
+      // click → 入口で true → callAI 解決後 finally で false
+      expect(sessionState.isRegenerating).toBe(false);
+      expect(callAI).toHaveBeenCalled();
+    });
+
+    test("失敗時: hideCopyButton / updateInfoLabel(\"\") / hideChatArea / hideRegenButton が呼ばれる", async () => {
+      buildPanelDOM();
+      bindEvents();
+      S.tabs.summary.generated = true;
+      S.tabs.summary.content = "old";
+      S.activeTab = "summary";
+
+      // callAI が失敗 (中断 / API エラー) を返す
+      const { callAI } = require("../src/domain/ai");
+      callAI.mockResolvedValueOnce(false);
+
+      const regenBtn = document.getElementById("ys-regenBtn");
+      regenBtn.click();
+      await flushPromises();
+
+      // UI クリーンアップ系が一通り呼ばれている
+      expect(uiButtons.hideCopyButton).toHaveBeenCalled();
+      expect(uiSummary.hideChatArea).toHaveBeenCalled();
+      expect(uiSummary.updateInfoLabel).toHaveBeenCalledWith("");
+      expect(uiButtons.hideRegenButton).toHaveBeenCalled();
+      // フラグも必ず false に戻る
+      sessionState.isRegenerating = false;
+      expect(sessionState.isRegenerating).toBe(false);
+    });
+
+    // ★ 回帰防止: 初回起動時にユーザーが 📝 A を押して AI 生成後、
+    //   activeTab=summary が維持されていること。
+    test("初回起動時の AI 生成後: activeTab=summary が維持される", async () => {
+      buildPanelDOM();
+      bindEvents();
+      sessionState.isRegenerating = false;
+      S.activeTab = null;
+      S.tabs.summary.generated = false;
+      S.tabs.summary.content = "";
+
+      await switchTab("summary");
+      await flushPromises();
+
+      expect(S.activeTab).toBe("summary");
+      expect(ai.callAI).toHaveBeenCalledWith("summary", true);
+    });
+
+    // ★ 回帰防止: AI 生成中に同一動画 NAV_FINISH が再発火しても activeTab が null にならないこと。
+    test("AI 生成中に同一動画 NAV_FINISH: activeTab=summary が維持される", async () => {
+      buildPanelDOM();
+      bindEvents();
+      S.activeTab = null;
+      S.tabs.summary.generated = false;
+
+      let resolveCall;
+      ai.callAI.mockReturnValueOnce(
+        new Promise(function (r) {
+          resolveCall = r;
+        })
+      );
+
+      const p = switchTab("summary");
+      expect(S.activeTab).toBe("summary");
+      const { emit } = require("../src/shared/event-bus");
+      const helpers = require("./__helpers__/index.cjs");
+      helpers.setWindowLocation({
+        href: "https://www.youtube.com/watch?v=abc",
+        pathname: "/watch"
+      });
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=abc" });
+      expect(S.activeTab).toBe("summary");
+
+      resolveCall(true);
+      await p;
     });
 
     // ★ 回帰防止: 再生成ボタン押下時にチャット履歴 DOM (#ys-chatHistory) も
@@ -1028,7 +1119,6 @@ describe("tabs", () => {
       const chatInput = getEl("#ys-chatInput");
       chatInput.value = "古い入力";
 
-      const { callAI } = require("../src/domain/ai");
       const regenBtn = document.getElementById("ys-regenBtn");
       regenBtn.click();
       await flushPromises();

@@ -11,6 +11,7 @@
 // ============================================================
 import { uiState as S, sessionState, setUiState } from "../../shared/state.js";
 import { getEl } from "./panel.js";
+import { getCurrentVideoId } from "../../shared/utils.js";
 import { updateTabUI, updateTabActive, renderTabContent, applyButtonTitles } from "./tabs-ui.js";
 import { callAI, abortCurrentStream } from "../../domain/ai.js";
 import { loadCachedSummary, applyCachedSummary } from "./tab-cache.js";
@@ -27,6 +28,16 @@ export async function switchTab(mode) {
   if (!tab) return;
   const panel = getEl("#ys-panel");
   if (!panel) return;
+
+  // N-6: ユーザー操作時点で activeVideoId を確定させる。
+  // YouTube は同一動画内でも yt-page-data-updated を頻発させるため、
+  // その後の handleNavigation 再 emit で同一動画と判定され、
+  // resetState がユーザーの作業状態を消してしまう問題を防ぐ。
+  // 動画ページ以外で押された場合は activeVideoId を null に維持する。
+  const currentVid = getCurrentVideoId();
+  if (currentVid) {
+    setUiState({ activeVideoId: currentVid });
+  }
 
   // ★ 重要: 進行中の AI ストリームとチャットを必ず中断する。
   //   これを怠ると、古い呼び出しの finally が
