@@ -100,7 +100,7 @@ describe("N-1: resetState() の動画ID別パネル非表示", () => {
     expect(uiState.activeVideoId).toBe("initial");
   });
 
-test("同一動画IDで再 emit: パネル・タブ状態ともに保持される", () => {
+  test("同一動画IDで再 emit: パネル・タブ状態ともに保持される", () => {
     const { inner } = createPanelDom();
     inner.style.display = "flex";
     uiState.activeVideoId = "initial";

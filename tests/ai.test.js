@@ -1085,3 +1085,133 @@ describe("N-2: processSingleStream の abort 時に DOM を空にしない", () 
     expect(emptyCalls).toHaveLength(0);
   });
 });
+
+// ===== 再生成: callAI に { isRegenerate: true } を渡した時の挙動 =====
+describe("callAI: options.isRegenerate=true", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    callChatAPIStream.mockReset();
+    chrome.storage.local.get.mockReset();
+    chrome.storage.local.set.mockReset();
+    chrome.storage.local.remove.mockReset();
+
+    resetSharedSession();
+    U.tabs = {
+      summary: { generated: true, content: "old", chatHistory: [] }
+    };
+  });
+
+  test("isRegenerate=true で入口の clearSummaryContent がスキップされる", async () => {
+    setupState(U, S, {
+      all: ["あ".repeat(500)],
+      allTimestamps: [],
+      meta: { title: "テスト動画" }
+    });
+    setupConfigStorage(chrome);
+
+    callChatAPIStream.mockImplementation(async function (_m, _c, onChunk, onDone) {
+      if (onChunk) onChunk("新回答");
+      if (onDone) onDone("新回答");
+    });
+
+    const result = await callAI("summary", false, { isRegenerate: true });
+    expect(result).toBe(true);
+
+    // 再生成経路では入口で clearSummaryContent を呼ばない
+    // (旧回答を保持し、新チャンクで上書きする NOTES.md シナリオ 3 仕様)
+    expect(global.YsUI.clearSummaryContent).not.toHaveBeenCalled();
+    // ただし最終結果確定で updateInfoLabel/showCopy/showRegen は通常通り走る
+    expect(global.YsUI.updateInfoLabel).toHaveBeenCalled();
+  });
+
+  test("isRegenerate 未指定 / false では従来通り clearSummaryContent が呼ばれる", async () => {
+    setupState(U, S, {
+      all: ["あ".repeat(500)],
+      allTimestamps: [],
+      meta: { title: "テスト動画" }
+    });
+    setupConfigStorage(chrome);
+
+    callChatAPIStream.mockImplementation(async function (_m, _c, onChunk, onDone) {
+      if (onChunk) onChunk("回答");
+      if (onDone) onDone("回答");
+    });
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(true);
+
+    // 通常経路では従来通り clearSummaryContent を 1 回呼ぶ
+    expect(global.YsUI.clearSummaryContent).toHaveBeenCalledTimes(1);
+  });
+
+  test("isRegenerate=true で API エラー時もクリアせずエラー表示", async () => {
+    setupState(U, S, { all: ["あ".repeat(500)], allTimestamps: [], meta: {} });
+    setupConfigStorage(chrome);
+
+    callChatAPIStream.mockRejectedValue(new YsAPIError("APIエラー", 500, ""));
+
+    const result = await callAI("summary", false, { isRegenerate: true });
+    expect(result).toBe(false);
+
+    // 入口ではクリアしないが、エラー時は handleAiErrors が clearSummaryContent
+    // と showError を担う責務 (N-2)。
+    expect(global.YsUI.showError).toHaveBeenCalled();
+    expect(global.YsUI.clearSummaryContent).toHaveBeenCalled();
+  });
+
+  // ★ 回帰防止: 初回起動時にユーザーが 📝 A を押してから AI 生成完了までの
+  //   間に、何らかの理由で uiState.activeTab が "summary" 以外の値
+  //   (null や他タブID) になっていた場合、コピー / 再生成ボタンは表示されること。
+  test("activeTab が null でも showCopyButton / showRegenButton が呼ばれる", async () => {
+    setupState(U, S, {
+      all: ["あ".repeat(500)],
+      allTimestamps: [],
+      meta: { title: "テスト動画" }
+    });
+    setupConfigStorage(chrome);
+
+    // 意図的に activeTab を "summary" 以外にしておく (= 何等のReasonで
+    // ユーザーが他タブに逃げた / 初回起動時の race をシミュレート)
+    U.activeTab = null;
+
+    callChatAPIStream.mockImplementation(async function (_m, _c, onChunk, onDone) {
+      if (onChunk) onChunk("回答");
+      if (onDone) onDone("回答");
+    });
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(true);
+
+    // コピー / 再生成ボタンは activeTab に依存せず必ず呼ばれる
+    expect(global.YsUI.showCopyButton).toHaveBeenCalled();
+    expect(global.YsUI.showRegenButton).toHaveBeenCalled();
+    // 情報ラベル・チャットエリア・focus は activeTab 依存なので呼ばれない
+    expect(global.YsUI.showChatArea).not.toHaveBeenCalled();
+    expect(global.YsUI.focusChatInput).not.toHaveBeenCalled();
+  });
+
+  test("activeTab が他タブ (customA) でも showCopyButton / showRegenButton は呼ばれる", async () => {
+    setupState(U, S, {
+      all: ["あ".repeat(500)],
+      allTimestamps: [],
+      meta: { title: "テスト動画" }
+    });
+    setupConfigStorage(chrome);
+
+    // summary を生成中にユーザーが customA に逃げたシナリオ
+    U.activeTab = "customA";
+
+    callChatAPIStream.mockImplementation(async function (_m, _c, onChunk, onDone) {
+      if (onChunk) onChunk("summary回答");
+      if (onDone) onDone("summary回答");
+    });
+
+    const result = await callAI("summary", false);
+    expect(result).toBe(true);
+
+    expect(global.YsUI.showCopyButton).toHaveBeenCalled();
+    expect(global.YsUI.showRegenButton).toHaveBeenCalled();
+    expect(global.YsUI.showChatArea).not.toHaveBeenCalled();
+    expect(global.YsUI.updateInfoLabel).not.toHaveBeenCalled();
+  });
+});

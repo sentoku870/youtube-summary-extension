@@ -64,9 +64,18 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
     );
     ui.showChatArea();
     ui.focusChatInput();
-    ui.showCopyButton();
-    ui.showRegenButton();
   }
+  // コピー/再生成ボタンは activeTab に関係なく常時表示する。
+  // 理由: 初回起動時にユーザーが「📝 A」を押してから AI 生成完了までの
+  // 数秒間で、何らかの理由で activeTab が "summary" 以外の値 (null や
+  // 他タブID) になっているケースでも、ボタンだけは確実に見えるように
+  // しておく必要がある (旧: activeTab === mode の条件内にいたため、
+  // 「ページ更新後 (= キャッシュヒットで renderTabContent 経由) は出るが
+  // 初回起動時 (= callAI→finalizeResult 経由) は出ない」症状があった)。
+  // ボタンは共有 DOM 要素 (どのタブでも同じ要素) で、押下時の動作は
+  // S.activeTab を参照するため、誤表示しても誤動作はしない。
+  ui.showCopyButton();
+  ui.showRegenButton();
   ui.updateTabUI();
   setSessionState({ abortController: null });
 

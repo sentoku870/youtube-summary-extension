@@ -1027,7 +1027,7 @@ describe("tabs", () => {
       expect(callAI).toHaveBeenCalled();
     });
 
-    test("失敗時: hideCopyButton / updateInfoLabel(\"\") / hideChatArea / hideRegenButton が呼ばれる", async () => {
+    test('失敗時: hideCopyButton / updateInfoLabel("") / hideChatArea / hideRegenButton が呼ばれる', async () => {
       buildPanelDOM();
       bindEvents();
       S.tabs.summary.generated = true;
