@@ -57,6 +57,17 @@ describe("retrieveVideoId", () => {
       "dQw4w9WgXcQ"
     );
   });
+
+  test("不正文字種を含む11文字は拒否される", () => {
+    expect(() => retrieveVideoId("../../../etc")).toThrow();
+    expect(() => retrieveVideoId("@!@!@!@!@!@")).toThrow();
+    expect(() => retrieveVideoId("あいうえお1234")).toThrow();
+  });
+
+  test("正常な英数字・ハイフン・アンダースコア11文字は受理", () => {
+    expect(retrieveVideoId("dQw4w9WgXcQ")).toBe("dQw4w9WgXcQ");
+    expect(retrieveVideoId("_-_-_-_-_-_")).toBe("_-_-_-_-_-_");
+  });
 });
 
 // ===== extractVideoMeta =====

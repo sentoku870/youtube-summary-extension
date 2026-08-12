@@ -332,12 +332,14 @@ describe("ui-chat", () => {
     clearChatHistory
   } = require("../src/content/ui/ui-chat");
   const { getEl } = require("../src/content/ui/panel");
+  const { linkTimestamps } = require("../src/content/ui/timestamp-link");
 
   beforeEach(() => {
     helpers.clearBody();
     getEl.mockImplementation(function (id) {
       return document.querySelector(id);
     });
+    linkTimestamps.mockClear();
   });
 
   describe("appendChatMessage", () => {
@@ -396,6 +398,30 @@ describe("ui-chat", () => {
       expect(result).toBeTruthy();
       expect(result.div.className).toContain("assistant");
       expect(result.body.className).toContain("chat-msg-streaming");
+    });
+  });
+
+  describe("タイムスタンプリンクの付与", () => {
+    test("assistant ロールの appendChatMessage で linkTimestamps が呼ばれる", () => {
+      const history = document.createElement("div");
+      history.id = "ys-chatHistory";
+      document.body.appendChild(history);
+      appendChatMessage("assistant", "回答 [01:23] です");
+      expect(linkTimestamps).toHaveBeenCalled();
+    });
+
+    test("user ロールでは linkTimestamps を呼ばない", () => {
+      const history = document.createElement("div");
+      history.id = "ys-chatHistory";
+      document.body.appendChild(history);
+      appendChatMessage("user", "質問 [04:56]");
+      expect(linkTimestamps).not.toHaveBeenCalled();
+    });
+
+    test("updateChatMessageBody 完了時にも linkTimestamps が呼ばれる", () => {
+      const body = document.createElement("div");
+      updateChatMessageBody(body, "ストリーム完了 [07:08]");
+      expect(linkTimestamps).toHaveBeenCalledWith(body);
     });
   });
 

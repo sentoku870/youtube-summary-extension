@@ -34,7 +34,7 @@ function UI() {
  * @param {string} userMessage - 最初のユーザーメッセージ
  * @param {object} transcript - transcript.all / transcript.meta を含む字幕データ
  */
-export function finalizeResult(mode, tab, content, config, prompt, userMessage, transcript) {
+export async function finalizeResult(mode, tab, content, config, prompt, userMessage, transcript) {
   const ui = UI();
   tab.generated = true;
   tab.content = content;
@@ -79,17 +79,22 @@ export function finalizeResult(mode, tab, content, config, prompt, userMessage, 
   ui.updateTabUI();
   setSessionState({ abortController: null });
 
-  saveToStorage(content, transcript.all);
+  // storage 永続化は try/catch で完全に囲み、UI クリアに波及させない。
+  // 旧実装では saveToStorage が try の外で fire-and-forget だったため、
+  // quota エラーなどで reject すると handleAiErrors に伝播して要約表示が消えていた。
   try {
+    await saveToStorage(content, transcript.all);
     const videoId = getCurrentVideoId();
     if (videoId) {
-      saveSummaryCache(videoId, mode, {
+      await saveSummaryCache(videoId, mode, {
         content: content,
         modelLabel: config.apiModel,
         transcriptCount: transcript.all.length
       });
     }
   } catch (e) {
-    log.error("Failed to save summary cache:", e);
+    log.error("Failed to persist summary:", e);
+    // 生成済み要約は画面に保持したまま次の動画切替 / 次回生成で
+    // 上書きされる方がユーザー体験として自然。UI クリアはしない。
   }
 }

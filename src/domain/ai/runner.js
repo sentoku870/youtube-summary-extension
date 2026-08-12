@@ -66,16 +66,33 @@ export async function processSingleStream(messages, config, signal, summaryTextE
  * 単一ストリーム要約ヘルパー。
  * 単一チャンクで収まる場合、または enableChunking=false 時の標準経路として使用。
  * processSingleStream は signal を見て中断を内部処理する。
+ * controller を渡された場合、タイムアウト発火時に abort() を呼び
+ * HTTP 接続リークを防ぐ。
  */
-export async function runSingleStream(config, prompt, baseUser, signal, summaryTextEl) {
+export async function runSingleStream(config, prompt, baseUser, signal, summaryTextEl, controller) {
   const messages = [
     { role: "system", content: prompt },
     { role: "user", content: baseUser }
   ];
   const timeout = createTimeoutPromise();
+  // タイムアウト発火時に controller を abort() して裏の fetch を停止する。
+  // Map-Reduce 経路と同じ安全策を単一ストリームにも適用。
+  const timeoutP = timeout.promise.catch(function (e) {
+    if (controller && !controller.signal.aborted) {
+      try {
+        controller.abort("timeout");
+      } catch {
+        /* ignore */
+      }
+    }
+    throw e;
+  });
   let accumulated;
   try {
-    accumulated = await processSingleStream(messages, config, signal, summaryTextEl, timeout);
+    accumulated = await processSingleStream(messages, config, signal, summaryTextEl, {
+      promise: timeoutP,
+      cancel: timeout.cancel.bind(timeout)
+    });
   } finally {
     timeout.cancel();
   }
@@ -135,7 +152,14 @@ export async function runSummary(ctx, controller, signal, summaryTextEl) {
       ui.showError(buildOverflowMessage(config, estimatedTokens, availableTokens));
       return { accumulated: null, userMessage: baseUser };
     }
-    const accumulated = await runSingleStream(config, prompt, baseUser, signal, summaryTextEl);
+    const accumulated = await runSingleStream(
+      config,
+      prompt,
+      baseUser,
+      signal,
+      summaryTextEl,
+      controller
+    );
     return { accumulated: accumulated, userMessage: baseUser };
   }
 
@@ -148,19 +172,39 @@ export async function runSummary(ctx, controller, signal, summaryTextEl) {
       ? [transcriptText]
       : splitIntoChunks(transcriptText, availableTokens);
   if (chunks.length <= 1) {
-    const accumulated = await runSingleStream(config, prompt, baseUser, signal, summaryTextEl);
+    const accumulated = await runSingleStream(
+      config,
+      prompt,
+      baseUser,
+      signal,
+      summaryTextEl,
+      controller
+    );
     return { accumulated: accumulated, userMessage: baseUser };
   }
 
   ui.showProgress("チャンク処理を開始...");
-  const timeout = createTimeoutPromise();
+  const workerTimeout = createTimeoutPromise();
   // タイムアウト発火時に controller を abort() して worker / merge を停止する。
   // worker 内の processSingleChunk → callChatAPINonStream は同じ signal を
   // 受け取っているため、abort された瞬間に次の API コールは即座に中断される。
-  const timeoutAbort = timeout.promise.catch(function (e) {
+  const workerTimeoutAbort = workerTimeout.promise.catch(function (e) {
     if (controller && !controller.signal.aborted) {
       try {
         controller.abort("timeout");
+      } catch {
+        /* ignore */
+      }
+    }
+    throw e;
+  });
+  // merge 段階では独立したタイムアウトを使う。workerTimeout は worker 終了時点で
+  // 既に settle 済みのため、merge に流用すると制限時間内に merge を停止できない。
+  const mergeTimeout = createTimeoutPromise();
+  const mergeTimeoutAbort = mergeTimeout.promise.catch(function (e) {
+    if (controller && !controller.signal.aborted) {
+      try {
+        controller.abort("merge-timeout");
       } catch {
         /* ignore */
       }
@@ -174,11 +218,13 @@ export async function runSummary(ctx, controller, signal, summaryTextEl) {
       config,
       signal,
       prompt,
-      { promise: timeoutAbort, cancel: timeout.cancel.bind(timeout) },
-      summaryTextEl
+      { promise: workerTimeoutAbort, cancel: workerTimeout.cancel.bind(workerTimeout) },
+      summaryTextEl,
+      { promise: mergeTimeoutAbort, cancel: mergeTimeout.cancel.bind(mergeTimeout) }
     );
   } finally {
-    timeout.cancel();
+    workerTimeout.cancel();
+    mergeTimeout.cancel();
   }
   ui.hideProgress();
   return {

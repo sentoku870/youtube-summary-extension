@@ -144,12 +144,12 @@ async function handleSave() {
       return;
     }
     Object.assign(configs[idx], config);
-    await set({ apiConfigs: configs });
+    await set({ [K.API_CONFIGS]: configs });
     saveToast("✓ 変更を保存しました");
   } else {
     config.id = generateId();
     configs.push(config);
-    await set({ apiConfigs: configs });
+    await set({ [K.API_CONFIGS]: configs });
     saveToast("✓ 新規登録しました");
   }
   editingId = null;
@@ -169,7 +169,7 @@ async function handleDuplicate() {
   const configs = (await get(K.API_CONFIGS)) || [];
   config.id = generateId();
   configs.push(config);
-  await set({ apiConfigs: configs });
+  await set({ [K.API_CONFIGS]: configs });
   saveToast("✓ 複製として保存しました");
   editingId = null;
   clearForm();

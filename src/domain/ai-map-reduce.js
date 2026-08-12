@@ -10,7 +10,7 @@ import { MAX_CONCURRENCY, CHUNK_MAX_ATTEMPTS } from "../shared/constants.js";
 import { getUiAdapter } from "./ports.js";
 import { processSingleChunk } from "./ai-chunk.js";
 import { createRafThrottle } from "../shared/raf-throttle.js";
-import { YsAbortError } from "../infrastructure/errors.js";
+import { YsAbortError, YsTimeoutError } from "../infrastructure/errors.js";
 
 // ストリーミング描画のスロットル間隔。ai.js と揃える。
 const STREAM_THROTTLE_MS = 60;
@@ -32,8 +32,10 @@ const FINAL_MERGE_INSTRUCTION =
  * @param {Object} config
  * @param {AbortSignal} signal
  * @param {string} prompt
- * @param {{promise: Promise, cancel: Function}} timeoutPromise - createTimeoutPromise() の戻り値
+ * @param {{promise: Promise, cancel: Function}} timeoutPromise - worker 用 createTimeoutPromise() 戻り値
  * @param {Element} [summaryTextEl]
+ * @param {{promise: Promise, cancel: Function}} [mergeTimeoutPromise] - merge 段階用タイムアウト
+ *   未指定なら worker と同じ timeoutPromise を流用する。
  * @returns {Promise<string|null>} 統合された要約 or 全チャンク失敗時 null
  */
 export async function processMapReduce(
@@ -42,7 +44,8 @@ export async function processMapReduce(
   signal,
   prompt,
   timeoutPromise,
-  summaryTextEl
+  summaryTextEl,
+  mergeTimeoutPromise
 ) {
   const ui = getUiAdapter();
   const results = new Array(chunks.length).fill(null);
@@ -159,10 +162,18 @@ export async function processMapReduce(
         signal
       )
     ];
-    if (timeoutP) raceArgs.push(timeoutP);
+    // merge 段階では独立したタイムアウトを使う。worker 用 timeoutP は
+    // 既に settle 済みなので再利用するとマージ段階の制限が機能しない。
+    const mergeTimeoutP = (mergeTimeoutPromise && mergeTimeoutPromise.promise) || timeoutP;
+    if (mergeTimeoutP) raceArgs.push(mergeTimeoutP);
     await Promise.race(raceArgs);
   } catch (e) {
-    renderThrottled.flush("");
+    // N-2 整合: 単一ストリームと同じく abort / timeout では DOM をクリアしない
+    // (部分的な内容は新リクエストの初チャンクで上書きされる)。
+    // クリア責務は handleAiErrors 側に集約。
+    if (!(e instanceof YsAbortError) && !(e instanceof YsTimeoutError)) {
+      renderThrottled.flush("");
+    }
     throw e;
   }
   if (signal.aborted) {

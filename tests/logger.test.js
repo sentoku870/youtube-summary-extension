@@ -146,4 +146,39 @@ describe("redactSecrets", () => {
       model: "gpt-4"
     });
   });
+
+  test("Groq (gsk_) キーをマスク", () => {
+    expect(redactSecrets("token: gsk_abcdefgh12345678")).toBe("token: [REDACTED]");
+  });
+
+  test("Google API キー (AIzaSy...) をマスク", () => {
+    expect(redactSecrets("AIzaSyAbcdefghijk1234567")).toBe("[REDACTED]");
+  });
+
+  test("OAuth access_token キーをオブジェクト内でマスク", () => {
+    expect(redactSecrets({ access_token: "ya29.abcdefghijk" })).toEqual({
+      access_token: "[REDACTED]"
+    });
+  });
+
+  test("password / cookie / token キーをマスク", () => {
+    expect(redactSecrets({ password: "p", cookie: "c=1", token: "t", note: "ok" })).toEqual({
+      password: "[REDACTED]",
+      cookie: "[REDACTED]",
+      token: "[REDACTED]",
+      note: "ok"
+    });
+  });
+
+  test("bearer (小文字) 文字列もマスク", () => {
+    expect(redactSecrets("Authorization: bearer abcdefgh1234567890")).toBe(
+      "Authorization: Bearer [REDACTED]"
+    );
+  });
+
+  test("Authorization ヘッダキーはセンシティブキーマッチで完全マスク", () => {
+    expect(redactSecrets({ Authorization: "Bearer abcdefgh1234567890" })).toEqual({
+      Authorization: "[REDACTED]"
+    });
+  });
 });

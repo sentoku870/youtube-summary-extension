@@ -49,7 +49,7 @@ function resetState() {
   const videoIdChanged = currentVideoId && uiState.activeVideoId !== currentVideoId;
   if (!videoIdChanged && uiState.activeVideoId !== null) {
     log.log("resetState: skip (same videoId re-emit, preserving user state)");
-    return;
+    return false;
   }
 
   abortCurrentStream();
@@ -81,13 +81,20 @@ function resetState() {
     resetChatHistoryDom();
     hideProgress();
   }
+  return true;
 }
 
 // ===== 動画切り替え時のリセット＋再初期化（共通処理） =====
 export function handleNavigation() {
   if (!isYouTubeWatchPage(location.href)) return;
-  resetState();
-  resetTranscript();
-  setUiState({ initialized: false });
+  const didReset = resetState();
+  // 同一 videoId の重複 emit (yt-page-data-updated 頻発など) では
+  // preloadTranscript も不要。_transcriptGen を無駄に上げない。
+  if (didReset) {
+    resetTranscript();
+  }
+  // lastInitTime も 0 に戻し、safeInit のガード (< MIN_INIT_INTERVAL_MS) で
+  // 連続ナビゲーションがスキップされないようにする。
+  setUiState({ initialized: false, lastInitTime: 0 });
   if (safeInitFn) safeInitFn();
 }

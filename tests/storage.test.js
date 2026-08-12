@@ -56,8 +56,10 @@ describe("storage-core: K 定数", () => {
     expect(storageCore.K.FONT_SIZE).toBe("fontSize");
     expect(storageCore.K.PANEL_HEIGHT).toBe("panelHeight");
     expect(storageCore.K.THEME).toBe("theme");
+    expect(storageCore.K.ENABLE_CHUNKING).toBe("enableChunking");
     expect(storageCore.K.LATEST_SUMMARY).toBe("latestSummary");
     expect(storageCore.K.LATEST_CAPTIONS).toBe("latestCaptions");
+    expect(storageCore.K.SUMMARY_CACHE_PREFIX).toBe("summary_cache_");
   });
 });
 

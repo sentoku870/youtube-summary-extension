@@ -99,7 +99,7 @@ async function handleDuplicate(id) {
   const newId = generateId();
   copy.id = newId;
   configs.push(copy);
-  await set({ apiConfigs: configs });
+  await set({ [K.API_CONFIGS]: configs });
   saveToast("✓ 複製しました");
   await renderModelList();
   await refreshButtonModelSelects();
@@ -124,7 +124,7 @@ async function handleDelete(id) {
   const next = configs.filter(function (c) {
     return c.id !== id;
   });
-  await set({ apiConfigs: next });
+  await set({ [K.API_CONFIGS]: next });
   saveToast("✓ 削除しました");
   await renderModelList();
   await refreshButtonModelSelects();

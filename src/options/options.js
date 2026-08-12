@@ -55,12 +55,22 @@ function flushPendingSaves() {
   // ボタンタブと表示設定のデバウンス保存を即時コミット
   // C-7: 以前は options-display.js を動的 import していたが、静的 import に
   // 統合したためここでは直接呼ぶ (Vite の INEFFECTIVE_DYNAMIC_IMPORT 警告解消)。
-  Promise.all([Promise.resolve(flushAllSaves()), Promise.resolve(flushDisplaySaves())]).catch(
-    function () {
-      /* エラーは各モジュール内で表示済み */
-    }
-  );
+  return Promise.all([
+    Promise.resolve(flushAllSaves()),
+    Promise.resolve(flushDisplaySaves())
+  ]).catch(function () {
+    /* エラーは各モジュール内で表示済み */
+  });
 }
+
+// タブクローズ / リロード時に未コミット保存を強制フラッシュ。
+// 300ms 未満の編集が失われる事故を防ぐ。
+window.addEventListener("pagehide", function () {
+  flushPendingSaves();
+});
+window.addEventListener("beforeunload", function () {
+  flushPendingSaves();
+});
 
 // ===== 矢印キーでタブ間移動 =====
 function initTabKeyboardNav() {

@@ -42,7 +42,7 @@ function setWithLRU(key, value) {
 
 function getCacheStorageKey(videoId, mode) {
   const safeMode = String(mode || "default").replace(/[^a-zA-Z0-9_-]/g, "");
-  return "summary_cache_" + videoId + "_" + safeMode;
+  return K.SUMMARY_CACHE_PREFIX + videoId + "_" + safeMode;
 }
 
 function getMemoryKey(videoId, mode) {
@@ -102,7 +102,7 @@ export async function clearSummaryCache(videoId, mode) {
   }
   // 後方互換: 旧キー (mode 無し) もクリア
   summaryCacheMemory.delete(videoId);
-  await remove("summary_cache_" + videoId);
+  await remove(K.SUMMARY_CACHE_PREFIX + videoId);
 }
 
 // テスト用: メモリキャッシュを全クリア

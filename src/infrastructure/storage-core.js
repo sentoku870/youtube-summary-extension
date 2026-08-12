@@ -19,7 +19,8 @@ export const K = {
   THEME: "theme",
   ENABLE_CHUNKING: "enableChunking",
   LATEST_SUMMARY: "latestSummary",
-  LATEST_CAPTIONS: "latestCaptions"
+  LATEST_CAPTIONS: "latestCaptions",
+  SUMMARY_CACHE_PREFIX: "summary_cache_"
 };
 
 // ===== コンテキスト有効性チェック =====

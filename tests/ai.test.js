@@ -1215,3 +1215,59 @@ describe("callAI: options.isRegenerate=true", () => {
     expect(global.YsUI.updateInfoLabel).not.toHaveBeenCalled();
   });
 });
+
+// ★ finalizeResult の storage エラーハンドリング回帰防止:
+//   saveToStorage / saveSummaryCache が reject しても UI クリアしないこと。
+describe("finalizeResult: storage 永続化エラーでも UI をクリアしない", () => {
+  let storageCache;
+  beforeAll(() => {
+    storageCache = require("../src/infrastructure/storage-cache");
+  });
+
+  beforeEach(() => {
+    setupState(U, S, {
+      all: ["あ".repeat(500)],
+      allTimestamps: [],
+      meta: { title: "テスト動画" }
+    });
+    setupConfigStorage(chrome);
+
+    U.tabs = {
+      summary: {
+        generated: false,
+        content: "",
+        config: { apiKey: "k", apiUrl: "u", apiModel: "m" },
+        chatHistory: [],
+        modelLabel: "",
+        transcriptCount: 0
+      }
+    };
+    U.activeTab = "summary";
+
+    jest.spyOn(storageCache, "saveToStorage").mockRejectedValue(new Error("quota exceeded"));
+    jest.spyOn(storageCache, "saveSummaryCache").mockRejectedValue(new Error("quota exceeded"));
+
+    global.YsUI.clearSummaryContent.mockClear();
+    global.YsUI.showError.mockClear();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("saveToStorage エラーで clearSummaryContent / showError が呼ばれない", async () => {
+    const tab = U.tabs.summary;
+    await finalizeResult(
+      "summary",
+      tab,
+      "生成済み要約",
+      { apiKey: "k", apiUrl: "u", apiModel: "m" },
+      "system prompt",
+      "user message",
+      { all: ["x".repeat(500)], meta: { title: "t" } }
+    );
+    // UI はクリアせず、生成済み要約は tab.content に残る
+    expect(tab.content).toBe("生成済み要約");
+    expect(global.YsUI.clearSummaryContent).not.toHaveBeenCalled();
+  });
+});

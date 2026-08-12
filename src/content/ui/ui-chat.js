@@ -5,6 +5,7 @@
 // ============================================================
 import { getEl } from "./panel.js";
 import { setMarkdown } from "./markdown-render.js";
+import { linkTimestamps } from "./timestamp-link.js";
 
 // ===== チャット履歴 =====
 // opts.editIndex (number) を渡すと role=user メッセージに編集ボタンを付与。
@@ -16,6 +17,10 @@ export function appendChatMessage(role, text, opts) {
   if (!history) return null;
   const { div, body } = createChatMessage(role, text, opts);
   history.appendChild(div);
+  // assistant 回答では [MM:SS] を要約と同じくクリック可能なリンクにする
+  if (role === "assistant") {
+    linkTimestamps(body);
+  }
   scrollToBottom();
   return { div: div, body: body };
 }
@@ -58,6 +63,8 @@ export function appendAssistantPlaceholder() {
 export function updateChatMessageBody(bodyEl, text) {
   if (!bodyEl) return;
   setMarkdown(bodyEl, text);
+  // ストリーミング完了時にもタイムスタンプをアンカー化する
+  linkTimestamps(bodyEl);
 }
 
 // #ys-content-area を末尾へスクロール（ページ全体は動かさない）

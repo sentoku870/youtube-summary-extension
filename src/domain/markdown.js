@@ -24,7 +24,11 @@ function getDOMPurify() {
   return _dompurifyRef;
 }
 
-// ===== 許可タグのホワイトリスト（DOMPurifyフォールバック用） =====
+// javascript:/vbscript: スキームと data: (画像以外) を拒否する正規表現。
+// javascript:/vbscript: スキームと data: (画像以外) を拒否する正規表現。
+// data:image/... だけは画像埋め込み用途で通す。
+export const FORBIDDEN_URL_PATTERN =
+  /^\s*(?:javascript|vbscript|data(?:\s*:(?!\s*image\/[a-z0-9.+-]+)))/i;
 export const ALLOWED_TAGS = [
   "b",
   "i",
@@ -123,6 +127,13 @@ export function sanitizeHTML(html) {
     const clone = document.createElement(tag);
     for (const attr of node.attributes) {
       if (ALLOWED_ATTR.indexOf(attr.name) !== -1 && attr.name.indexOf("on") !== 0) {
+        // href / src は javascript:/vbscript:/data: (画像以外) を拒否
+        if (
+          (attr.name === "href" || attr.name === "src") &&
+          FORBIDDEN_URL_PATTERN.test(attr.value || "")
+        ) {
+          continue;
+        }
         try {
           clone.setAttribute(attr.name, attr.value);
         } catch {

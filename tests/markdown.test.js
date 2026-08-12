@@ -5,7 +5,8 @@ const {
   sanitizeHTML,
   ALLOWED_TAGS,
   ALLOWED_ATTR,
-  renderMarkdown
+  renderMarkdown,
+  setDOMPurifyForTest
 } = require("../src/domain/markdown.js");
 const { setMarkdown } = require("../src/content/ui/markdown-render.js");
 const { marked } = require("marked");
@@ -269,5 +270,43 @@ describe("sanitizeHTML DOMPurify 不在時のフォールバック", () => {
     const result = sanitizeHTML("<b>bold</b><script>evil</script>");
     // 既定では DOMPurify が動くため <script> は除去される
     expect(result.querySelector("script")).toBeNull();
+  });
+});
+
+describe("フォールバックサニタイザの危険 URL スキーム拒否", () => {
+  beforeEach(() => {
+    setDOMPurifyForTest(undefined);
+  });
+
+  test("javascript: スキームの href は拒否される", () => {
+    const result = sanitizeHTML('<a href="javascript:alert(1)">click</a>');
+    const a = result.querySelector("a");
+    expect(a).toBeTruthy();
+    expect(a.getAttribute("href")).toBeNull();
+  });
+
+  test("vbscript: スキームの href は拒否される", () => {
+    const result = sanitizeHTML('<a href="vbscript:msgbox(1)">click</a>');
+    expect(result.querySelector("a").getAttribute("href")).toBeNull();
+  });
+
+  test("data:text/html などの data: は拒否される", () => {
+    const result = sanitizeHTML('<img src="data:text/html,<script>">');
+    const img = result.querySelector("img");
+    if (img) {
+      expect(img.getAttribute("src")).toBeNull();
+    }
+  });
+
+  test("data:image/* は通過する", () => {
+    const result = sanitizeHTML('<img src="data:image/png;base64,iVBORw0KG">');
+    const img = result.querySelector("img");
+    expect(img).toBeTruthy();
+    expect(img.getAttribute("src")).toBe("data:image/png;base64,iVBORw0KG");
+  });
+
+  test("https:// の通常 href は通過する", () => {
+    const result = sanitizeHTML('<a href="https://example.com">link</a>');
+    expect(result.querySelector("a").getAttribute("href")).toBe("https://example.com");
   });
 });

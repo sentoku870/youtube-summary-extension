@@ -7,6 +7,7 @@
 // ============================================================
 import { createLogger } from "../shared/logger.js";
 import { isYouTubeWatchPage } from "../shared/utils.js";
+import { K } from "../infrastructure/storage-core.js";
 
 const log = createLogger("popup");
 
@@ -26,8 +27,8 @@ let latestSummaryCache = null;
 let latestSummaryLoaded = false;
 async function loadLatestSummary() {
   if (latestSummaryLoaded) return latestSummaryCache;
-  const r = await chrome.storage.local.get(["latestSummary"]);
-  latestSummaryCache = r.latestSummary || null;
+  const r = await chrome.storage.local.get([K.LATEST_SUMMARY]);
+  latestSummaryCache = r[K.LATEST_SUMMARY] || null;
   latestSummaryLoaded = true;
   return latestSummaryCache;
 }
@@ -142,9 +143,9 @@ dlBtn.addEventListener("click", async function () {
 });
 
 chrome.storage.onChanged.addListener(function (changes) {
-  if (changes.latestSummary) {
+  if (changes[K.LATEST_SUMMARY]) {
     // T2-D5: 変更通知が来たらメモ化キャッシュを invalidate
-    latestSummaryCache = changes.latestSummary.newValue || null;
+    latestSummaryCache = changes[K.LATEST_SUMMARY].newValue || null;
     latestSummaryLoaded = true;
     updateUI();
   }

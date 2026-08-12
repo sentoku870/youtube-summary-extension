@@ -15,14 +15,37 @@ const isDev = (typeof globalThis !== "undefined" && globalThis.__LOG_LEVEL__) !=
 // ===== 機密情報 redaction =====
 // - 文字列: API キーらしきパターン (sk-, gsk-, Bearer xxx) を [REDACTED] に置換
 // - オブジェクト: 機密キーの値を [REDACTED] に置換（1 段のみ、走査は無限ループ回避のため深さ制限あり）
-const SENSITIVE_KEYS = new Set(["apikey", "api_key", "authorization", "auth", "x-api-key"]);
-const SK_PATTERN = /\bsk-[A-Za-z0-9_-]{8,}\b/g;
-const BEARER_PATTERN = /\bBearer\s+[A-Za-z0-9._\-+/=]{8,}\b/g;
+const SENSITIVE_KEYS = new Set([
+  "apikey",
+  "api_key",
+  "authorization",
+  "auth",
+  "x-api-key",
+  "x-goog-api-key",
+  "openai-api-key",
+  "anthropic-api-key",
+  "password",
+  "passwd",
+  "pwd",
+  "secret",
+  "token",
+  "access_token",
+  "refresh_token",
+  "id_token",
+  "client_secret",
+  "private_key",
+  "cookie",
+  "set-cookie",
+  "sessionid"
+]);
 const REDACTED = "[REDACTED]";
+const SK_PATTERN = /\b(?:sk-[A-Za-z0-9_-]{8,}|gsk_[A-Za-z0-9]{8,}|AIzaSy[A-Za-z0-9_-]{8,})\b/g;
+const BEARER_PATTERN = /\b[Bb]earer\s+[A-Za-z0-9._\-+/=]{8,}\b/g;
+const BEARER_REPLACE = "Bearer " + REDACTED;
 const MAX_DEPTH = 4;
 
 function redactString(value) {
-  return value.replace(SK_PATTERN, REDACTED).replace(BEARER_PATTERN, "Bearer " + REDACTED);
+  return value.replace(SK_PATTERN, REDACTED).replace(BEARER_PATTERN, BEARER_REPLACE);
 }
 
 function redactValue(value, seen, depth) {

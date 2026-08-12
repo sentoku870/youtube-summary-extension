@@ -368,6 +368,63 @@ describe("navigation", () => {
       // エラーなく完了
       expect(onReinit).toHaveBeenCalled();
     });
+
+    test("同一 videoId の連続 emit では resetTranscript 呼ばれず preloadedTranscript が残る", () => {
+      const onReinit = jest.fn();
+      nav.startNavigationDetection(onReinit);
+
+      // activeVideoId を一度設定 (初回emit扱い)
+      uiState.activeVideoId = "test";
+      sessionState.preloadedTranscript = { all: ["x"] };
+      sessionState.transcriptReady = true;
+      const genBefore = sessionState._transcriptGen;
+
+      // 同一videoIdで再emit (yt-page-data-updated 頻発を模倣)
+      const { emit } = require("../src/shared/event-bus");
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=test" });
+
+      expect(sessionState.preloadedTranscript).toEqual({ all: ["x"] });
+      expect(sessionState.transcriptReady).toBe(true);
+      expect(sessionState._transcriptGen).toBe(genBefore);
+    });
+
+    test("異なる videoId では resetTranscript が呼ばれ _transcriptGen がインクリメント", () => {
+      nav.startNavigationDetection(jest.fn());
+      uiState.activeVideoId = "old";
+      sessionState.preloadedTranscript = { all: ["x"] };
+      sessionState.transcriptReady = true;
+      const genBefore = sessionState._transcriptGen;
+
+      const { emit } = require("../src/shared/event-bus");
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=new" });
+
+      expect(sessionState.preloadedTranscript).toBeNull();
+      expect(sessionState.transcriptReady).toBe(false);
+      expect(sessionState._transcriptGen).toBe(genBefore + 1);
+    });
+
+    test("連続 emit で lastInitTime がリセットされるため safeInit が再実行可能", () => {
+      const onReinit = jest.fn();
+      nav.startNavigationDetection(onReinit);
+
+      // activeVideoId を null のまま、200ms 未満で 2 回到着
+      uiState.activeVideoId = null;
+      uiState.lastInitTime = Date.now();
+      uiState.initialized = true;
+
+      const { emit } = require("../src/shared/event-bus");
+      // 1 回目: videoId 変化 → activeVideoId が設定される
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=video1" });
+      // 2 回目: 別のvideoId → 状態変化
+      emit("nav:finish", { url: "https://www.youtube.com/watch?v=video2" });
+
+      // lastInitTime は handleNavigation 内で 0 にリセットされる
+      expect(uiState.lastInitTime).toBe(0);
+      // initialized も false にリセットされる (safeInit の入口ガードが外れる)
+      expect(uiState.initialized).toBe(false);
+      // 2 回とも onReinit が呼ばれる
+      expect(onReinit).toHaveBeenCalledTimes(2);
+    });
   });
 
   // ===== フォールバックポーリング =====

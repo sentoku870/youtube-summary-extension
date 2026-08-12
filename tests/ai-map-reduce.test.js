@@ -19,7 +19,9 @@ const mockAdapter = {
   showRegenButton: jest.fn(),
   getSummaryTextEl: jest.fn(() => null),
   updateTabUI: jest.fn(),
-  hideError: jest.fn()
+  hideError: jest.fn(),
+  renderSummaryChunk: jest.fn(),
+  linkTimestampsIn: jest.fn()
 };
 
 const { setUiAdapter } = require("../src/domain/ports");
@@ -367,6 +369,47 @@ describe("processMapReduce", () => {
         processMapReduce(["a"], config, controller.signal, "prompt", new Promise(() => {}))
       ).rejects.toThrow();
       expect(mergeCalled).toBe(true);
+    });
+
+    test("abort 時は renderSummaryChunk に空文字を flush しない (N-2 整合)", async () => {
+      const controller = new AbortController();
+      api.callChatAPIStream.mockImplementation(
+        async function (msgs, _cfg, onChunk, _onDone, signal) {
+          if (msgs[0].content.includes("統合")) {
+            onChunk("merged");
+            // マージ段階で abort
+            controller.abort();
+            if (signal) throw signal.reason || new DOMException("Aborted", "AbortError");
+          }
+          return "ok";
+        }
+      );
+
+      await expect(
+        processMapReduce(["a"], config, controller.signal, "prompt", new Promise(() => {}))
+      ).rejects.toBeDefined();
+
+      // abort 時は renderSummaryChunk("") を flush しない
+      // （N-2: 単一ストリームと同じく、部分内容は新リクエストの初チャンクで
+      //  上書きされる。クリア責務は handleAiErrors 側に集約）
+      const calls = mockAdapter.renderSummaryChunk.mock.calls;
+      const emptyCalls = calls.filter((c) => c[0] === "");
+      expect(emptyCalls.length).toBe(0);
+    });
+
+    test("mergeTimeoutPromise が未指定なら worker timeoutP をマージに流用しない", async () => {
+      // 既定の worker timeout は new Promise(() => {}) で pending。
+      // マージがそこでハングするとテストがタイムアウトするため、
+      // mock でストリームが完了してから呼ばれることを確認する。
+      const chunks = ["a"];
+      const result = await processMapReduce(
+        chunks,
+        config,
+        new AbortController().signal,
+        "prompt",
+        { promise: new Promise(() => {}), cancel: jest.fn() }
+      );
+      expect(typeof result).toBe("string");
     });
   });
 

@@ -133,7 +133,15 @@ export async function callAI(mode, useAbort, options) {
     if (accumulated === null) return false; // Map-Reduce 全チャンク失敗
 
     // 4. 結果確定
-    finalizeResult(mode, tab, accumulated, ctx.config, ctx.prompt, userMessage, ctx.transcript);
+    await finalizeResult(
+      mode,
+      tab,
+      accumulated,
+      ctx.config,
+      ctx.prompt,
+      userMessage,
+      ctx.transcript
+    );
     return true;
   } catch (e) {
     return handleAiErrors(e, controller);
